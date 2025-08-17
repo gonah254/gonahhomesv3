@@ -609,7 +609,7 @@ section {
 
 /* Review Form Sections */
 .reviews-section {
-  max-width: 800px;
+  max-width: 500px;
   margin: 0 auto;
   background: var(--bg-light);
   padding: 2rem;
