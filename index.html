@@ -1,11 +1,11 @@
-<!DOCTYPE html>
+8<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Gonah Homes - Premium Coastal Accommodations in Mombasa</title>
 
-  <!-- Your main stylesheet -->
+  <!-- Main stylesheet (keep your existing styles.css) -->
   <link rel="stylesheet" href="styles.css" />
 
   <!-- Flatpickr CSS -->
@@ -16,114 +16,45 @@
 
   <!-- Google Fonts -->
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+
   <style>
-    /* Small inline styles for price tag and gallery modal (you can move to styles.css) */
-    .price-tag {
-      display: inline-block;
-      background: rgba(0,0,0,0.06);
-      color: #800000;
-      padding: 6px 10px;
-      font-weight: 700;
-      border-radius: 8px;
-      margin-left: 8px;
-      vertical-align: middle;
-      font-size: 0.95rem;
-    }
-
-    .view-photos-btn {
-      margin-left: 8px;
-      background: transparent;
-      border: 1px solid #e0e0e0;
-      padding: 6px 10px;
-      border-radius: 8px;
-      cursor: pointer;
-      font-size: 0.9rem;
-    }
-
-    /* Gallery modal (simple) */
-    .gallery-modal {
-      position: fixed;
-      inset: 0;
-      display: none;
-      justify-content: center;
-      align-items: center;
-      z-index: 12000;
-      background: rgba(0,0,0,0.75);
-      padding: 20px;
-      box-sizing: border-box;
-    }
-    .gallery-modal.active { display: flex; }
-    .gallery-inner {
-      width: 100%;
-      max-width: 1000px;
-      background: #fff;
-      border-radius: 10px;
-      padding: 12px;
-      box-sizing: border-box;
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-    }
-    .gallery-main {
-      position: relative;
-      width: 100%;
-      height: 60vh;
-      max-height: 680px;
-      background: #000;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      overflow: hidden;
-      border-radius: 8px;
-    }
-    .gallery-main img {
-      max-width: 100%;
-      max-height: 100%;
-      display: block;
-      object-fit: contain;
-    }
-    .gallery-controls {
+    /* Local adjustments for price tag and gallery spacing (you can keep these in styles.css if you like) */
+    .accommodation-card .card-content .actions {
       display:flex;
-      justify-content:space-between;
       align-items:center;
-      gap: 8px;
-    }
-    .gallery-thumbs {
-      display:flex;
-      gap: 8px;
-      overflow:auto;
-      padding:6px 0;
-    }
-    .gallery-thumb {
-      width: 80px;
-      height: 60px;
-      flex: 0 0 auto;
-      border-radius: 6px;
-      overflow: hidden;
-      cursor: pointer;
-      border: 2px solid transparent;
-    }
-    .gallery-thumb img { width:100%; height:100%; object-fit:cover; display:block; }
-    .gallery-thumb.active { border-color: var(--primary-color, #800000); }
-    .gallery-close {
-      background: transparent;
-      border: none;
-      font-size: 1.25rem;
-      cursor: pointer;
-    }
-    .gallery-nav-btn {
-      background: rgba(255,255,255,0.9);
-      border: none;
-      padding: 8px 12px;
-      border-radius: 6px;
-      cursor: pointer;
-      font-weight:700;
+      gap:12px;
+      margin-top:12px;
     }
 
-    @media (max-width:720px) {
-      .gallery-main { height: 45vh; }
-      .gallery-thumb { width: 64px; height: 48px; }
+    .price-tag {
+      background: rgba(128,0,0,0.07);
+      color: var(--primary-color, #800000);
+      padding: 6px 10px;
+      font-weight:700;
+      border-radius:8px;
+      font-size:0.95rem;
+      display:inline-block;
     }
+
+    /* Make the image area clickable for viewing photos */
+    .card-image {
+      cursor: pointer;
+      transition: transform .25s ease;
+    }
+    .card-image:hover {
+      transform: translateY(-4px);
+    }
+
+    /* Slightly larger image display spacing */
+    .card-image img {
+      display:block;
+      width:100%;
+      height:100%;
+      object-fit:cover;
+    }
+
+    /* Gallery modal small overrides (kept minimal) */
+    .gallery-modal { z-index:12000; }
   </style>
 </head>
 <body>
@@ -179,7 +110,7 @@
       </div>
     </section>
 
-    <!-- Featured Stay + Accommodations (sample cards with data attributes) -->
+    <!-- Accommodations -->
     <section id="accommodations" class="accommodations">
       <div class="container">
         <div class="section-header">
@@ -188,47 +119,46 @@
         </div>
 
         <div class="accommodations-grid">
-          <!-- Example property card: note data-images is JSON array; data-price is fallback price -->
+          <!-- PROPERTY CARD 1: image is clickable to open gallery -->
           <article class="accommodation-card" data-house="Luxury Maisonette" data-price="120" data-images='["https://images.unsplash.com/photo-1571624436279-b272aff752b5?w=1200&h=800&fit=crop","https://images.unsplash.com/photo-1564013799919-ab600027ffc6?w=1200&h=800&fit=crop","https://images.unsplash.com/photo-1566073771259-6a8506099945?w=1200&h=800&fit=crop"]'>
-            <div class="card-image">
+            <div class="card-image" role="button" tabindex="0" aria-label="View photos for Luxury Maisonette" data-action="view-photos">
               <img src="https://images.unsplash.com/photo-1571624436279-b272aff752b5?w=600&h=400&fit=crop" alt="Luxury Maisonette" />
             </div>
             <div class="card-content">
               <h3>Luxury Maisonette</h3>
               <p>Elegant duplex maisonette with private garden and top amenities.</p>
-              <div style="display:flex; align-items:center; gap:8px;">
+              <div class="actions">
                 <button class="btn btn-primary" onclick="openBookingModal('Luxury Maisonette')">
                   <i class="fas fa-calendar-check"></i> Book Now
                 </button>
                 <span class="price-tag" aria-hidden="true">$<span class="price-value">120</span>/night</span>
-                <button class="view-photos-btn" type="button" aria-label="View more photos" data-action="view-photos">View More Photos</button>
               </div>
             </div>
           </article>
 
+          <!-- PROPERTY CARD 2 -->
           <article class="accommodation-card" data-house="Studio Apartment" data-price="60" data-images='["https://images.unsplash.com/photo-1568605114967-8130f3a36994?w=1200&h=800&fit=crop","https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?w=1200&h=800&fit=crop"]'>
-            <div class="card-image">
+            <div class="card-image" role="button" tabindex="0" aria-label="View photos for Studio Apartment" data-action="view-photos">
               <img src="https://images.unsplash.com/photo-1568605114967-8130f3a36994?w=600&h=400&fit=crop" alt="Studio Apartment" />
             </div>
             <div class="card-content">
               <h3>Studio Apartment</h3>
               <p>Cozy and modern studio perfect for singles or couples.</p>
-              <div style="display:flex; align-items:center; gap:8px;">
+              <div class="actions">
                 <button class="btn btn-primary" onclick="openBookingModal('Studio Apartment')">
                   <i class="fas fa-calendar-check"></i> Book Now
                 </button>
                 <span class="price-tag">$<span class="price-value">60</span>/night</span>
-                <button class="view-photos-btn" type="button" data-action="view-photos">View More Photos</button>
               </div>
             </div>
           </article>
 
-          <!-- Add more property cards with data-house, data-price and data-images attributes -->
+          <!-- Add more property cards below with data-house, data-price, data-images -->
         </div>
       </div>
     </section>
 
-    <!-- Testimonials / Reviews (booking modal remains as in your original file below) -->
+    <!-- Testimonials / Reviews -->
     <section id="testimonials" class="testimonials">
       <div class="container">
         <div class="section-header">
@@ -256,25 +186,26 @@
               </div>
             </form>
 
-            <!-- rest of review UI -->
+            <!-- review UI continues... -->
           </div>
         </div>
       </div>
     </section>
   </main>
 
-  <!-- Footer (unchanged) -->
+  <!-- Footer -->
   <footer class="footer">
     <div class="container">
       <div class="footer-content">
         <div class="footer-section">
           <h3>Gonah Homes</h3>
+          <p>Your premium home away from home on the Kenyan coast.</p>
         </div>
       </div>
     </div>
   </footer>
 
-  <!-- Booking Modal (KEEP your existing structure—we use same IDs) -->
+  <!-- Booking Modal (keep IDs to match script) -->
   <div id="booking-modal-bg" class="modal-backdrop" aria-hidden="true" style="display:none;">
     <div class="modal" role="dialog" aria-modal="true" aria-labelledby="booking-modal-title">
       <div class="modal-header">
@@ -336,7 +267,7 @@
     </div>
   </div>
 
-  <!-- Gallery modal markup -->
+  <!-- Gallery modal -->
   <div id="gallery-modal" class="gallery-modal" aria-hidden="true">
     <div class="gallery-inner" role="dialog" aria-modal="true" aria-label="Property photos">
       <div style="display:flex; justify-content:space-between; align-items:center;">
@@ -352,19 +283,15 @@
     </div>
   </div>
 
-  <!-- Firebase SDK (keep intact) -->
+  <!-- Firebase SDK (keep as-is) -->
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 
-  <!-- Your existing scripts (keep ordering) -->
+  <!-- Your main existing script (contains merged booking enhancements) -->
   <script src="script.js"></script>
-  <script src="notification-service.js"></script>
 
   <!-- Flatpickr JS -->
   <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
-
-  <!-- Booking & gallery enhancements -->
-  <script src="booking-enhancements.js"></script>
 </body>
 </html>
