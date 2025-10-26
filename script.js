@@ -1,369 +1,619 @@
-/**
- * script.js — full replacement implementing:
- *  - Flatpickr integration for the booking modal (per-house disabled dates)
- *  - Firestore bookings checks (no overlapping bookings; checkout exclusive)
- *  - Gallery modal opened from card image overlay, with thumbnails and navigation
- *  - "Book This Property" action inside gallery that opens booking modal (prefilled)
- *  - Price tags displayed in Ksh (from data-price or Firestore 'properties' collection)
- *
- * Notes:
- *  - This script uses Firebase compat (firebase.firestore()). Ensure your firebase.initializeApp(...) runs
- *    before this script. If you want the script to initialize Firebase, paste your firebaseConfig into
- *    the block below (it will only init if no app exists).
- *  - Flatpickr must be loaded before this script (index.html includes it).
- */
+// Firebase Configuration
+const firebaseConfig = {
+  apiKey: "AIzaSyABTVp797tNu353FBVLzsOp90aIX2mNF74",
+  authDomain: "my-website-project2797.firebaseapp.com",
+  projectId: "my-website-project2797",
+  storageBucket: "my-website-project2797.appspot.com",
+  messagingSenderId: "406226552922",
+  appId: "1:406226552922:web:ffdf2ccf6f77a57964b063"
+};
 
-/* ===========================
-   Optional Firebase init placeholder
-   If you already initialize Firebase elsewhere, this will detect and skip.
-   If you want to inline your config here, paste it into firebaseConfig.
-*/
-if (typeof firebase !== 'undefined' && firebase.apps && firebase.apps.length === 0) {
-  // If you want the script to initialize Firebase, uncomment and paste your config:
-  // const firebaseConfig = { apiKey: '...', authDomain: '...', projectId: '...', ... };
-  // firebase.initializeApp(firebaseConfig);
+// Initialize Firebase
+if (!firebase.apps.length) {
+  firebase.initializeApp(firebaseConfig);
 }
 
-/* ===========================
-   Utilities
-   =========================== */
-function scrollToSection(id) {
-  const el = document.getElementById(id);
-  if (el) el.scrollIntoView({ behavior: 'smooth' });
-}
-window.scrollToSection = scrollToSection;
+const db = firebase.firestore();
+let currentUser = null;
+const adminEmail = "salimtuva0@gmail.com";
 
-function toDate(value) {
-  if (!value) return null;
-  if (value && typeof value.toDate === 'function') return value.toDate();
-  if (value instanceof Date) return value;
-  if (typeof value === 'string') {
-    const iso = value.length === 10 ? (value + 'T00:00:00') : value;
-    const d = new Date(iso);
-    if (!isNaN(d)) return d;
+// Utility Functions
+function scrollToSection(sectionId) {
+  const section = document.getElementById(sectionId);
+  if (section) {
+    section.scrollIntoView({ behavior: 'smooth' });
   }
-  if (typeof value === 'number') return new Date(value);
-  return null;
-}
-function normalizeToMidnight(date) {
-  const d = new Date(date);
-  d.setHours(0,0,0,0);
-  return d;
-}
-function toYMD(date) {
-  const y = date.getFullYear();
-  const m = String(date.getMonth()+1).padStart(2,'0');
-  const d = String(date.getDate()).padStart(2,'0');
-  return `${y}-${m}-${d}`;
-}
-function rangesOverlap(aStart,aEnd,bStart,bEnd) {
-  return aStart.getTime() < bEnd.getTime() && aEnd.getTime() > bStart.getTime();
 }
 
-/* ===========================
-   Firestore setup & cache
-   =========================== */
-const db = (typeof firebase !== 'undefined' && firebase.firestore) ? firebase.firestore() : null;
-const houseBookings = {}; // houseName -> [{checkin:Date,checkout:Date,id}]
-
-// Build cache from docs (array of plain or snapshot-doc-like objects)
-function buildHouseBookingsFromDocs(docs) {
-  Object.keys(houseBookings).forEach(k => delete houseBookings[k]);
-  docs.forEach(doc => {
-    const data = doc.data ? doc.data() : doc;
-    const house = data.house;
-    if (!house) return;
-    const ci = toDate(data.checkin), co = toDate(data.checkout);
-    if (!ci || !co) return;
-    const checkin = normalizeToMidnight(ci), checkout = normalizeToMidnight(co);
-    if (!houseBookings[house]) houseBookings[house] = [];
-    houseBookings[house].push({ id: doc.id || data.id || null, checkin, checkout, raw: data });
+function formatDate(dateString) {
+  return new Date(dateString).toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric'
   });
-  Object.keys(houseBookings).forEach(h => houseBookings[h].sort((a,b) => a.checkin - b.checkin));
 }
 
-// Subscribe to bookings collection to keep cache up-to-date
-function subscribeToBookings() {
-  if (!db) return;
-  db.collection('bookings').onSnapshot(snapshot => {
-    const docs = [];
-    snapshot.forEach(doc => docs.push({ id: doc.id, ...doc.data() }));
-    buildHouseBookingsFromDocs(docs);
-  }, err => console.error('bookings onSnapshot error', err));
+// Mobile Navigation
+function initMobileNav() {
+  const hamburger = document.getElementById('hamburger');
+  const navMenu = document.getElementById('nav-menu');
+
+  if (hamburger && navMenu) {
+    hamburger.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      navMenu.classList.toggle('active');
+      hamburger.classList.toggle('active');
+    });
+
+    // Close menu when clicking on links
+    navMenu.querySelectorAll('.nav-link').forEach(link => {
+      link.addEventListener('click', () => {
+        navMenu.classList.remove('active');
+        hamburger.classList.remove('active');
+      });
+    });
+
+    // Close menu when clicking outside
+    document.addEventListener('click', (e) => {
+      if (!navMenu.contains(e.target) && !hamburger.contains(e.target)) {
+        navMenu.classList.remove('active');
+        hamburger.classList.remove('active');
+      }
+    });
+  }
 }
 
-/* ===========================
-   Flatpickr setup
-   =========================== */
-let fpCheckin = null, fpCheckout = null, currentHouseForCalendar = null;
-function initFlatpickr() {
-  if (typeof flatpickr === 'undefined') {
-    console.warn('Flatpickr missing — include it before script.js');
+// Booking Modal Functions with Flatpickr
+function openBookingModal(house) {
+  const modal = document.getElementById('booking-modal-bg');
+  const form = document.getElementById('booking-form');
+  const confirmDiv = document.getElementById('booking-confirm');
+
+  if (modal && form && confirmDiv) {
+    modal.classList.add('active');
+    form.style.display = 'block';
+    confirmDiv.style.display = 'none';
+    
+    // Reset form BEFORE setting the house value to avoid clearing it
+    form.reset();
+    document.getElementById('booking-house').value = house;
+
+    // Initialize Flatpickr with booked dates for this house
+    if (typeof initializeFlatpickr === 'function') {
+      initializeFlatpickr(house);
+    }
+  }
+}
+
+function closeBookingModal() {
+  const modal = document.getElementById('booking-modal-bg');
+  if (modal) {
+    modal.classList.remove('active');
+  }
+}
+
+// Review System Functions
+function showUserInfo(email) {
+  const userInfo = document.getElementById('user-info');
+  const userName = document.getElementById('user-name');
+  const userEmail = document.getElementById('user-email');
+  const emailForm = document.getElementById('email-form');
+  const reviewForm = document.getElementById('review-form');
+
+  if (userInfo && userName && userEmail && emailForm && reviewForm) {
+    userInfo.style.display = 'block';
+    userName.textContent = email.split('@')[0];
+    userEmail.textContent = email;
+    reviewForm.style.display = 'block';
+    emailForm.style.display = 'none';
+  }
+}
+
+function hideUserInfo() {
+  const userInfo = document.getElementById('user-info');
+  const emailForm = document.getElementById('email-form');
+  const reviewForm = document.getElementById('review-form');
+
+  if (userInfo && emailForm && reviewForm) {
+    userInfo.style.display = 'none';
+    emailForm.style.display = 'block';
+    reviewForm.style.display = 'none';
+  }
+}
+
+function renderTestimonials(reviews) {
+  const testimonialsGrid = document.getElementById('testimonials-grid');
+  if (!testimonialsGrid) return;
+
+  if (!reviews || reviews.length === 0) {
+    testimonialsGrid.innerHTML = `
+      <div class="testimonial-card">
+        <div class="testimonial-rating">
+          <i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i>
+        </div>
+        <p class="testimonial-text">"Amazing experience! The apartment was spotless, beautifully furnished, and the location was perfect. Will definitely book again!"</p>
+        <div class="testimonial-author">
+          <img src="https://images.unsplash.com/photo-1494790108755-2616b612b577?w=100&h=100&fit=crop&crop=face" alt="Sarah Johnson" class="author-avatar">
+          <div class="author-info">
+            <h4>Sarah Johnson</h4>
+            <span>Verified Guest</span>
+          </div>
+        </div>
+      </div>
+      <div class="testimonial-card">
+        <div class="testimonial-rating">
+          <i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i>
+        </div>
+        <p class="testimonial-text">"Gonah Homes exceeded our expectations. The maisonette was luxurious and the customer service was outstanding. Highly recommended!"</p>
+        <div class="testimonial-author">
+          <img src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop&crop=face" alt="Michael Chen" class="author-avatar">
+          <div class="author-info">
+            <h4>Michael Chen</h4>
+            <span>Verified Guest</span>
+          </div>
+        </div>
+      </div>
+      <div class="testimonial-card">
+        <div class="testimonial-rating">
+          <i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i>
+        </div>
+        <p class="testimonial-text">"Perfect for our family vacation. The kids loved the space and we appreciated the modern amenities. Thank you Gonah Homes!"</p>
+        <div class="testimonial-author">
+          <img src="https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=100&h=100&fit=crop&crop=face" alt="Emily Rodriguez" class="author-avatar">
+          <div class="author-info">
+            <h4>Emily Rodriguez</h4>
+            <span>Verified Guest</span>
+          </div>
+        </div>
+      </div>
+    `;
     return;
   }
-  const ciEl = document.getElementById('booking-checkin');
-  const coEl = document.getElementById('booking-checkout');
-  if (!ciEl || !coEl) return;
 
-  const today = new Date();
-  const tomorrow = new Date(today.getFullYear(), today.getMonth(), today.getDate()+1);
+  let html = '';
+  reviews.slice(0, 6).forEach(review => {
+    const rating = '★'.repeat(Number(review.rating || 5));
+    const reviewDate = review.timestamp ? new Date(review.timestamp.toDate()).toLocaleDateString() : '';
+    const userName = review.user?.name || review.user?.email?.split('@')[0] || 'Anonymous';
+    const userAvatar = `https://ui-avatars.com/api/?name=${encodeURIComponent(userName)}&size=100&background=800000&color=fff`;
 
-  fpCheckin = flatpickr(ciEl, {
-    dateFormat: 'Y-m-d',
-    minDate: 'today',
-    disable: [d => false],
-    onChange(selectedDates) {
-      const s = selectedDates[0];
-      if (s && fpCheckout) {
-        const minCo = new Date(s.getTime()); minCo.setDate(minCo.getDate()+1);
-        fpCheckout.set('minDate', minCo);
-        if (!fpCheckout.selectedDates[0] || fpCheckout.selectedDates[0].getTime() <= s.getTime()) fpCheckout.clear();
+    html += `
+      <div class="testimonial-card">
+        <div class="testimonial-rating">
+          ${rating.split('').map(() => '<i class="fas fa-star"></i>').join('')}
+        </div>
+        <p class="testimonial-text">"${review.review}"</p>
+        <div class="testimonial-author">
+          <img src="${userAvatar}" alt="${userName}" class="author-avatar">
+          <div class="author-info">
+            <h4>${userName}</h4>
+            <span>Verified Guest ${reviewDate ? '• ' + reviewDate : ''}</span>
+          </div>
+        </div>
+        ${review.adminReply ? `
+          <div class="admin-reply" style="margin-top: 1rem; padding: 1rem; background: var(--bg-light); border-radius: var(--border-radius); border-left: 4px solid var(--primary-color);">
+            <strong>Management Response:</strong><br>
+            ${review.adminReply}
+          </div>
+        ` : ''}
+      </div>
+    `;
+  });
+
+  testimonialsGrid.innerHTML = html;
+}
+
+function loadReviews() {
+  db.collection("reviews").orderBy("timestamp", "desc").onSnapshot((snapshot) => {
+    const reviews = [];
+    snapshot.forEach((doc) => {
+      reviews.push({ id: doc.id, ...doc.data() });
+    });
+    renderTestimonials(reviews);
+  }, (error) => {
+    console.error("Error loading reviews: ", error);
+    renderTestimonials([]);
+  });
+}
+
+// Form Handlers
+function initFormHandlers() {
+  // Email form for reviews
+  const emailForm = document.getElementById('email-form');
+  if (emailForm) {
+    emailForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const email = document.getElementById('email-input').value.trim();
+      if (email && email.includes('@')) {
+        currentUser = { email: email };
+        showUserInfo(email);
+      } else {
+        showCustomAlert("Please enter a valid email address", "error");
       }
-    }
-  });
+    });
+  }
 
-  fpCheckout = flatpickr(coEl, {
-    dateFormat: 'Y-m-d',
-    minDate: tomorrow,
-    disable: [d => false]
-  });
+  // Sign out button
+  const signOutBtn = document.getElementById('signout-btn');
+  if (signOutBtn) {
+    signOutBtn.addEventListener('click', () => {
+      currentUser = null;
+      hideUserInfo();
+      document.getElementById('email-input').value = '';
+    });
+  }
+
+  // Review form
+  const reviewForm = document.getElementById('review-form');
+  if (reviewForm) {
+    reviewForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      if (!currentUser) {
+        alert("Please enter your email to leave a review.");
+        return;
+      }
+
+      const rating = document.querySelector('input[name="rating"]:checked')?.value || 0;
+      const reviewText = document.getElementById('review-text').value.trim();
+
+      if (!reviewText) {
+        alert("Please write a review!");
+        return;
+      }
+
+      if (!rating) {
+        alert("Please select a rating!");
+        return;
+      }
+
+      // Show loading state
+      const submitBtn = reviewForm.querySelector('[type="submit"]');
+      const originalText = submitBtn.innerHTML;
+      submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Submitting...';
+      submitBtn.disabled = true;
+
+      const reviewData = {
+        review: reviewText,
+        rating: rating,
+        timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+        user: {
+          name: currentUser.email.split('@')[0],
+          email: currentUser.email
+        },
+        adminReply: null
+      };
+
+      db.collection("reviews").add(reviewData).then(() => {
+        document.getElementById('review-text').value = '';
+        document.querySelectorAll('input[name="rating"]').forEach(input => input.checked = false);
+        showCustomAlert("Thank you for your review! It has been submitted successfully.");
+        
+        // Send notification to admin
+        return db.collection("notifications").add({
+          type: 'new_review',
+          data: {
+            ...reviewData,
+            user: {
+              name: currentUser.email.split('@')[0],
+              email: currentUser.email
+            }
+          },
+          status: 'pending',
+          timestamp: firebase.firestore.FieldValue.serverTimestamp()
+        });
+      }).catch((error) => {
+        console.error("Error adding review: ", error);
+        showCustomAlert("Error submitting review. Please try again.", "error");
+      }).finally(() => {
+        submitBtn.innerHTML = originalText;
+        submitBtn.disabled = false;
+      });
+    });
+  }
+
+  // Booking form
+  const bookingForm = document.getElementById('booking-form');
+  if (bookingForm) {
+    bookingForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+
+      const formData = new FormData(bookingForm);
+      const bookingData = Object.fromEntries(formData.entries());
+
+      // Validation
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const checkinDate = new Date(bookingData.checkin);
+      const checkoutDate = new Date(bookingData.checkout);
+
+      if (!bookingData.name || !bookingData.guests || !bookingData.checkin || 
+          !bookingData.checkout || !bookingData.phone || !bookingData.email) {
+        showCustomAlert("Please fill all required booking fields.", "error");
+        return;
+      }
+
+      if (checkinDate < today) {
+        showCustomAlert("Check-in date cannot be in the past.", "error");
+        return;
+      }
+
+      if (checkoutDate <= checkinDate) {
+        showCustomAlert("Check-out date must be after check-in date.", "error");
+        return;
+      }
+
+      // Ensure at least one night stay
+      const timeDiff = checkoutDate.getTime() - checkinDate.getTime();
+      const daysDiff = Math.ceil(timeDiff / (1000 * 3600 * 24));
+      if (daysDiff < 1) {
+        showCustomAlert("Minimum stay is one night.", "error");
+        return;
+      }
+
+      // Show loading state
+      const submitBtn = bookingForm.querySelector('[type="submit"]');
+      const originalText = submitBtn.innerHTML;
+      submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
+      submitBtn.disabled = true;
+
+      // Save booking to database
+      db.collection("bookings").add({
+        ...bookingData,
+        timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+        status: 'pending'
+      }).then(() => {
+        showBookingConfirmation(bookingData);
+        
+        // Send notification to admin
+        return db.collection("notifications").add({
+          type: 'new_booking',
+          data: bookingData,
+          status: 'pending',
+          timestamp: firebase.firestore.FieldValue.serverTimestamp()
+        });
+      }).catch((error) => {
+        console.error("Error saving booking: ", error);
+        showCustomAlert("Error processing booking. Please try again.", "error");
+      }).finally(() => {
+        submitBtn.innerHTML = originalText;
+        submitBtn.disabled = false;
+      });
+    });
+  }
+
+  // Contact form
+  const contactForm = document.getElementById('contact-form');
+  if (contactForm) {
+    contactForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+
+      const name = document.getElementById('contact-name').value.trim();
+      const email = document.getElementById('contact-email').value.trim();
+      const message = document.getElementById('contact-message').value.trim();
+
+      if (!name || !email || !message) {
+        alert("Please fill all required fields.");
+        return;
+      }
+
+      // Show loading state
+      const submitBtn = contactForm.querySelector('[type="submit"]');
+      const originalText = submitBtn.innerHTML;
+      submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sending...';
+      submitBtn.disabled = true;
+
+      // Save message to database
+      db.collection("messages").add({
+        name: name,
+        email: email,
+        message: message,
+        timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+        status: 'new'
+      }).then(() => {
+        showCustomAlert("Thank you for your message! We will get back to you soon.", "success");
+        contactForm.reset();
+        
+        // Send notification to admin
+        return db.collection("notifications").add({
+          type: 'new_message',
+          data: {
+            name: name,
+            email: email,
+            message: message
+          },
+          status: 'pending',
+          timestamp: firebase.firestore.FieldValue.serverTimestamp()
+        });
+      }).catch((error) => {
+        console.error("Error sending message: ", error);
+        showCustomAlert("Error sending message. Please try again.", "error");
+      }).finally(() => {
+        submitBtn.innerHTML = originalText;
+        submitBtn.disabled = false;
+      });
+    });
+  }
 }
 
-// Determine whether a date should be disabled for a house (bookings occupy [checkin, checkout) — checkout exclusive)
-function isDateBlockedForHouse(house, date) {
-  if (!house || !houseBookings[house] || houseBookings[house].length === 0) return false;
-  const d = normalizeToMidnight(date);
-  return houseBookings[house].some(b => d.getTime() >= b.checkin.getTime() && d.getTime() < b.checkout.getTime());
-}
-
-// Apply disable function to flatpickr instances for the selected house
-function updateFlatpickrDisableForHouse(house) {
-  currentHouseForCalendar = house;
-  if (!fpCheckin || !fpCheckout) return;
-  const disableFn = date => isDateBlockedForHouse(house, date);
-  fpCheckin.set('disable', [disableFn]);
-  fpCheckout.set('disable', [disableFn]);
-  const ci = fpCheckin.selectedDates[0];
-  if (ci) { const minCo = new Date(ci.getTime()); minCo.setDate(minCo.getDate()+1); fpCheckout.set('minDate', minCo); } else { fpCheckout.set('minDate','today'); }
-}
-
-/* ===========================
-   Booking modal open/close & submit
-   =========================== */
-function showBookingModal(house, price) {
-  currentHouseForCalendar = house;
-  const modal = document.getElementById('booking-modal-bg');
-  const inputHouse = document.getElementById('booking-house');
-  const label = document.getElementById('booking-house-label');
-  const priceSpan = document.getElementById('booking-modal-price');
-
-  if (inputHouse) inputHouse.value = house || '';
-  if (label) label.textContent = house || '—';
-  if (priceSpan) priceSpan.textContent = price || '0';
-
-  const form = document.getElementById('booking-form'); if (form) form.reset();
-  const err = document.getElementById('booking-error'); if (err) { err.style.display = 'none'; err.textContent = ''; }
-
-  if (modal) { modal.style.display = 'flex'; modal.setAttribute('aria-hidden','false'); }
-
-  if (fpCheckin) fpCheckin.clear();
-  if (fpCheckout) { fpCheckout.clear(); fpCheckout.set('minDate', new Date(Date.now() + 24*60*60*1000)); }
-  updateFlatpickrDisableForHouse(house);
-}
-function closeBookingModal() { const m = document.getElementById('booking-modal-bg'); if (m){ m.style.display='none'; m.setAttribute('aria-hidden','true'); } }
-window.openBookingModal = showBookingModal; window.closeBookingModal = closeBookingModal;
-
-function isOverlappingExisting(house, checkin, checkout) {
-  if (!houseBookings[house]) return false;
-  return houseBookings[house].some(b => rangesOverlap(checkin, checkout, b.checkin, b.checkout));
-}
-
-// Submit booking; final server-side re-check to avoid races
-async function submitBooking(formData) {
-  if (!db) throw new Error('Database not available.');
-  const house = formData.get('house');
-  const name = formData.get('name');
-  const email = formData.get('email');
-  const phone = formData.get('phone');
-  const guests = formData.get('guests');
-  const checkinRaw = formData.get('checkin');
-  const checkoutRaw = formData.get('checkout');
-
-  const ci = toDate(checkinRaw) || normalizeToMidnight(new Date(checkinRaw));
-  const co = toDate(checkoutRaw) || normalizeToMidnight(new Date(checkoutRaw));
-  if (!ci || !co || co.getTime() <= ci.getTime()) throw new Error('Please select valid check-in and check-out dates (check-out must be after check-in).');
-  const checkin = normalizeToMidnight(ci), checkout = normalizeToMidnight(co);
-
-  // client-side quick check
-  if (isOverlappingExisting(house, checkin, checkout)) throw new Error('Selected dates overlap an existing booking. Please choose different dates.');
-
-  // server-side re-check
-  const snapshot = await db.collection('bookings').where('house','==',house).get();
-  const remote = [];
-  snapshot.forEach(doc => {
-    const d = doc.data();
-    const rci = toDate(d.checkin), rco = toDate(d.checkout);
-    if (rci && rco) remote.push({ checkin: normalizeToMidnight(rci), checkout: normalizeToMidnight(rco) });
-  });
-  const conflict = remote.some(b => rangesOverlap(checkin, checkout, b.checkin, b.checkout));
-  if (conflict) throw new Error('Another booking was made while you were selecting dates. Please choose other dates.');
-
-  // save booking (store as YYYY-MM-DD strings)
-  const bookingDoc = {
-    house,
-    name,
-    email,
-    phone,
-    guests: Number(guests || 1),
-    checkin: toYMD(checkin),
-    checkout: toYMD(checkout),
-    timestamp: firebase.firestore.FieldValue.serverTimestamp(),
-    status: 'pending'
-  };
-  await db.collection('bookings').add(bookingDoc);
-  return bookingDoc;
-}
-
-/* ===========================
-   Gallery modal
-   =========================== */
-const galleryModal = document.getElementById('gallery-modal');
-const galleryMainImg = document.getElementById('gallery-main-img');
-const galleryThumbs = document.getElementById('gallery-thumbs');
-const galleryPrev = document.getElementById('gallery-prev');
-const galleryNext = document.getElementById('gallery-next');
-const galleryClose = document.getElementById('gallery-close');
-const galleryTitle = document.getElementById('gallery-title');
-const galleryHouseLabel = document.getElementById('gallery-house-label');
-const galleryPriceSpan = document.getElementById('gallery-price');
-const galleryBookBtn = document.getElementById('gallery-book-btn');
-
-let galleryImages = [], galleryIndex = 0, galleryCurrentHouse = '', galleryCurrentPrice = 0;
-
-function openGallery(houseName, images, price) {
-  galleryImages = Array.isArray(images) ? images.slice() : [];
-  galleryIndex = 0;
-  galleryCurrentHouse = houseName || '';
-  galleryCurrentPrice = price || 0;
-  if (galleryTitle) galleryTitle.textContent = (houseName ? (houseName + ' — Photos') : 'Photos');
-  if (galleryHouseLabel) galleryHouseLabel.textContent = houseName || '—';
-  if (galleryPriceSpan) galleryPriceSpan.textContent = galleryCurrentPrice || '0';
-  renderGallery();
-  if (galleryModal) { galleryModal.classList.add('active'); galleryModal.setAttribute('aria-hidden','false'); }
-  if (galleryBookBtn) galleryBookBtn.onclick = () => showBookingModal(galleryCurrentHouse, galleryCurrentPrice);
-}
-function closeGallery() { if (galleryModal){ galleryModal.classList.remove('active'); galleryModal.setAttribute('aria-hidden','true'); } galleryImages = []; if (galleryThumbs) galleryThumbs.innerHTML = ''; }
-function renderGallery() {
-  if (!galleryImages || galleryImages.length === 0) return;
-  const src = galleryImages[galleryIndex];
-  if (galleryMainImg) { galleryMainImg.src = src; galleryMainImg.alt = `Photo ${galleryIndex+1} of ${galleryImages.length}`; }
-  if (!galleryThumbs) return;
-  galleryThumbs.innerHTML = '';
-  galleryImages.forEach((s,i) => {
-    const div = document.createElement('div');
-    div.className = 'gallery-thumb' + (i===galleryIndex ? ' active' : '');
-    div.innerHTML = `<img src="${s}" alt="thumb ${i+1}" />`;
-    div.addEventListener('click', () => { galleryIndex = i; renderGallery(); });
-    galleryThumbs.appendChild(div);
-  });
-}
-function galleryNextImg() { if (!galleryImages.length) return; galleryIndex = (galleryIndex+1)%galleryImages.length; renderGallery(); }
-function galleryPrevImg() { if (!galleryImages.length) return; galleryIndex = (galleryIndex-1+galleryImages.length)%galleryImages.length; renderGallery(); }
-
-/* ===========================
-   Wiring up cards, forms, controls
-   =========================== */
-const fallbackPrices = { "Studio Apartment":6000, "One Bedroom Apartment":8000, "Two Bedroom Apartment":11000, "Luxury Maisonette":12000 };
-
-function initPropertyCards() {
-  document.querySelectorAll('.accommodation-card').forEach(card => {
-    const house = card.dataset.house || (card.querySelector('h3') ? card.querySelector('h3').textContent.trim() : '');
-    const price = card.dataset.price || fallbackPrices[house] || 0;
-    const imagesAttr = card.dataset.images;
-    let images = [];
-    if (imagesAttr) {
-      try { images = JSON.parse(imagesAttr); } catch(e) { images = []; }
-    }
-    if (!images.length) {
-      const img = card.querySelector('img'); if (img && img.src) images = [img.src];
-    }
-
-    // Image overlay / click opens gallery
-    const cardImage = card.querySelector('.card-image');
-    if (cardImage) {
-      cardImage.addEventListener('click', (e) => { openGallery(house, images, price); });
-      // overlay button inside image
-      const overlayBtn = cardImage.querySelector('[data-action="view-photos"]');
-      if (overlayBtn) overlayBtn.addEventListener('click', (e) => { e.stopPropagation(); e.preventDefault(); openGallery(house, images, price); });
-    }
-
-    // Book button on card
-    const bookBtn = card.querySelector('[data-action="book-btn"]') || card.querySelector('.btn.btn-primary');
-    if (bookBtn) bookBtn.addEventListener('click', (e) => { e.preventDefault(); showBookingModal(house, price); });
-
-    // set visible price if element exists
-    const pv = card.querySelector('.price-value'); if (pv) pv.textContent = price;
-  });
-}
-
-function initBookingForm() {
+function showBookingConfirmation(bookingData) {
   const form = document.getElementById('booking-form');
-  const modalBg = document.getElementById('booking-modal-bg');
-  if (!form || !modalBg) return;
-  form.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const err = document.getElementById('booking-error'); if (err) { err.style.display='none'; err.textContent=''; }
-    const fd = new FormData(form);
-    try {
-      await submitBooking(fd);
-      const confirmEl = document.getElementById('booking-confirm');
-      form.style.display = 'none'; if (confirmEl) confirmEl.style.display = 'block';
-      setTimeout(()=>{ if (confirmEl) confirmEl.style.display='none'; form.style.display='block'; closeBookingModal(); }, 2500);
-    } catch (err) {
-      if (err && document.getElementById('booking-error')) { const eEl = document.getElementById('booking-error'); eEl.style.display='block'; eEl.textContent = err.message || 'Error submitting booking.'; }
-    }
-  });
-  modalBg.addEventListener('click', (e) => { if (e.target === modalBg) closeBookingModal(); });
+  const confirmDiv = document.getElementById('booking-confirm');
+  const detailsDiv = document.getElementById('booking-details');
+
+  if (form && confirmDiv && detailsDiv) {
+    form.style.display = 'none';
+    confirmDiv.style.display = 'block';
+
+    detailsDiv.innerHTML = `
+      <p><strong>Accommodation:</strong> ${bookingData.house}</p>
+      <p><strong>Guest Name:</strong> ${bookingData.name}</p>
+      <p><strong>Email:</strong> ${bookingData.email}</p>
+      <p><strong>Phone:</strong> ${bookingData.phone}</p>
+      <p><strong>Number of Guests:</strong> ${bookingData.guests}</p>
+      <p><strong>Check-in:</strong> ${formatDate(bookingData.checkin)}</p>
+      <p><strong>Check-out:</strong> ${formatDate(bookingData.checkout)}</p>
+      ${bookingData.access ? `<p><strong>Accessibility Needs:</strong> ${bookingData.access}</p>` : ''}
+      ${bookingData.requests ? `<p><strong>Special Requests:</strong> ${bookingData.requests}</p>` : ''}
+    `;
+  }
 }
 
-function initGalleryControls() {
-  if (!galleryModal) return;
-  if (galleryNext) galleryNext.addEventListener('click', galleryNextImg);
-  if (galleryPrev) galleryPrev.addEventListener('click', galleryPrevImg);
-  if (galleryClose) galleryClose.addEventListener('click', closeGallery);
+// Smooth Scrolling for Navigation
+function initSmoothScrolling() {
+  document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+    anchor.addEventListener('click', function (e) {
+      e.preventDefault();
+      const target = document.querySelector(this.getAttribute('href'));
+      if (target) {
+        target.scrollIntoView({
+          behavior: 'smooth',
+          block: 'start'
+        });
+      }
+    });
+  });
+}
+
+// Intersection Observer for Animations
+function initAnimations() {
+  const observerOptions = {
+    threshold: 0.1,
+    rootMargin: '0px 0px -50px 0px'
+  };
+
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        entry.target.classList.add('fade-in');
+      }
+    });
+  }, observerOptions);
+
+  // Observe elements for animation
+  document.querySelectorAll('.accommodation-card, .feature-card, .testimonial-card, .quick-link-card').forEach(el => {
+    observer.observe(el);
+  });
+}
+
+// Close modal when clicking outside
+function initModalHandlers() {
+  const modal = document.getElementById('booking-modal-bg');
+  if (modal) {
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) {
+        closeBookingModal();
+      }
+    });
+  }
+
+  // ESC key to close modal
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
-      if (galleryModal.classList.contains('active')) closeGallery();
-      const bm = document.getElementById('booking-modal-bg'); if (bm && bm.style.display === 'flex') closeBookingModal();
+      closeBookingModal();
     }
-    if (e.key === 'ArrowRight' && galleryModal.classList.contains('active')) galleryNextImg();
-    if (e.key === 'ArrowLeft' && galleryModal.classList.contains('active')) galleryPrevImg();
   });
-  galleryModal.addEventListener('click', (e) => { if (e.target === galleryModal) closeGallery(); });
 }
 
-/* Load optional properties collection to override card dataset values */
-function loadPropertiesFromFirestore() {
-  if (!db) return;
-  db.collection('properties').get().then(snapshot => {
-    snapshot.forEach(doc => {
-      const data = doc.data(); const name = data.name; if (!name) return;
-      const card = Array.from(document.querySelectorAll('.accommodation-card')).find(c => (c.dataset.house || '').trim() === name.trim());
-      if (!card) return;
-      if (data.price !== undefined && data.price !== null) { card.dataset.price = String(data.price); const pv = card.querySelector('.price-value'); if (pv) pv.textContent = String(data.price); }
-      if (Array.isArray(data.images) && data.images.length) card.dataset.images = JSON.stringify(data.images);
+// Navbar scroll effect
+function initNavbarScroll() {
+  const navbar = document.querySelector('.main-header');
+  if (navbar) {
+    window.addEventListener('scroll', () => {
+      if (window.scrollY > 100) {
+        navbar.style.background = 'rgba(255, 255, 255, 0.98)';
+        navbar.style.boxShadow = '0 2px 20px rgba(0,0,0,0.1)';
+      } else {
+        navbar.style.background = 'rgba(255, 255, 255, 0.95)';
+        navbar.style.boxShadow = 'none';
+      }
     });
-  }).catch(err => console.info('properties not loaded:', err));
+  }
 }
 
-/* ===========================
-   Initialize when DOM ready
-   =========================== */
+// Hero Slideshow
+function initHeroSlideshow() {
+  const slides = document.querySelectorAll('.hero-slide');
+  const indicators = document.querySelectorAll('.slideshow-indicators .indicator');
+  let currentSlide = 0;
+  
+  function showSlide(index) {
+    slides.forEach(slide => slide.classList.remove('active'));
+    indicators.forEach(indicator => indicator.classList.remove('active'));
+    
+    slides[index].classList.add('active');
+    indicators[index].classList.add('active');
+  }
+  
+  function nextSlide() {
+    currentSlide = (currentSlide + 1) % slides.length;
+    showSlide(currentSlide);
+  }
+  
+  // Auto-advance slides every 5 seconds
+  setInterval(nextSlide, 5000);
+  
+  // Click indicators to jump to slide
+  indicators.forEach((indicator, index) => {
+    indicator.addEventListener('click', () => {
+      currentSlide = index;
+      showSlide(currentSlide);
+    });
+  });
+}
+
+// Make functions globally available
+window.openBookingModal = openBookingModal;
+window.closeBookingModal = closeBookingModal;
+window.scrollToSection = scrollToSection;
+
+// Initialize everything when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
-  initFlatpickr();
-  initPropertyCards();
-  initBookingForm();
-  initGalleryControls();
-  subscribeToBookings();
-  loadPropertiesFromFirestore();
+  initMobileNav();
+  initFormHandlers();
+  initSmoothScrolling();
+  initAnimations();
+  initModalHandlers();
+  initNavbarScroll();
+  initHeroSlideshow();
+  loadReviews();
+  hideUserInfo();
+
+  console.log('Gonah Homes website initialized successfully!');
 });
+
+// Custom Alert Function
+function showCustomAlert(message, type = "success") {
+  // Remove any existing alert
+  const existingAlert = document.querySelector('.custom-alert');
+  if (existingAlert) {
+    existingAlert.remove();
+  }
+
+  const alertBox = document.createElement('div');
+  alertBox.classList.add('custom-alert');
+  alertBox.classList.add(type); // 'success', 'error', etc.
+
+  const messageBox = document.createElement('p');
+  messageBox.textContent = message;
+
+  const closeBtn = document.createElement('span');
+  closeBtn.classList.add('alert-close-btn');
+  closeBtn.innerHTML = '&times;'; // Times symbol for close button
+
+  alertBox.appendChild(messageBox);
+  alertBox.appendChild(closeBtn);
+
+  // Add to the body
+  document.body.appendChild(alertBox);
+
+  // Close the alert when the close button is clicked
+  closeBtn.addEventListener('click', () => {
+    alertBox.remove();
+  });
+
+  // Automatically close the alert after a few seconds (e.g., 5 seconds)
+  setTimeout(() => {
+    alertBox.remove();
+  }, 5000);
+}
