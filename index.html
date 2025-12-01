@@ -25,9 +25,6 @@
           <a href="#accommodations" class="nav-link">Accommodations</a>
           <a href="#testimonials" class="nav-link">Reviews</a>
           <a href="#contact" class="nav-link">Contact</a>
-          <a href="admin.html" class="nav-link admin-link">
-            <i class="fas fa-lock"></i> Admin
-          </a>
         </div>
         <div class="hamburger" id="hamburger">
           <span class="bar"></span>
@@ -38,40 +35,51 @@
     </nav>
   </header>
 
-  <!-- Hero Section with Slideshow -->
+  <!-- Hero Section -->
   <section id="hero" class="hero">
     <div class="hero-slideshow">
-      <div class="hero-slide active" style="background-image: url('https://images.unsplash.com/photo-1571624436279-b272aff752b5?w=1920&h=1080&fit=crop')"></div>
-      <div class="hero-slide" style="background-image: url('https://images.unsplash.com/photo-1568605114967-8130f3a36994?w=1920&h=1080&fit=crop')"></div>
-      <div class="hero-slide" style="background-image: url('https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?w=1920&h=1080&fit=crop')"></div>
-      <div class="hero-slide" style="background-image: url('https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?w=1920&h=1080&fit=crop')"></div>
+      <div class="slide active">
+        <img src="https://images.unsplash.com/photo-1571624436279-b272aff752b5?w=1920&h=1080&fit=crop" alt="Luxury Beachfront House">
+      </div>
+      <div class="slide">
+        <img src="https://images.unsplash.com/photo-1564013799919-ab600027ffc6?w=1920&h=1080&fit=crop" alt="Modern Beach Villa">
+      </div>
+      <div class="slide">
+        <img src="https://images.unsplash.com/photo-1566073771259-6a8506099945?w=1920&h=1080&fit=crop" alt="Coastal Apartment">
+      </div>
+      <div class="slide">
+        <img src="https://images.unsplash.com/photo-1582268611958-ebfd161ef9cf?w=1920&h=1080&fit=crop" alt="Happy Clients at Beach">
+      </div>
+      <div class="slide">
+        <img src="https://images.unsplash.com/photo-1559827260-dc66d52bef19?w=1920&h=1080&fit=crop" alt="Beachfront Property">
+      </div>
     </div>
     <div class="hero-overlay"></div>
     <div class="hero-content">
       <div class="container">
-        <div class="hero-glass-card">
-          <h1 class="hero-title">Gonah Homes</h1>
-          <p class="hero-subtitle">Your Premium Home Away From Home</p>
-          <p class="hero-description">
-            Discover affordable, reliable, and stylish accommodations in Mombasa & the Kenyan Coast. 
-            Experience comfort, luxury, and unforgettable memories with Gonah Homes.
-          </p>
-          <div class="hero-cta">
-            <button class="btn btn-primary" onclick="scrollToSection('accommodations')">
-              <i class="fas fa-home"></i> Explore Accommodations
-            </button>
-            <button class="btn btn-outline" onclick="scrollToSection('contact')">
-              <i class="fas fa-phone"></i> Contact Us
-            </button>
-          </div>
+        <h1 class="hero-title">Gonah Homes</h1>
+        <p class="hero-subtitle">Your Premium Home Away From Home</p>
+        <p class="hero-description">
+          Discover affordable, reliable, and stylish accommodations in Mombasa & the Kenyan Coast. 
+          Experience comfort, luxury, and unforgettable memories with Gonah Homes.
+        </p>
+        <div class="hero-cta">
+          <button class="btn btn-primary" onclick="scrollToSection('accommodations')">
+            <i class="fas fa-home"></i> Explore Accommodations
+          </button>
+          <button class="btn btn-outline" onclick="scrollToSection('contact')">
+            <i class="fas fa-phone"></i> Contact Us
+          </button>
         </div>
       </div>
     </div>
+    <!-- Slideshow indicators -->
     <div class="slideshow-indicators">
-      <span class="indicator active" data-slide="0"></span>
-      <span class="indicator" data-slide="1"></span>
-      <span class="indicator" data-slide="2"></span>
-      <span class="indicator" data-slide="3"></span>
+      <span class="indicator active" onclick="currentSlide(1)"></span>
+      <span class="indicator" onclick="currentSlide(2)"></span>
+      <span class="indicator" onclick="currentSlide(3)"></span>
+      <span class="indicator" onclick="currentSlide(4)"></span>
+      <span class="indicator" onclick="currentSlide(5)"></span>
     </div>
   </section>
 
@@ -86,6 +94,9 @@
         <div class="featured-image">
           <img src="https://images.unsplash.com/photo-1571624436279-b272aff752b5?w=600&h=400&fit=crop" alt="Luxury Maisonette" />
           <div class="featured-badge">Featured</div>
+          <button class="gallery-btn" onclick="openGalleryModal('Luxury Maisonette')" title="View Gallery">
+            <i class="fas fa-images"></i> View Gallery
+          </button>
         </div>
         <div class="featured-content">
           <h3>Luxury Maisonette</h3>
@@ -111,9 +122,15 @@
               <span>Free WiFi</span>
             </div>
           </div>
-          <button class="btn btn-primary" onclick="openBookingModal('Luxury Maisonette')">
-            <i class="fas fa-calendar-check"></i> Book Now
-          </button>
+          <div class="card-price-actions">
+            <div class="price-tag">
+              <span class="price-amount">KSh 15,000</span>
+              <span class="price-period">/night</span>
+            </div>
+            <button class="btn btn-primary" onclick="openBookingModal('Luxury Maisonette')">
+              <i class="fas fa-calendar-check"></i> Book Now
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -171,8 +188,8 @@
           <div class="card-image">
             <img src="https://images.unsplash.com/photo-1568605114967-8130f3a36994?w=400&h=300&fit=crop" alt="Studio Apartment" />
             <div class="card-badge">Popular</div>
-            <button class="gallery-btn" onclick="openGallery('Studio Apartment')">
-              <i class="fas fa-images"></i> View Gallery
+            <button class="gallery-btn" onclick="openGalleryModal('Studio Apartment')" title="View Gallery">
+              <i class="fas fa-images"></i>
             </button>
           </div>
           <div class="card-content">
@@ -188,10 +205,9 @@
                 <span>Free WiFi</span>
               </div>
             </div>
-            <div class="card-footer">
+            <div class="card-price-actions">
               <div class="price-tag">
-                <span class="price-label">From</span>
-                <span class="price-value">KSh 3,500</span>
+                <span class="price-amount">KSh 3,500</span>
                 <span class="price-period">/night</span>
               </div>
               <button class="btn btn-primary" onclick="openBookingModal('Studio Apartment')">
@@ -204,8 +220,8 @@
         <div class="accommodation-card">
           <div class="card-image">
             <img src="https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?w=400&h=300&fit=crop" alt="One Bedroom" />
-            <button class="gallery-btn" onclick="openGallery('One Bedroom Apartment')">
-              <i class="fas fa-images"></i> View Gallery
+            <button class="gallery-btn" onclick="openGalleryModal('One Bedroom Apartment')" title="View Gallery">
+              <i class="fas fa-images"></i>
             </button>
           </div>
           <div class="card-content">
@@ -221,10 +237,9 @@
                 <span>Full Kitchen</span>
               </div>
             </div>
-            <div class="card-footer">
+            <div class="card-price-actions">
               <div class="price-tag">
-                <span class="price-label">From</span>
-                <span class="price-value">KSh 5,000</span>
+                <span class="price-amount">KSh 4,500</span>
                 <span class="price-period">/night</span>
               </div>
               <button class="btn btn-primary" onclick="openBookingModal('One Bedroom Apartment')">
@@ -237,8 +252,8 @@
         <div class="accommodation-card">
           <div class="card-image">
             <img src="https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?w=400&h=300&fit=crop" alt="Two Bedroom" />
-            <button class="gallery-btn" onclick="openGallery('Two Bedroom Apartment')">
-              <i class="fas fa-images"></i> View Gallery
+            <button class="gallery-btn" onclick="openGalleryModal('Two Bedroom Apartment')" title="View Gallery">
+              <i class="fas fa-images"></i>
             </button>
           </div>
           <div class="card-content">
@@ -254,10 +269,9 @@
                 <span>2 Bathrooms</span>
               </div>
             </div>
-            <div class="card-footer">
+            <div class="card-price-actions">
               <div class="price-tag">
-                <span class="price-label">From</span>
-                <span class="price-value">KSh 7,500</span>
+                <span class="price-amount">KSh 6,000</span>
                 <span class="price-period">/night</span>
               </div>
               <button class="btn btn-primary" onclick="openBookingModal('Two Bedroom Apartment')">
@@ -270,8 +284,8 @@
         <div class="accommodation-card">
           <div class="card-image">
             <img src="https://images.unsplash.com/photo-1586023492125-27b2c045efd7?w=400&h=300&fit=crop" alt="Three Bedroom" />
-            <button class="gallery-btn" onclick="openGallery('Three Bedroom Apartment')">
-              <i class="fas fa-images"></i> View Gallery
+            <button class="gallery-btn" onclick="openGalleryModal('Three Bedroom Apartment')" title="View Gallery">
+              <i class="fas fa-images"></i>
             </button>
           </div>
           <div class="card-content">
@@ -287,10 +301,9 @@
                 <span>Balcony</span>
               </div>
             </div>
-            <div class="card-footer">
+            <div class="card-price-actions">
               <div class="price-tag">
-                <span class="price-label">From</span>
-                <span class="price-value">KSh 10,000</span>
+                <span class="price-amount">KSh 8,000</span>
                 <span class="price-period">/night</span>
               </div>
               <button class="btn btn-primary" onclick="openBookingModal('Three Bedroom Apartment')">
@@ -303,8 +316,8 @@
         <div class="accommodation-card">
           <div class="card-image">
             <img src="https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?w=400&h=300&fit=crop" alt="Four Bedroom" />
-            <button class="gallery-btn" onclick="openGallery('Four Bedroom Apartment')">
-              <i class="fas fa-images"></i> View Gallery
+            <button class="gallery-btn" onclick="openGalleryModal('Four Bedroom Apartment')" title="View Gallery">
+              <i class="fas fa-images"></i>
             </button>
           </div>
           <div class="card-content">
@@ -320,10 +333,9 @@
                 <span>Premium</span>
               </div>
             </div>
-            <div class="card-footer">
+            <div class="card-price-actions">
               <div class="price-tag">
-                <span class="price-label">From</span>
-                <span class="price-value">KSh 15,000</span>
+                <span class="price-amount">KSh 10,000</span>
                 <span class="price-period">/night</span>
               </div>
               <button class="btn btn-primary" onclick="openBookingModal('Four Bedroom Apartment')">
@@ -337,8 +349,8 @@
           <div class="card-image">
             <img src="https://images.unsplash.com/photo-1571624436279-b272aff752b5?w=400&h=300&fit=crop" alt="Maisonette" />
             <div class="card-badge">Premium</div>
-            <button class="gallery-btn" onclick="openGallery('Luxury Maisonette')">
-              <i class="fas fa-images"></i> View Gallery
+            <button class="gallery-btn" onclick="openGalleryModal('Luxury Maisonette')" title="View Gallery">
+              <i class="fas fa-images"></i>
             </button>
           </div>
           <div class="card-content">
@@ -354,10 +366,9 @@
                 <span>Garden</span>
               </div>
             </div>
-            <div class="card-footer">
+            <div class="card-price-actions">
               <div class="price-tag">
-                <span class="price-label">From</span>
-                <span class="price-value">KSh 20,000</span>
+                <span class="price-amount">KSh 15,000</span>
                 <span class="price-period">/night</span>
               </div>
               <button class="btn btn-primary" onclick="openBookingModal('Luxury Maisonette')">
@@ -494,7 +505,7 @@
             </div>
             <div class="contact-details">
               <h4>Email</h4>
-              <a href="mailto:gonahhomes0@gmail.com">gonahhomes0@gmail.com</a>
+              <a href="mailto:gonahhomes0@gmail.com">gonahhomes@gmail.com</a>
             </div>
           </div>
           <div class="contact-item">
@@ -557,127 +568,200 @@
         </div>
       </div>
       <div class="footer-bottom">
-        <p>&copy; 2025 Gonah Homes. All rights reserved.</p>
+        <p>&copy; 2025 Gonah Homes. All rights reserved. | <button id="admin-access-btn" style="color: #800000; background: none; border: none; text-decoration: underline; font-size: 0.8em; cursor: pointer;">Admin Access</button></p>
       </div>
     </div>
   </footer>
 
-  <!-- Gallery Modal -->
-  <div id="gallery-modal" class="modal-backdrop">
-    <div class="gallery-modal-content">
-      <button class="gallery-close" onclick="closeGallery()">
-        <i class="fas fa-times"></i>
-      </button>
-      <h3 id="gallery-title" class="gallery-title"></h3>
-      <div class="gallery-slider">
-        <button class="gallery-nav prev" onclick="prevSlide()">
-          <i class="fas fa-chevron-left"></i>
-        </button>
-        <div class="gallery-images" id="gallery-images">
-          <!-- Images will be dynamically loaded here -->
-        </div>
-        <button class="gallery-nav next" onclick="nextSlide()">
-          <i class="fas fa-chevron-right"></i>
+  <!-- Admin Login Modal -->
+  <div id="admin-login-modal" class="modal-backdrop" style="display: none;">
+    <div class="modal">
+      <div class="modal-header">
+        <h3>Admin Login</h3>
+        <button class="modal-close" onclick="closeAdminModal()">
+          <i class="fas fa-times"></i>
         </button>
       </div>
-      <div class="gallery-thumbnails" id="gallery-thumbnails">
-        <!-- Thumbnails will be dynamically loaded here -->
+      <div class="modal-body">
+        <form id="admin-login-form">
+          <div class="form-group">
+            <label for="admin-username">
+              <i class="fas fa-user"></i> Username/Email
+            </label>
+            <input type="email" id="admin-username" required placeholder="gonahhomes0@gmail.com">
+          </div>
+          <div class="form-group">
+            <label for="admin-password">
+              <i class="fas fa-lock"></i> Password
+            </label>
+            <input type="password" id="admin-password" required>
+          </div>
+          <div id="admin-login-error" class="error-message" style="color: red; font-size: 0.9em; margin: 0.5rem 0; display: none;"></div>
+          <button type="submit" class="btn btn-primary btn-full">
+            <i class="fas fa-sign-in-alt"></i> Access Dashboard
+          </button>
+        </form>
       </div>
     </div>
   </div>
 
   <!-- Booking Modal -->
-  <div id="booking-modal-bg" class="modal-backdrop glass-modal">
-    <div class="modal glass-card">
+  <!-- ========== BOOKING MODAL (STEP 1 → STEP 2 → STEP 3) ========== -->
+<div id="booking-modal-bg" class="modal-backdrop">
+  <div class="modal glassy-modal">
+
+    <!-- HEADER -->
+    <div class="modal-header">
+      <h3><i class="fas fa-home"></i> Book Your Stay</h3>
+      <button class="modal-close" onclick="closeBookingModal()">
+        <i class="fas fa-times"></i>
+      </button>
+    </div>
+
+    <div class="modal-body">
+
+      <!-- ===================== STEP 1 — BOOKING FORM ===================== -->
+      <form id="booking-form">
+        <input type="hidden" id="booking-house" name="house">
+
+        <!-- SUMMARY (auto-filled using JS) -->
+        <div id="booking-summary" class="booking-summary" style="display:none;">
+          <div class="summary-row">
+            <span class="summary-label"><i class="fas fa-home"></i> Property:</span>
+            <span class="summary-value" id="summary-house">-</span>
+          </div>
+          <div class="summary-row">
+            <span class="summary-label"><i class="fas fa-calendar"></i> Check-in:</span>
+            <span class="summary-value" id="summary-checkin">-</span>
+          </div>
+          <div class="summary-row">
+            <span class="summary-label"><i class="fas fa-calendar"></i> Check-out:</span>
+            <span class="summary-value" id="summary-checkout">-</span>
+          </div>
+          <div class="summary-row highlight">
+            <span class="summary-label"><i class="fas fa-moon"></i> Nights:</span>
+            <span class="summary-value" id="summary-nights">-</span>
+          </div>
+          <div class="summary-row highlight">
+            <span class="summary-label"><i class="fas fa-tag"></i> Total:</span>
+            <span class="summary-value" id="summary-total">-</span>
+          </div>
+        </div>
+
+        <!-- FORM FIELDS -->
+        <div class="form-group">
+          <label><i class="fas fa-user"></i> Full Name</label>
+          <input type="text" id="booking-name" required>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label><i class="fas fa-users"></i> Guests</label>
+            <input type="number" id="booking-guests" min="1" required>
+          </div>
+
+          <div class="form-group">
+            <label><i class="fas fa-phone"></i> Phone / WhatsApp</label>
+            <input type="tel" id="booking-phone" required>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label><i class="fas fa-envelope"></i> Email</label>
+          <input type="email" id="booking-email" required>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label><i class="fas fa-calendar"></i> Check-In</label>
+            <input type="text" id="booking-checkin" placeholder="Select date" required>
+          </div>
+          <div class="form-group">
+            <label><i class="fas fa-calendar"></i> Check-Out</label>
+            <input type="text" id="booking-checkout" placeholder="Select date" required>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label><i class="fas fa-wheelchair"></i> Accessibility (Optional)</label>
+          <textarea id="booking-access" rows="2"></textarea>
+        </div>
+
+        <div class="form-group">
+          <label><i class="fas fa-sticky-note"></i> Special Requests (Optional)</label>
+          <textarea id="booking-requests" rows="2"></textarea>
+        </div>
+
+        <button type="button" class="btn btn-primary btn-full" onclick="openBookingConfirmation()">
+          <i class="fas fa-arrow-right"></i> Review Booking
+        </button>
+      </form>
+
+      <!-- ===================== STEP 2 — CONFIRMATION SCREEN ===================== -->
+      <div id="booking-confirmation" style="display:none;">
+        <h3><i class="fas fa-file-alt"></i> Confirm Your Details</h3>
+
+        <div id="confirm-summary"></div>
+
+        <button class="btn btn-primary btn-full" onclick="submitBookingFinal()">
+          <i class="fas fa-check-circle"></i> Proceed to Payment
+        </button>
+
+        <button class="btn btn-outline btn-full" onclick="backToBookingForm()">
+          <i class="fas fa-arrow-left"></i> Edit Details
+        </button>
+      </div>
+
+      <!-- ===================== STEP 3 — FINAL PAYMENT SECTION ===================== -->
+      <div id="booking-confirm" class="booking-success" style="display:none;">
+        <div class="success-icon">
+          <i class="fas fa-check-circle"></i>
+        </div>
+
+        <h3>Booking Request Submitted!</h3>
+        <p>Thank you for choosing Gonah Homes!</p>
+
+        <div id="booking-details"></div>
+
+        <div class="payment-info">
+          <h4><i class="fas fa-credit-card"></i> Payment</h4>
+          <p>To confirm your booking, pay the booking fee to:</p>
+          <strong>M-Pesa: 0799466723</strong>
+          <p>You will be contacted once payment is received.</p>
+        </div>
+
+        <button class="btn btn-outline" onclick="closeBookingModal()">Close</button>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+  <!-- Gallery Modal -->
+  <div id="gallery-modal-bg" class="modal-backdrop" style="display: none;">
+    <div class="modal gallery-modal">
       <div class="modal-header">
-        <h3>Book Your Stay</h3>
-        <button class="modal-close" onclick="closeBookingModal()">
+        <h3 id="gallery-title">Property Gallery</h3>
+        <button class="modal-close" onclick="closeGalleryModal()">
           <i class="fas fa-times"></i>
         </button>
       </div>
       <div class="modal-body">
-        <form id="booking-form">
-          <input type="hidden" id="booking-house" name="house" value="">
-
-          <div class="form-group">
-            <label for="booking-name">
-              <i class="fas fa-user"></i> Full Name
-            </label>
-            <input type="text" id="booking-name" name="name" required>
-          </div>
-
-          <div class="form-row">
-            <div class="form-group">
-              <label for="booking-guests">
-                <i class="fas fa-users"></i> Number of Guests
-              </label>
-              <input type="number" id="booking-guests" name="guests" min="1" required>
-            </div>
-            <div class="form-group">
-              <label for="booking-phone">
-                <i class="fas fa-phone"></i> Phone / WhatsApp
-              </label>
-              <input type="tel" id="booking-phone" name="phone" required>
-            </div>
-          </div>
-
-          <div class="form-group">
-            <label for="booking-email">
-              <i class="fas fa-envelope"></i> Email Address
-            </label>
-            <input type="email" id="booking-email" name="email" required>
-          </div>
-
-          <div class="form-row">
-            <div class="form-group">
-              <label for="booking-checkin">
-                <i class="fas fa-calendar"></i> Check-In Date
-              </label>
-              <input type="date" id="booking-checkin" name="checkin" required>
-            </div>
-            <div class="form-group">
-              <label for="booking-checkout">
-                <i class="fas fa-calendar"></i> Check-Out Date
-              </label>
-              <input type="date" id="booking-checkout" name="checkout" required>
-            </div>
-          </div>
-
-          <div class="form-group">
-            <label for="booking-access">
-              <i class="fas fa-wheelchair"></i> Accessibility Needs (Optional)
-            </label>
-            <textarea id="booking-access" name="access" rows="2" placeholder="e.g. wheelchair access, hearing impaired, etc."></textarea>
-          </div>
-
-          <div class="form-group">
-            <label for="booking-requests">
-              <i class="fas fa-sticky-note"></i> Special Requests (Optional)
-            </label>
-            <textarea id="booking-requests" name="requests" rows="2" placeholder="e.g. Early check-in, allergies, etc."></textarea>
-          </div>
-
-          <button type="submit" class="btn btn-primary btn-full">
-            <i class="fas fa-calendar-check"></i> Complete Booking
+        <div class="gallery-container">
+          <button class="gallery-nav gallery-prev" onclick="galleryPrev()">
+            <i class="fas fa-chevron-left"></i>
           </button>
-        </form>
-
-        <div id="booking-confirm" class="booking-success" style="display: none;">
-          <div class="success-icon">
-            <i class="fas fa-check-circle"></i>
+          <div class="gallery-main-image">
+            <img id="gallery-current-image" src="" alt="Property Image">
           </div>
-          <h3>Booking Request Submitted!</h3>
-          <p>Thank you for choosing Gonah Homes! Your booking request has been successfully submitted.</p>
-          <div class="booking-details" id="booking-details"></div>
-          <div class="payment-info">
-            <h4><i class="fas fa-credit-card"></i> Payment Information</h4>
-            <p>To confirm your booking, please pay the booking fee to:</p>
-            <div class="mpesa-info">
-              <strong>M-Pesa Number: 0799466723</strong>
-            </div>
-            <p>After payment, you will be contacted for confirmation. We look forward to hosting you!</p>
-          </div>
-          <button class="btn btn-outline" onclick="closeBookingModal()">Close</button>
+          <button class="gallery-nav gallery-next" onclick="galleryNext()">
+            <i class="fas fa-chevron-right"></i>
+          </button>
+        </div>
+        <div class="gallery-thumbnails" id="gallery-thumbnails">
+        </div>
+        <div class="gallery-counter">
+          <span id="gallery-counter-text">1 / 1</span>
         </div>
       </div>
     </div>
@@ -690,12 +774,17 @@
 
   <!-- Flatpickr JS -->
   <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
-
-  <!-- EmailJS SDK (consistent CDN) -->
-  <script src="https://cdn.jsdelivr.net/npm/emailjs-com@3/dist/email.min.js"></script>
-  <!-- Site JS -->
+  
+  <!-- Properties Data -->
+  <script src="properties-data.js"></script>
   <script src="script.js"></script>
   <script src="booking-calendar.js"></script>
   <script src="notification-service.js"></script>
+  <script src="https://cdn.emailjs.com/dist/email.min.js"></script>
+<script>
+  (function () {
+    emailjs.init("VgDakmh3WscKrr_wQ"); // Updated EmailJS public key
+  })();
+</script>
 </body>
-  </html>
+</html>
