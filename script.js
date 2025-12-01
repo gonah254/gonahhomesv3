@@ -15,7 +15,7 @@ if (!firebase.apps.length) {
 
 const db = firebase.firestore();
 let currentUser = null;
-const adminEmail = "salimtuva0@gmail.com";
+const adminEmail = "gonahhomes0@gmail.com";
 
 // Utility Functions
 function scrollToSection(sectionId) {
@@ -64,22 +64,21 @@ function initMobileNav() {
   }
 }
 
-// Booking Modal Functions with Flatpickr
+// Booking Modal Functions
 function openBookingModal(house) {
   const modal = document.getElementById('booking-modal-bg');
   const form = document.getElementById('booking-form');
   const confirmDiv = document.getElementById('booking-confirm');
+  const summaryDiv = document.getElementById('booking-summary');
 
   if (modal && form && confirmDiv) {
     modal.classList.add('active');
+    document.getElementById('booking-house').value = house;
     form.style.display = 'block';
     confirmDiv.style.display = 'none';
-    
-    // Reset form BEFORE setting the house value to avoid clearing it
+    if (summaryDiv) summaryDiv.style.display = 'none';
     form.reset();
-    document.getElementById('booking-house').value = house;
 
-    // Initialize Flatpickr with booked dates for this house
     if (typeof initializeFlatpickr === 'function') {
       initializeFlatpickr(house);
     }
@@ -92,7 +91,48 @@ function closeBookingModal() {
     modal.classList.remove('active');
   }
 }
+function openBookingConfirmation() {
+  const name = document.getElementById("booking-name").value.trim();
+  const email = document.getElementById("booking-email").value.trim();
+  const phone = document.getElementById("booking-phone").value.trim();
+  const guests = document.getElementById("booking-guests").value;
+  const checkin = document.getElementById("booking-checkin").value;
+  const checkout = document.getElementById("booking-checkout").value;
 
+  if (!name || !email || !phone || !guests || !checkin || !checkout) {
+    alert("Please fill all required fields.");
+    return;
+  }
+
+  // Show confirmation modal
+  document.getElementById("booking-form").style.display = "none";
+  document.getElementById("booking-confirmation").style.display = "block";
+
+  // Fill confirmation summary
+  document.getElementById("confirm-summary").innerHTML = `
+    <div class="confirm-row"><strong>Name:</strong> ${name}</div>
+    <div class="confirm-row"><strong>Email:</strong> ${email}</div>
+    <div class="confirm-row"><strong>Phone:</strong> ${phone}</div>
+    <div class="confirm-row"><strong>Guests:</strong> ${guests}</div>
+    <div class="confirm-row"><strong>Check-In:</strong> ${checkin}</div>
+    <div class="confirm-row"><strong>Check-Out:</strong> ${checkout}</div>
+    <div class="confirm-row"><strong>Nights:</strong> ${document.getElementById("summary-nights").textContent}</div>
+    <div class="confirm-row"><strong>Total:</strong> ${document.getElementById("summary-total").textContent}</div>
+  `;
+}
+
+function backToBookingForm() {
+  document.getElementById("booking-confirmation").style.display = "none";
+  document.getElementById("booking-form").style.display = "block";
+}
+
+function submitBookingFinal() {
+  document.getElementById("booking-confirmation").style.display = "none";
+  document.getElementById("booking-confirm").style.display = "block";
+
+  document.getElementById("booking-details").innerHTML =
+    document.getElementById("confirm-summary").innerHTML;
+}
 // Review System Functions
 function showUserInfo(email) {
   const userInfo = document.getElementById('user-info');
@@ -531,41 +571,82 @@ function initNavbarScroll() {
   }
 }
 
-// Hero Slideshow
-function initHeroSlideshow() {
-  const slides = document.querySelectorAll('.hero-slide');
-  const indicators = document.querySelectorAll('.slideshow-indicators .indicator');
-  let currentSlide = 0;
+// Slideshow functionality
+let slideIndex = 0;
+const slides = document.querySelectorAll('.slide');
+const indicators = document.querySelectorAll('.indicator');
+
+function showSlide(index) {
+  slides.forEach(slide => slide.classList.remove('active'));
+  indicators.forEach(indicator => indicator.classList.remove('active'));
   
-  function showSlide(index) {
-    slides.forEach(slide => slide.classList.remove('active'));
-    indicators.forEach(indicator => indicator.classList.remove('active'));
-    
-    slides[index].classList.add('active');
-    indicators[index].classList.add('active');
+  slides[index].classList.add('active');
+  indicators[index].classList.add('active');
+}
+
+function nextSlide() {
+  slideIndex = (slideIndex + 1) % slides.length;
+  showSlide(slideIndex);
+}
+
+function currentSlide(index) {
+  slideIndex = index - 1;
+  showSlide(slideIndex);
+}
+
+function initSlideshow() {
+  if (slides.length > 0) {
+    // Auto-advance slides every 5 seconds
+    setInterval(nextSlide, 5000);
   }
-  
-  function nextSlide() {
-    currentSlide = (currentSlide + 1) % slides.length;
-    showSlide(currentSlide);
+}
+
+// Admin Access Functions
+function openAdminModal() {
+  const modal = document.getElementById('admin-login-modal');
+  if (modal) {
+    modal.style.display = 'flex';
   }
+}
+
+function closeAdminModal() {
+  const modal = document.getElementById('admin-login-modal');
+  if (modal) {
+    modal.style.display = 'none';
+    document.getElementById('admin-login-form').reset();
+    document.getElementById('admin-login-error').style.display = 'none';
+  }
+}
+
+function handleAdminLogin(e) {
+  e.preventDefault();
   
-  // Auto-advance slides every 5 seconds
-  setInterval(nextSlide, 5000);
+  const username = document.getElementById('admin-username').value.trim();
+  const password = document.getElementById('admin-password').value;
+  const errorDiv = document.getElementById('admin-login-error');
   
-  // Click indicators to jump to slide
-  indicators.forEach((indicator, index) => {
-    indicator.addEventListener('click', () => {
-      currentSlide = index;
-      showSlide(currentSlide);
-    });
-  });
+  const adminCredentials = {
+    username: 'gonahhomes0@gmail.com',
+    password: 'gonahhomes@0799466723'
+  };
+  
+  if (username === adminCredentials.username && password === adminCredentials.password) {
+    closeAdminModal();
+    // Open the backend dashboard in a new window
+    window.open('backend/dashboard.html', '_blank', 'width=1200,height=800,scrollbars=yes,resizable=yes');
+  } else {
+    errorDiv.textContent = 'Invalid credentials. Please try again.';
+    errorDiv.style.display = 'block';
+  }
 }
 
 // Make functions globally available
 window.openBookingModal = openBookingModal;
 window.closeBookingModal = closeBookingModal;
+window.openAdminModal = openAdminModal;
+window.closeAdminModal = closeAdminModal;
 window.scrollToSection = scrollToSection;
+window.currentSlide = currentSlide;
 
 // Initialize everything when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
@@ -575,12 +656,37 @@ document.addEventListener('DOMContentLoaded', () => {
   initAnimations();
   initModalHandlers();
   initNavbarScroll();
-  initHeroSlideshow();
   loadReviews();
   hideUserInfo();
+  initSlideshow();
+  initAdminAccess();
 
   console.log('Gonah Homes website initialized successfully!');
 });
+
+function initAdminAccess() {
+  // Add event listener for admin access button
+  const adminBtn = document.getElementById('admin-access-btn');
+  if (adminBtn) {
+    adminBtn.addEventListener('click', openAdminModal);
+  }
+  
+  // Add event listener for admin login form
+  const adminForm = document.getElementById('admin-login-form');
+  if (adminForm) {
+    adminForm.addEventListener('submit', handleAdminLogin);
+  }
+  
+  // Close modal when clicking outside
+  const adminModal = document.getElementById('admin-login-modal');
+  if (adminModal) {
+    adminModal.addEventListener('click', (e) => {
+      if (e.target === adminModal) {
+        closeAdminModal();
+      }
+    });
+  }
+}
 
 // Custom Alert Function
 function showCustomAlert(message, type = "success") {
@@ -616,4 +722,4 @@ function showCustomAlert(message, type = "success") {
   setTimeout(() => {
     alertBox.remove();
   }, 5000);
-}
+          }
