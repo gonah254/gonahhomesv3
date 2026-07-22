@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Local Recommendations | Gonah Homes — Mombasa, Kenya</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Discover the best restaurants, beaches, attractions, shopping, and transport tips in Mombasa, Kenya — curated by the Gonah Homes team for our valued guests.">
+  <meta name="keywords" content="Mombasa things to do, best restaurants Mombasa, Fort Jesus Mombasa, Nyali beach, Mombasa Marine Park, things to do Mombasa Kenya coast, Mombasa travel guide">
+  <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, max-age=0">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Poppins', 'Segoe UI', sans-serif;
+      background: linear-gradient(135deg, #1a0000 0%, #2d0000 50%, #1a0000 100%);
+      min-height: 100vh; color: #fff;
+    }
+    .page-header {
+      background: rgba(128,0,0,0.92);
+      backdrop-filter: blur(12px);
+      padding: 1rem 2rem;
+      display: flex; justify-content: space-between; align-items: center;
+      position: sticky; top: 0; z-index: 100;
+      border-bottom: 1px solid rgba(255,214,0,0.2);
+    }
+    .page-header .brand { color: #FFD600; font-size: 1.2rem; font-weight: 700; }
+    .back-btn {
+      color: #FFD600; text-decoration: none; font-size: 0.88rem;
+      display: flex; align-items: center; gap: 6px;
+      background: rgba(255,214,0,0.12); padding: 6px 14px;
+      border-radius: 20px; transition: background 0.2s;
+    }
+    .back-btn:hover { background: rgba(255,214,0,0.25); }
+    .hero-strip { text-align: center; padding: 3rem 1.5rem 2rem; }
+    .hero-strip h1 { font-size: 2rem; font-weight: 700; color: #FFD600; margin-bottom: 0.5rem; }
+    .hero-strip p { font-size: 1rem; color: rgba(255,255,255,0.75); max-width: 580px; margin: 0 auto; line-height: 1.6; }
+    .content-wrap {
+      max-width: 820px; margin: 0 auto;
+      padding: 0 1.25rem 4rem;
+      display: flex; flex-direction: column; gap: 1.5rem;
+    }
+    .rec-card {
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,214,0,0.18);
+      border-radius: 16px; padding: 1.75rem;
+      backdrop-filter: blur(8px);
+    }
+    .rec-header {
+      display: flex; align-items: center; gap: 0.85rem; margin-bottom: 1.25rem;
+    }
+    .rec-icon {
+      width: 44px; height: 44px; border-radius: 12px; flex-shrink: 0;
+      background: linear-gradient(135deg, #800000, #b30000);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.15rem; color: #FFD600;
+    }
+    .rec-card h2 { font-size: 1.05rem; font-weight: 700; color: #FFD600; }
+    .rec-card h2 small { display: block; font-size: 0.75rem; font-weight: 400; color: rgba(255,255,255,0.5); margin-top: 1px; }
+    .rec-grid {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 0.85rem;
+    }
+    @media (max-width: 560px) { .rec-grid { grid-template-columns: 1fr; } }
+    .rec-item {
+      background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 10px; padding: 0.9rem 1rem;
+    }
+    .rec-item-name {
+      font-size: 0.88rem; font-weight: 700; color: #FFD600; margin-bottom: 0.2rem;
+      display: flex; align-items: center; gap: 6px;
+    }
+    .rec-item-name i { font-size: 0.8rem; }
+    .rec-item p { font-size: 0.8rem; color: rgba(255,255,255,0.72); line-height: 1.5; margin: 0; }
+    .rec-item .badge {
+      display: inline-block; font-size: 0.65rem; font-weight: 600;
+      padding: 2px 7px; border-radius: 20px;
+      background: rgba(255,214,0,0.15); color: #FFD600;
+      margin-top: 0.4rem;
+    }
+    .tip-box {
+      background: rgba(255,214,0,0.08); border: 1px solid rgba(255,214,0,0.25);
+      border-radius: 10px; padding: 0.9rem 1.1rem; margin-top: 1rem;
+      font-size: 0.85rem; color: rgba(255,255,255,0.8); line-height: 1.6;
+    }
+    .tip-box strong { color: #FFD600; }
+    .distance-badge { font-size: 0.72rem; color: rgba(255,255,255,0.5); margin-top: 0.25rem; display: block; }
+    .footer-note { text-align: center; padding: 2rem 1rem; font-size: 0.82rem; color: rgba(255,255,255,0.4); }
+    .footer-note a { color: #FFD600; text-decoration: none; }
+  </style>
+</head>
+<body>
+
+  <header class="page-header">
+    <span class="brand"><i class="fas fa-home" style="margin-right:6px;"></i>Gonah Homes</span>
+    <a href="index.html" class="back-btn"><i class="fas fa-arrow-left"></i> Back to Home</a>
+  </header>
+
+  <div class="hero-strip">
+    <h1><i class="fas fa-map-marked-alt" style="margin-right:0.5rem;"></i>Local Recommendations</h1>
+    <p>Your insider guide to the best of Mombasa — handpicked by our team. From award-winning seafood restaurants to UNESCO heritage sites, make the most of your coastal stay.</p>
+  </div>
+
+  <div class="content-wrap">
+
+    <!-- Restaurants -->
+    <div class="rec-card">
+      <div class="rec-header">
+        <div class="rec-icon"><i class="fas fa-utensils"></i></div>
+        <h2>Restaurants &amp; Cafés <small>From Swahili street food to fine dining — Mombasa has it all</small></h2>
+      </div>
+      <div class="rec-grid">
+        <div class="rec-item">
+          <div class="rec-item-name"><i class="fas fa-star"></i> Tamarind Dhow Restaurant</div>
+          <p>Mombasa's most iconic dining experience — a floating restaurant on Mombasa Creek serving world-class seafood, lobster, and Swahili cuisine. Book in advance.</p>
+          <span class="badge">Seafood · Fine Dining</span>
+          <span class="distance-badge">📍 Tudor Creek · ~10 min from Nyali</span>
+        </div>
+        <div class="rec-item">
+          <div class="rec-item-name"><i class="fas fa-coffee"></i> Café Mocha</div>
+          <p>A Nyali favourite for breakfast, artisan coffee, and light meals. Their fresh juices, avocado toast, and pancakes are crowd pleasers. Free WiFi available.</p>
+          <span class="badge">Café · Breakfast</span>
+          <span class="distance-badge">📍 Nyali Centre · ~5 min drive</span>
+        </div>
+        <div class="rec-item">
+          <div class="rec-item-name"><i class="fas fa-fish"></i> Barka Restaurant</div>
+          <p>Authentic Swahili flavours in the heart of Mombasa Old Town. Try the coconut fish curry, pilau rice, and freshly baked mandazi. A must-try cultural experience.</p>
+          <span class="badge">Swahili · Local Cuisine</span>
+          <span class="distance-badge">📍 Old Town Mombasa · ~15 min</span>
+        </div>
+        <div class="rec-item">
+          <div class="rec-item-name"><i class="fas fa-drumstick-bite"></i> Nyama Choma at Mtwapa</div>
+          <p>For the full Kenyan grilling experience, head to Mtwapa for freshly roasted nyama choma (grilled meat), ugali, and kachumbari. Buzzing atmosphere especially on weekends.</p>
+          <span class="badge">Kenyan BBQ · Casual</span>
+          <span class="distance-badge">📍 Mtwapa · ~20 min drive</span>
+        </div>
+        <div class="rec-item">
+          <div class="rec-item-name"><i class="fas fa-pizza-slice"></i> Nakumatt Food Court</div>
+          <p>A convenient all-in-one shopping and dining destination at City Mall Nyali. International fast food chains alongside Kenyan favourites — great for families.</p>
+          <span class="badge">Food Court · Family</span>
+          <span class="distance-badge">📍 City Mall Nyali · ~8 min</span>
+        </div>
+        <div class="rec-item">
+          <div class="rec-item-name"><i class="fas fa-cocktail"></i> Severin Sea Lodge Bar</div>
+          <p>Enjoy sundowner cocktails overlooking the Indian Ocean at this beachfront hotel bar. Casual dress code, excellent mocktails, and stunning sunset views.</p>
+          <span class="badge">Beach Bar · Sundowners</span>
+          <span class="distance-badge">📍 Bamburi Beach · ~12 min</span>
+        </div>
+      </div>
+      <div class="tip-box"><strong>Our tip:</strong> For the freshest seafood in Mombasa, visit the daily fish market at the Old Port (Mombasa Harbour) in the early morning — vendors sell straight off the boats. Ask us for directions.</div>
+    </div>
+
+    <!-- Beaches -->
+    <div class="rec-card">
+      <div class="rec-header">
+        <div class="rec-icon"><i class="fas fa-umbrella-beach"></i></div>
+        <h2>Beaches &amp; Water Sports <small>Miles of white sand and warm Indian Ocean waters await</small></h2>
+      </div>
+      <div class="rec-grid">
+        <div class="rec-item">
+          <div class="rec-item-name"><i class="fas fa-water"></i> Nyali Beach</div>
+          <p>The closest beach to most Gonah Homes properties. Clean, calm, and lined with coconut palms. Perfect for morning swims and evening strolls. Water sports available nearby.</p>
+          <span class="badge">Swimming · Walking</span>
+          <span class="distance-badge">📍 Nyali · ~5 min walk/drive</span>
+        </div>
+        <div class="rec-item">
+          <div class="rec-item-name"><i class="fas fa-fish"></i> Mombasa Marine National Park</div>
+          <p>Kenya's oldest marine park — crystal clear waters with vibrant coral reefs, tropical fish, turtles, and dolphins. Snorkeling, glass-bottom boat, and scuba diving offered daily.</p>
+          <span class="badge">Snorkeling · Scuba · Marine Life</span>
+          <span class="distance-badge">📍 Bamburi · ~15 min</span>
+        </div>
+        <div class="rec-item">
+          <div class="rec-item-name"><i class="fas fa-sailboat"></i> Diani Beach</div>
+          <p>Widely rated among the top beaches in Africa. Pristine white sand, turquoise water, kite surfing, and a vibrant beachfront scene. Worth the 1-hour drive south for a day trip.</p>
+          <span class="badge">Day Trip · Kite Surfing</span>
+          <span class="distance-badge">📍 South Coast · ~1 hr drive</span>
+        </div>
+        <div class="rec-item">
+          <div class="rec-item-name"><i class="fas fa-anchor"></i> Shanzu Beach</div>
+          <p>A quieter, less-touristy stretch of North Coast beach. Ideal for peaceful walks, local fishing boat rides, and watching dhow sailboats pass. Ask us to arrange a sunset dhow cruise.</p>
+          <span class="badge">Quiet · Dhow Cruises</span>
+          <span class="distance-badge">📍 North Coast · ~20 min</span>
+        </div>
+      </div>
+      <div class="tip-box"><strong>Water safety:</strong> Always swim between the reef flags on public beaches. The Indian Ocean can have strong currents during high tide. Ask our team about the best swimming times each day during your stay.</div>
+    </div>
+
+    <!-- Attractions -->
+    <div class="rec-card">
+      <div class="rec-header">
+        <div class="rec-icon"><i class="fas fa-landmark"></i></div>
+        <h2>Attractions &amp; Culture <small>History, wildlife, and the soul of coastal Kenya</small></h2>
+      </div>
+      <div class="rec-grid">
+        <div class="rec-item">
+          <div class="rec-item-name"><i class="fas fa-fort-awesome"></i> Fort Jesus</div>
+          <p>A UNESCO World Heritage Site built by the Portuguese in 1593. This 400-year-old coastal fort houses a world-class museum documenting Mombasa's Swahili, Arab, and colonial history.</p>
+          <span class="badge">UNESCO · History Museum</span>
+          <span class="distance-badge">📍 Old Town · ~20 min · KSh 1,200 entry</span>
+        </div>
+        <div class="rec-item">
+          <div class="rec-item-name"><i class="fas fa-elephant"></i> Haller Park (Bamburi Nature Trail)</div>
+          <p>A remarkable wildlife sanctuary built on a reclaimed quarry. See giraffes, hippos, crocodiles, and giant tortoises up close. Perfect for families with children. Low entry fee.</p>
+          <span class="badge">Wildlife · Family · Nature</span>
+          <span class="distance-badge">📍 Bamburi · ~15 min · KSh 800 entry</span>
+        </div>
+        <div class="rec-item">
+          <div class="rec-item-name"><i class="fas fa-mosque"></i> Mombasa Old Town</div>
+          <p>Walk the winding streets of Mombasa's ancient Arab-influenced Old Town. Carved wooden doors, spice markets, Swahili architecture, and the Old Harbour make this an unforgettable half-day excursion.</p>
+          <span class="badge">Culture · Architecture · Heritage</span>
+          <span class="distance-badge">📍 Mombasa Island · ~20 min · Free</span>
+        </div>
+        <div class="rec-item">
+          <div class="rec-item-name"><i class="fas fa-binoculars"></i> Shimba Hills National Reserve</div>
+          <p>One of the few places in Kenya to spot the rare Sable antelope. The reserve also features lush coastal rainforest, stunning viewpoints, and the scenic Sheldrick Falls — great for a day safari.</p>
+          <span class="badge">Safari · Nature · Day Trip</span>
+          <span class="distance-badge">📍 South Coast · ~1.5 hr drive</span>
+        </div>
+        <div class="rec-item">
+          <div class="rec-item-name"><i class="fas fa-dharmachakra"></i> Jomo Kenyatta Public Beach</div>
+          <p>Also known as Pirates Beach — a lively public beach with camel rides, beachside hawkers, traditional dance performances, and a relaxed local vibe. Great for cultural immersion.</p>
+          <span class="badge">Local Beach · Camel Rides · Lively</span>
+          <span class="distance-badge">📍 Bamburi · ~12 min · Free</span>
+        </div>
+        <div class="rec-item">
+          <div class="rec-item-name"><i class="fas fa-star-and-crescent"></i> Mandhry Mosque &amp; Old Harbour</div>
+          <p>One of the oldest mosques in East Africa, dating to 1570. Nearby, the Old Harbour is a working dhow port where traditional wooden boats have traded goods across the Indian Ocean for centuries.</p>
+          <span class="badge">History · Architecture</span>
+          <span class="distance-badge">📍 Old Town · ~20 min · Free</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Shopping -->
+    <div class="rec-card">
+      <div class="rec-header">
+        <div class="rec-icon"><i class="fas fa-shopping-bag"></i></div>
+        <h2>Shopping <small>From modern malls to traditional spice markets</small></h2>
+      </div>
+      <div class="rec-grid">
+        <div class="rec-item">
+          <div class="rec-item-name"><i class="fas fa-store"></i> City Mall Nyali</div>
+          <p>Mombasa's premier modern shopping mall with international and local brands, a large supermarket (Nakumatt), cinema, food court, pharmacy, and banking services. All under one roof.</p>
+          <span class="badge">Mall · Supermarket · Cinema</span>
+          <span class="distance-badge">📍 Nyali · ~8 min</span>
+        </div>
+        <div class="rec-item">
+          <div class="rec-item-name"><i class="fas fa-pepper-hot"></i> Kongowea Market</div>
+          <p>The largest fresh produce market on the North Coast. A sensory feast of tropical fruits, vegetables, fresh fish, and spices at the lowest prices in the city. Best visited in the morning.</p>
+          <span class="badge">Fresh Produce · Local Market</span>
+          <span class="distance-badge">📍 Kongowea · ~10 min</span>
+        </div>
+        <div class="rec-item">
+          <div class="rec-item-name"><i class="fas fa-gem"></i> Old Town Craft Market</div>
+          <p>Browse hand-carved wooden sculptures, Masai beadwork, Swahili ceramics, kikoi fabrics, and aromatic spices. Bargaining is expected and part of the fun. Great for unique souvenirs.</p>
+          <span class="badge">Souvenirs · Crafts · Spices</span>
+          <span class="distance-badge">📍 Old Town · ~20 min</span>
+        </div>
+        <div class="rec-item">
+          <div class="rec-item-name"><i class="fas fa-building"></i> Nyali Cinemax &amp; Shopping Centre</div>
+          <p>A relaxed neighbourhood shopping centre with a cinema, restaurants, and retail shops. Ideal for a casual evening out. Free parking available.</p>
+          <span class="badge">Retail · Entertainment</span>
+          <span class="distance-badge">📍 Nyali · ~7 min</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Transport -->
+    <div class="rec-card">
+      <div class="rec-header">
+        <div class="rec-icon"><i class="fas fa-car"></i></div>
+        <h2>Getting Around Mombasa <small>Safe and convenient transport options for all budgets</small></h2>
+      </div>
+      <div class="rec-grid">
+        <div class="rec-item">
+          <div class="rec-item-name"><i class="fas fa-mobile-alt"></i> Bolt &amp; Uber</div>
+          <p>Both apps operate widely in Mombasa and offer safe, metered rides at competitive prices. Highly recommended for reaching the city centre, beaches, and attractions without haggling.</p>
+          <span class="badge">Ride-Hailing · Safe · Metered</span>
+        </div>
+        <div class="rec-item">
+          <div class="rec-item-name"><i class="fas fa-shuttle-van"></i> Tuk-Tuks</div>
+          <p>The iconic three-wheeled tuk-tuk is perfect for short trips within Nyali and coastal areas. Agree on the price before boarding — typical short trips cost KSh 100–300.</p>
+          <span class="badge">Local Transport · Affordable</span>
+        </div>
+        <div class="rec-item">
+          <div class="rec-item-name"><i class="fas fa-bus"></i> Matatu (Minibus)</div>
+          <p>The local bus network covers most of Mombasa at very low cost (KSh 30–80 per journey). Ask our team for route advice. Best avoided during peak rush hours (7–9 AM, 5–7 PM).</p>
+          <span class="badge">Budget · Local</span>
+        </div>
+        <div class="rec-item">
+          <div class="rec-item-name"><i class="fas fa-user-tie"></i> Private Driver</div>
+          <p>We can recommend trusted local drivers for full-day excursions, airport transfers, and multi-stop tours. A private driver for a full day costs approximately KSh 3,000–5,000.</p>
+          <span class="badge">Premium · Day Tours · Airport</span>
+        </div>
+      </div>
+      <div class="tip-box"><strong>Airport transfers:</strong> Moi International Airport (MBA) is approximately 30–40 minutes from our properties. We can arrange a trusted pickup — just let us know your arrival time when booking.</div>
+    </div>
+
+    <!-- Pro Tips -->
+    <div class="rec-card">
+      <div class="rec-header">
+        <div class="rec-icon"><i class="fas fa-lightbulb"></i></div>
+        <h2>Guest Pro Tips <small>From the Gonah Homes team — straight from local experience</small></h2>
+      </div>
+      <ul style="list-style:none;display:flex;flex-direction:column;gap:0.75rem;">
+        <li style="display:flex;gap:0.75rem;font-size:0.88rem;color:rgba(255,255,255,0.85);line-height:1.55;">
+          <i class="fas fa-sun" style="color:#FFD600;margin-top:3px;flex-shrink:0;"></i>
+          <span><strong>Best time to visit beaches:</strong> Early morning (7–9 AM) and late afternoon (4–6 PM) offer the coolest temperatures and calmest waters. The midday heat (11 AM–3 PM) can be intense — use SPF 50+ sunscreen.</span>
+        </li>
+        <li style="display:flex;gap:0.75rem;font-size:0.88rem;color:rgba(255,255,255,0.85);line-height:1.55;">
+          <i class="fas fa-dollar-sign" style="color:#FFD600;margin-top:3px;flex-shrink:0;"></i>
+          <span><strong>Bargaining is cultural:</strong> At markets and with tuk-tuk drivers, polite negotiation is normal and expected. A smile goes a long way — vendors respect guests who engage with the local culture.</span>
+        </li>
+        <li style="display:flex;gap:0.75rem;font-size:0.88rem;color:rgba(255,255,255,0.85);line-height:1.55;">
+          <i class="fas fa-tint" style="color:#FFD600;margin-top:3px;flex-shrink:0;"></i>
+          <span><strong>Drinking water:</strong> Tap water in Mombasa is not recommended for drinking. We provide bottled water on arrival. Supermarkets sell 20L jerricans at budget prices for extended stays.</span>
+        </li>
+        <li style="display:flex;gap:0.75rem;font-size:0.88rem;color:rgba(255,255,255,0.85);line-height:1.55;">
+          <i class="fas fa-mosque" style="color:#FFD600;margin-top:3px;flex-shrink:0;"></i>
+          <span><strong>Dress code in Old Town:</strong> Out of respect for the predominantly Muslim Old Town community, visitors are encouraged to dress modestly (cover shoulders and knees). Lightweight scarves and wraps work perfectly in the coastal heat.</span>
+        </li>
+        <li style="display:flex;gap:0.75rem;font-size:0.88rem;color:rgba(255,255,255,0.85);line-height:1.55;">
+          <i class="fas fa-wifi" style="color:#FFD600;margin-top:3px;flex-shrink:0;"></i>
+          <span><strong>SIM cards &amp; data:</strong> Purchase a Safaricom or Airtel Kenya SIM at the airport or any supermarket for excellent 4G coverage across Mombasa. Safaricom has the strongest signal at the coast.</span>
+        </li>
+        <li style="display:flex;gap:0.75rem;font-size:0.88rem;color:rgba(255,255,255,0.85);line-height:1.55;">
+          <i class="fas fa-comments" style="color:#FFD600;margin-top:3px;flex-shrink:0;"></i>
+          <span><strong>Learn a few Swahili words:</strong> <em>"Jambo"</em> (Hello), <em>"Asante"</em> (Thank you), <em>"Hakuna matata"</em> (No problem). Locals genuinely appreciate any effort to speak Swahili — it will earn you warm smiles and often better prices!</span>
+        </li>
+      </ul>
+    </div>
+
+  </div>
+
+  <div class="footer-note">
+    <p>&copy; 2024 Gonah Homes · Mombasa, Kenya &nbsp;·&nbsp; A brand of <strong>Gonah Nexus</strong> &nbsp;·&nbsp; <a href="index.html">Home</a> &nbsp;·&nbsp; <a href="policies.html">Policies</a> &nbsp;·&nbsp; <a href="contact.html">Contact Us</a></p>
+    <p style="margin-top:0.35rem;">Questions about Mombasa? We're always happy to help — <a href="mailto:gonahhomes0@gmail.com">gonahhomes0@gmail.com</a></p>
+  </div>
+
+</body>
+</html>

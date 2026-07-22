@@ -1,0 +1,608 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Guest Reviews - Gonah Homes</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, max-age=0">
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+  <style>
+    * { box-sizing: border-box; }
+    body, html {
+      margin: 0; padding: 0;
+      min-height: 100vh;
+      background: linear-gradient(135deg, #1a0000 0%, #2d0000 50%, #1a0000 100%);
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      color: #1a1a1a;
+    }
+    .page-header {
+      background: rgba(128,0,0,0.9);
+      padding: 1rem 2rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      position: sticky; top: 0; z-index: 100;
+      backdrop-filter: blur(10px);
+    }
+    .page-header h1 { margin: 0; color: #FFD600; font-size: 1.4rem; }
+    .back-btn {
+      color: #FFD600; text-decoration: none; font-size: 0.9rem;
+      display: flex; align-items: center; gap: 6px;
+      background: rgba(255,214,0,0.15); padding: 6px 14px;
+      border-radius: 20px; transition: background 0.2s;
+    }
+    .back-btn:hover { background: rgba(255,214,0,0.3); }
+    .reviews-container {
+      max-width: 700px; margin: 0 auto;
+      padding: 1.5rem 1rem 3rem;
+      display: flex; flex-direction: column; gap: 1.5rem;
+    }
+    .card {
+      background: rgba(255,255,255,0.95);
+      border-radius: 16px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.25);
+      padding: 1.5rem;
+      border-left: 5px solid #800000;
+    }
+    .card-title {
+      font-size: 1.1rem; font-weight: 700;
+      color: #800000; margin: 0 0 1rem;
+      display: flex; align-items: center; gap: 8px;
+    }
+    /* Form inputs */
+    .form-group { margin-bottom: 1rem; }
+    .form-group label { display: block; font-weight: 600; margin-bottom: 4px; font-size: 0.9rem; color: #444; }
+    .form-group input, .form-group textarea {
+      width: 100%; padding: 0.7rem 1rem;
+      border: 1.5px solid #ddd; border-radius: 8px;
+      font-size: 0.95rem; font-family: inherit;
+      transition: border-color 0.2s;
+    }
+    .form-group input:focus, .form-group textarea:focus {
+      outline: none; border-color: #800000;
+    }
+    .form-group textarea { resize: vertical; min-height: 110px; }
+    .btn {
+      padding: 0.75rem 1.5rem; border: none; border-radius: 8px;
+      font-size: 0.95rem; font-weight: 600; cursor: pointer;
+      transition: all 0.2s; width: 100%;
+    }
+    .btn-primary { background: #800000; color: #fff; }
+    .btn-primary:hover:not(:disabled) { background: #600000; transform: translateY(-1px); }
+    .btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
+    /* Star rating */
+    .star-rating { display: flex; flex-direction: row-reverse; justify-content: flex-end; gap: 4px; }
+    .star-rating input { display: none; }
+    .star-rating label {
+      font-size: 2rem; color: #ccc; cursor: pointer; transition: color 0.15s;
+      line-height: 1;
+    }
+    .star-rating input:checked ~ label,
+    .star-rating label:hover,
+    .star-rating label:hover ~ label { color: #FFD600; }
+    /* File upload */
+    .file-upload-area {
+      border: 2.5px dashed #ccc; border-radius: 10px;
+      padding: 1.25rem 1rem; text-align: center;
+      cursor: pointer; transition: all 0.2s;
+      position: relative; background: #fafafa;
+      min-height: 100px; display: flex;
+      flex-direction: column; align-items: center; justify-content: center;
+    }
+    .file-upload-area:hover, .file-upload-area:focus-within { border-color: #800000; background: #fff8f8; }
+    .file-upload-area input[type="file"] {
+      position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%;
+    }
+    .file-upload-area .upload-icon { font-size: 2rem; color: #800000; margin-bottom: 6px; }
+    .file-upload-area p { margin: 3px 0; font-size: 0.85rem; color: #666; }
+    .file-upload-area p:first-of-type { font-weight: 600; color: #444; }
+    #selected-file-name { font-size: 0.82rem; color: #800000; margin-top: 6px; font-weight: 600; }
+    #image-preview { margin-top: 0.75rem; display: none; }
+    #image-preview img { max-width: 100%; max-height: 180px; border-radius: 8px; object-fit: cover; }
+    /* Verified badge */
+    .verified-badge {
+      display: flex; align-items: center; gap: 8px;
+      background: #e8f5e9; border: 1px solid #81c784;
+      border-radius: 8px; padding: 0.6rem 1rem;
+      color: #2e7d32; font-weight: 600; font-size: 0.9rem;
+      margin-bottom: 1rem;
+    }
+    /* Review cards */
+    .review-card {
+      background: #fff; border-radius: 12px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+      padding: 1.2rem; margin-bottom: 1rem;
+      border-left: 4px solid #800000;
+    }
+    .review-card-header { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.75rem; }
+    .review-avatar {
+      width: 44px; height: 44px; border-radius: 50%;
+      object-fit: cover; border: 2px solid #800000; flex-shrink: 0;
+    }
+    .reviewer-name { font-weight: 700; font-size: 0.95rem; color: #222; }
+    .review-meta { font-size: 0.78rem; color: #888; }
+    .star-display { color: #FFD600; font-size: 1rem; margin: 4px 0; }
+    .review-text { color: #444; font-size: 0.92rem; line-height: 1.5; }
+    .review-img { margin-top: 0.75rem; }
+    .review-img img { width: 100%; max-height: 200px; object-fit: cover; border-radius: 8px; }
+    .pending-badge {
+      font-size: 0.75rem; color: #e65100;
+      background: rgba(230,81,0,0.1); border-radius: 20px;
+      padding: 2px 8px; display: inline-block; margin-left: 8px;
+    }
+    /* Alerts */
+    .alert { padding: 0.75rem 1rem; border-radius: 8px; font-size: 0.9rem; margin-bottom: 1rem; }
+    .alert-error { background: #fdecea; color: #b71c1c; border: 1px solid #ef9a9a; }
+    .alert-success { background: #e8f5e9; color: #2e7d32; border: 1px solid #81c784; }
+    /* Empty state */
+    .empty-state { text-align: center; padding: 2rem; color: #888; }
+    .empty-state i { font-size: 2.5rem; color: #ccc; margin-bottom: 0.5rem; }
+    /* Carousel */
+    @keyframes reviewFadeIn {
+      from { opacity: 0; transform: translateY(14px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .carousel-slide { display: none; }
+    .carousel-slide.active { display: block; }
+    .carousel-slide.active .review-card {
+      opacity: 0;
+      animation: reviewFadeIn 0.55s ease 0.08s forwards;
+    }
+    .carousel-controls {
+      display: flex; align-items: center; justify-content: center;
+      gap: 0.75rem; margin-top: 1rem;
+    }
+    .carousel-btn {
+      background: none; border: 2px solid #800000; color: #800000;
+      width: 36px; height: 36px; border-radius: 50%; cursor: pointer;
+      font-size: 0.9rem; transition: all 0.2s; display: flex;
+      align-items: center; justify-content: center;
+    }
+    .carousel-btn:hover { background: #800000; color: #fff; }
+    .carousel-dots { display: flex; gap: 7px; align-items: center; }
+    .carousel-dot {
+      width: 9px; height: 9px; border-radius: 50%; background: #ddd;
+      border: none; cursor: pointer; padding: 0; transition: background 0.2s;
+    }
+    .carousel-dot.active { background: #800000; }
+    .reviews-grid { display: flex; flex-direction: column; gap: 0; }
+    .reviews-grid .review-card {
+      animation: reviewFadeIn 0.4s ease both; opacity: 0;
+    }
+    /* View-all button */
+    #view-all-btn {
+      display: block; width: 100%; padding: 0.8rem;
+      background: transparent; border: 2px solid #800000;
+      color: #800000; border-radius: 10px; font-size: 0.92rem;
+      font-weight: 600; cursor: pointer; text-align: center;
+      transition: all 0.2s; margin-top: 0.85rem; font-family: inherit;
+    }
+    #view-all-btn:hover { background: #800000; color: #fff; }
+  </style>
+</head>
+<body>
+
+  <div class="page-header">
+    <h1><i class="fas fa-star" style="color:#FFD600;"></i> Guest Reviews</h1>
+    <a href="index.html" class="back-btn"><i class="fas fa-arrow-left"></i> Back to Home</a>
+  </div>
+
+  <div class="reviews-container">
+
+    <!-- Write a Review -->
+    <div class="card">
+      <h2 class="card-title"><i class="fas fa-pen"></i> Write a Review</h2>
+
+      <!-- Alert area -->
+      <div id="form-alert"></div>
+
+      <!-- Phase 1: Verify Booking -->
+      <div id="verify-section">
+        <p style="color:#555;font-size:0.9rem;margin:0 0 1rem;">Enter your booking details to leave a verified review.</p>
+        <form id="verify-form">
+          <div class="form-group">
+            <label><i class="fas fa-envelope"></i> Email Address</label>
+            <input type="email" id="verify-email" placeholder="Your booking email" required>
+          </div>
+          <div class="form-group">
+            <label><i class="fas fa-ticket-alt"></i> Booking ID</label>
+            <input type="text" id="verify-booking-id" placeholder="e.g. GNH-ABCD12" required>
+          </div>
+          <button type="submit" class="btn btn-primary" id="verify-btn">
+            <i class="fas fa-check-circle"></i> Verify & Continue
+          </button>
+        </form>
+      </div>
+
+      <!-- Phase 2: Review Form -->
+      <div id="review-section" style="display:none;">
+        <div class="verified-badge" id="verified-badge">
+          <i class="fas fa-check-circle"></i> <span id="verified-name">Verified Guest</span>
+        </div>
+        <form id="review-form">
+          <div class="form-group">
+            <label>Your Rating <span style="color:red;">*</span></label>
+            <div class="star-rating">
+              <input type="radio" name="rating" value="5" id="r5"><label for="r5"><i class="fas fa-star"></i></label>
+              <input type="radio" name="rating" value="4" id="r4"><label for="r4"><i class="fas fa-star"></i></label>
+              <input type="radio" name="rating" value="3" id="r3"><label for="r3"><i class="fas fa-star"></i></label>
+              <input type="radio" name="rating" value="2" id="r2"><label for="r2"><i class="fas fa-star"></i></label>
+              <input type="radio" name="rating" value="1" id="r1"><label for="r1"><i class="fas fa-star"></i></label>
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="review-text"><i class="fas fa-comment"></i> Your Review <span style="color:red;">*</span></label>
+            <textarea id="review-text" placeholder="Tell us about your stay..." required></textarea>
+          </div>
+          <div class="form-group">
+            <label><i class="fas fa-camera"></i> Add Photo <span style="color:#888;font-weight:400;">(optional)</span></label>
+            <div id="review-upload-zone" class="file-upload-area" style="min-height:120px;">
+              <input type="file" id="review-image" accept="image/*" style="position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;z-index:2;">
+              <div id="review-upload-content">
+                <div class="upload-icon"><i class="fas fa-cloud-upload-alt"></i></div>
+                <p style="margin:3px 0;font-weight:600;color:#444;">Drag &amp; drop a photo here</p>
+                <p style="margin:3px 0;font-size:0.8rem;color:#666;">or click to browse from your device</p>
+                <p style="margin:3px 0;font-size:0.72rem;color:#999;">JPG, PNG, WebP — max 5 MB</p>
+              </div>
+              <div id="review-upload-preview" style="display:none;pointer-events:none;text-align:center;"></div>
+            </div>
+            <p id="selected-file-name"></p>
+            <div id="image-preview"><img id="preview-img" src="" alt="Preview"></div>
+          </div>
+          <button type="submit" class="btn btn-primary" id="submit-btn">
+            <i class="fas fa-paper-plane"></i> Submit Review
+          </button>
+        </form>
+      </div>
+    </div>
+
+    <!-- Reviews List -->
+    <div class="card">
+      <h2 class="card-title"><i class="fas fa-comments"></i> What Our Guests Say</h2>
+      <div id="reviews-list">
+        <div class="empty-state">
+          <i class="fas fa-spinner fa-spin"></i>
+          <p>Loading reviews...</p>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Firebase SDK -->
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
+
+  <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyABTVp797tNu353FBVLzsOp90aIX2mNF74",
+      authDomain: "my-website-project2797.firebaseapp.com",
+      projectId: "my-website-project2797",
+      storageBucket: "my-website-project2797.appspot.com",
+      messagingSenderId: "406226552922",
+      appId: "1:406226552922:web:ffdf2ccf6f77a57964b063"
+    };
+    if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+    const storage = firebase.storage();
+
+    let verifiedReviewer = null;
+
+    // ---- Avatar Helper ----
+    function buildAvatar(name, email) {
+      let hash = 0;
+      const str = (email || name || '').toLowerCase();
+      for (let i = 0; i < str.length; i++) {
+        hash = str.charCodeAt(i) + ((hash << 5) - hash);
+        hash = hash & hash;
+      }
+      const colors = ['7B2D00','8B1A1A','6A0F49','0D47A1','1B5E20','006064','4A148C','E65100','37474F','880E4F'];
+      const bg = colors[Math.abs(hash) % colors.length];
+      return `https://ui-avatars.com/api/?name=${encodeURIComponent(name || 'Guest')}&size=100&background=${bg}&color=fff&rounded=true&bold=true`;
+    }
+
+    // ---- Alert Helper ----
+    function showAlert(msg, type) {
+      const el = document.getElementById('form-alert');
+      el.innerHTML = `<div class="alert alert-${type}">${msg}</div>`;
+      setTimeout(() => el.innerHTML = '', 5000);
+    }
+
+    // ---- Activate Review Form ----
+    function activateReviewForm(reviewer) {
+      verifiedReviewer = reviewer;
+      document.getElementById('verify-section').style.display = 'none';
+      document.getElementById('review-section').style.display = 'block';
+      document.getElementById('verified-name').textContent = `Verified: ${reviewer.name}`;
+    }
+
+    // Always show verification form on page load — no auto-access
+    document.getElementById('verify-section').style.display = 'block';
+    document.getElementById('review-section').style.display = 'none';
+
+    // ---- Verify Form ----
+    document.getElementById('verify-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const email = document.getElementById('verify-email').value.trim();
+      const code = document.getElementById('verify-booking-id').value.trim().toUpperCase();
+      const btn = document.getElementById('verify-btn');
+      btn.disabled = true;
+      btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Verifying...';
+      try {
+        const snap = await db.collection('bookings')
+          .where('email', '==', email)
+          .where('id', '==', code)
+          .get();
+        if (snap.empty) {
+          showAlert('No booking found with that email and Booking ID. Please check and try again.', 'error');
+          return;
+        }
+        const b = snap.docs[0].data();
+        activateReviewForm({ email, code, name: b.name || email.split('@')[0] });
+      } catch (err) {
+        showAlert('Error verifying booking: ' + err.message, 'error');
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-check-circle"></i> Verify & Continue';
+      }
+    });
+
+    // ---- Drag & Drop + Preview for Review Photo ----
+    const _reviewZone = document.getElementById('review-upload-zone');
+    const _reviewInput = document.getElementById('review-image');
+    let _reviewPreviewUrl = null;
+
+    function _clearReviewUpload() {
+      _reviewInput.value = '';
+      if (_reviewPreviewUrl) { URL.revokeObjectURL(_reviewPreviewUrl); _reviewPreviewUrl = null; }
+      document.getElementById('review-upload-preview').style.display = 'none';
+      document.getElementById('review-upload-content').style.display = 'block';
+      _reviewZone.style.borderColor = '#ccc';
+      _reviewZone.style.background = '#fafafa';
+      document.getElementById('selected-file-name').textContent = '';
+      document.getElementById('image-preview').style.display = 'none';
+    }
+
+    _reviewZone.addEventListener('dragover', e => { e.preventDefault(); _reviewZone.style.borderColor = '#800000'; _reviewZone.style.background = '#fff8f8'; });
+    _reviewZone.addEventListener('dragleave', () => { _reviewZone.style.borderColor = '#ccc'; _reviewZone.style.background = '#fafafa'; });
+    _reviewZone.addEventListener('drop', e => {
+      e.preventDefault();
+      _reviewZone.style.borderColor = '#ccc'; _reviewZone.style.background = '#fafafa';
+      if (e.dataTransfer.files.length) _handleReviewFile(e.dataTransfer.files[0]);
+    });
+
+    function _handleReviewFile(file) {
+      const nameEl = document.getElementById('selected-file-name');
+      const previewDiv = document.getElementById('image-preview');
+      const previewImg = document.getElementById('preview-img');
+      if (file.size > 5 * 1024 * 1024) {
+        showAlert('Image is too large. Please choose a file under 5 MB.', 'error');
+        _clearReviewUpload();
+        return;
+      }
+      nameEl.textContent = file.name;
+      // Show inline preview in upload zone
+      document.getElementById('review-upload-content').style.display = 'none';
+      const zonePreview = document.getElementById('review-upload-preview');
+      zonePreview.style.display = 'block';
+      if (_reviewPreviewUrl) URL.revokeObjectURL(_reviewPreviewUrl);
+      _reviewPreviewUrl = URL.createObjectURL(file);
+      zonePreview.innerHTML = `
+        <img src="${_reviewPreviewUrl}" style="max-height:110px;max-width:100%;border-radius:8px;object-fit:cover;display:block;margin:0 auto 0.4rem;" alt="Preview">
+        <p style="margin:0;font-size:0.82rem;font-weight:600;color:#333;">${file.name}</p>
+        <p style="margin:0.1rem 0 0;font-size:0.75rem;color:#888;">${(file.size/1024).toFixed(0)} KB</p>
+        <button onclick="event.stopPropagation();_clearReviewUpload()" style="background:none;border:none;color:#c62828;font-size:0.78rem;cursor:pointer;margin-top:0.3rem;pointer-events:auto;">
+          <i class="fas fa-times"></i> Remove
+        </button>`;
+      // Also show below
+      const reader = new FileReader();
+      reader.onload = (ev) => { previewImg.src = ev.target.result; previewDiv.style.display = 'block'; };
+      reader.readAsDataURL(file);
+    }
+
+    _reviewInput.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (file) _handleReviewFile(file);
+      else _clearReviewUpload();
+    });
+
+    // ---- Submit Review ----
+    document.getElementById('review-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      if (!verifiedReviewer) return;
+
+      const rating = document.querySelector('input[name="rating"]:checked')?.value;
+      if (!rating) { showAlert('Please select a star rating.', 'error'); return; }
+
+      const text = document.getElementById('review-text').value.trim();
+      const imageFile = document.getElementById('review-image').files[0];
+      const btn = document.getElementById('submit-btn');
+      btn.disabled = true;
+      btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Submitting...';
+
+      try {
+        // Compress image via canvas (used as fallback if Storage upload fails)
+        const compressToBase64 = (file, maxDim, q) => new Promise((res, rej) => {
+          const reader = new FileReader();
+          reader.onload = ev => {
+            const img = new Image();
+            img.onload = () => {
+              let w = img.width, h = img.height;
+              if (w > maxDim || h > maxDim) {
+                if (w > h) { h = Math.round(h * maxDim / w); w = maxDim; }
+                else { w = Math.round(w * maxDim / h); h = maxDim; }
+              }
+              const c = document.createElement('canvas');
+              c.width = w; c.height = h;
+              c.getContext('2d').drawImage(img, 0, 0, w, h);
+              res(c.toDataURL('image/jpeg', q));
+            };
+            img.onerror = rej;
+            img.src = ev.target.result;
+          };
+          reader.onerror = rej;
+          reader.readAsDataURL(file);
+        });
+
+        let imageUrl = null;
+        if (imageFile) {
+          // Compress and store as base64 in Firestore — no Storage auth needed
+          try {
+            const b64 = await compressToBase64(imageFile, 600, 0.72);
+            if (b64.length < 700000) {
+              imageUrl = b64;
+            } else {
+              showAlert('Photo is too large to attach (max ~500 KB). Please choose a smaller photo — your review will be submitted without it.', 'warning');
+            }
+          } catch (_) {
+            showAlert('Could not process the photo. Submitting review without image.', 'warning');
+          }
+        }
+
+        await db.collection('reviews').add({
+          name: verifiedReviewer.name,
+          email: verifiedReviewer.email,
+          bookingCode: verifiedReviewer.code,
+          rating: parseInt(rating),
+          review: text,
+          imageUrl: imageUrl || null,
+          timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+          approved: true
+        });
+
+        document.getElementById('review-section').innerHTML = `
+          <div style="text-align:center;padding:1.5rem;">
+            <i class="fas fa-check-circle" style="font-size:3rem;color:#2e7d32;"></i>
+            <h3 style="color:#2e7d32;margin:0.75rem 0 0.5rem;">Thank you, ${verifiedReviewer.name}!</h3>
+            <p style="color:#555;margin:0;">Your review is now live and visible to all guests!</p>
+          </div>`;
+      } catch (err) {
+        showAlert('Error submitting review: ' + err.message, 'error');
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-paper-plane"></i> Submit Review';
+      }
+    });
+
+    // ---- Load & Render Reviews ----
+    const INITIAL_REVIEW_COUNT = 3;
+    let _allReviews = [];
+    let _showingAll = false;
+    let _carouselIndex = 0;
+
+    function buildReviewCard(r, index) {
+      const name  = r.name || 'Anonymous';
+      const date  = r.timestamp ? new Date(r.timestamp.toDate()).toLocaleDateString('en-KE', {day:'numeric', month:'short', year:'numeric'}) : '';
+      const stars = '★'.repeat(Number(r.rating||5)) + '☆'.repeat(5 - Number(r.rating||5));
+      const avatar = buildAvatar(name, r.email || '');
+      return `
+        <div class="review-card" style="animation-delay:${index * 0.07}s">
+          <div class="review-card-header">
+            <img src="${avatar}" alt="${name}" class="review-avatar" onerror="this.src='https://ui-avatars.com/api/?name=Guest&background=800000&color=fff&bold=true'">
+            <div>
+              <div class="reviewer-name">${name}</div>
+              <div class="star-display">${stars}</div>
+              <div class="review-meta">${date ? 'Verified Guest &bull; ' + date : 'Verified Guest'}</div>
+            </div>
+          </div>
+          <div class="review-text">&ldquo;${r.review}&rdquo;</div>
+          ${r.imageUrl ? `<div class="review-img"><img src="${r.imageUrl}" alt="Review photo" loading="lazy"></div>` : ''}
+        </div>`;
+    }
+
+    let _carouselTimer = null;
+
+    function renderReviews(showAll) {
+      const list = document.getElementById('reviews-list');
+      if (!_allReviews.length) return;
+
+      if (showAll) {
+        // Grid: all reviews stacked with animation
+        if (_carouselTimer) { clearInterval(_carouselTimer); _carouselTimer = null; }
+        let html = '<div class="reviews-grid">';
+        html += _allReviews.map((r, i) => `<div style="animation-delay:${i * 0.06}s">${buildReviewCard(r, i)}</div>`).join('');
+        html += '</div>';
+        html += `<button id="view-all-btn" onclick="toggleAllReviews(false)" style="border-color:#aaa;color:#777;">
+          <i class="fas fa-chevron-up"></i>&nbsp; Show Less
+        </button>`;
+        list.innerHTML = html;
+
+      } else {
+        // Carousel: one review at a time
+        _carouselIndex = 0;
+        let slides = _allReviews.map((r, i) =>
+          `<div class="carousel-slide${i === 0 ? ' active' : ''}">${buildReviewCard(r, 0)}</div>`
+        ).join('');
+
+        const dots = _allReviews.map((_, i) =>
+          `<button class="carousel-dot${i === 0 ? ' active' : ''}" onclick="goToSlide(${i})"></button>`
+        ).join('');
+
+        list.innerHTML = `
+          <div id="carousel-wrap">${slides}</div>
+          <div class="carousel-controls">
+            <button class="carousel-btn" onclick="carouselPrev()"><i class="fas fa-chevron-left"></i></button>
+            <div class="carousel-dots">${dots}</div>
+            <button class="carousel-btn" onclick="carouselNext()"><i class="fas fa-chevron-right"></i></button>
+          </div>
+          ${_allReviews.length > 1 ? `<button id="view-all-btn" onclick="toggleAllReviews(true)">
+            <i class="fas fa-th"></i>&nbsp; View All ${_allReviews.length} Reviews
+          </button>` : ''}
+        `;
+
+        // Auto-advance every 6 s
+        if (_carouselTimer) clearInterval(_carouselTimer);
+        if (_allReviews.length > 1) {
+          _carouselTimer = setInterval(carouselNext, 6000);
+        }
+      }
+    }
+
+    function goToSlide(index) {
+      _carouselIndex = (index + _allReviews.length) % _allReviews.length;
+      document.querySelectorAll('.carousel-slide').forEach((s, i) =>
+        s.classList.toggle('active', i === _carouselIndex));
+      document.querySelectorAll('.carousel-dot').forEach((d, i) =>
+        d.classList.toggle('active', i === _carouselIndex));
+      // reset timer
+      if (_carouselTimer) { clearInterval(_carouselTimer); _carouselTimer = setInterval(carouselNext, 6000); }
+    }
+    function carouselNext() { goToSlide(_carouselIndex + 1); }
+    function carouselPrev() { goToSlide(_carouselIndex - 1); }
+
+    function toggleAllReviews(show) {
+      _showingAll = show;
+      renderReviews(show);
+    }
+
+    function loadReviews() {
+      const handler = (reviews) => {
+        _allReviews = reviews;
+        if (!_allReviews.length) {
+          document.getElementById('reviews-list').innerHTML =
+            `<div class="empty-state"><i class="fas fa-star"></i><p>No reviews yet. Be the first to share your experience!</p></div>`;
+          return;
+        }
+        renderReviews(_showingAll);
+      };
+
+      db.collection('reviews')
+        .where('approved', '==', true)
+        .orderBy('timestamp', 'desc')
+        .onSnapshot(
+          snap => handler(snap.docs.map(d => d.data())),
+          err => {
+            // Fallback if composite index missing
+            db.collection('reviews').orderBy('timestamp', 'desc').onSnapshot(
+              snap => handler(snap.docs.filter(d => d.data().approved === true).map(d => d.data()))
+            );
+          }
+        );
+    }
+
+    loadReviews();
+  </script>
+</body>
+</html>

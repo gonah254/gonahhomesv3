@@ -1,0 +1,1687 @@
+
+// Firebase Configuration
+const firebaseConfig = {
+  apiKey: "AIzaSyABTVp797tNu353FBVLzsOp90aIX2mNF74",
+  authDomain: "my-website-project2797.firebaseapp.com",
+  projectId: "my-website-project2797",
+  storageBucket: "my-website-project2797.appspot.com",
+  messagingSenderId: "406226552922",
+  appId: "1:406226552922:web:ffdf2ccf6f77a57964b063"
+};
+
+// Initialize Firebase
+if (!firebase.apps.length) {
+  firebase.initializeApp(firebaseConfig);
+}
+
+const db = firebase.firestore();
+
+// EmailJS Configuration
+const emailConfig = {
+  serviceId: 'service_ky2kj3t',
+  adminTemplate: 'template_24gjzd3',
+  clientTemplate: 'template_6duvs5n',
+  publicKey: 'VgDakmh3WscKrr_wQ'
+};
+
+// Initialize EmailJS
+emailjs.init(emailConfig.publicKey);
+
+// Primary admin email — fallback when staff_accounts doc is missing
+const ADMIN_EMAIL = 'gonahhomes0@gmail.com';
+
+// Global variables
+let currentSection = 'overview';
+let notifications = [];
+let charts = {};
+let currentAdminRole = 'admin';
+let dashboardInitialized = false;
+
+// ---- Admin Authentication (Firebase Auth) ----
+async function login(email, password) {
+  const loginBtn = document.querySelector('#login-form button[type="submit"]');
+  if (loginBtn) {
+    loginBtn.disabled = true;
+    loginBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Signing in...';
+  }
+  try {
+    const result = await firebase.auth().signInWithEmailAndPassword(email, password);
+    let role = 'admin';
+    try {
+      const staffDoc = await db.collection('staff_accounts').doc(result.user.uid).get();
+      if (staffDoc.exists) {
+        role = staffDoc.data().role || 'admin';
+      } else if (result.user.email !== ADMIN_EMAIL) {
+        await firebase.auth().signOut();
+        showToast('Access denied — contact the administrator.', 'error');
+        return false;
+      }
+    } catch (_) {
+      if (result.user.email !== ADMIN_EMAIL) {
+        await firebase.auth().signOut();
+        showToast('Access denied.', 'error');
+        return false;
+      }
+    }
+    currentAdminRole = role;
+    document.getElementById('login-modal').classList.remove('active');
+    document.getElementById('dashboard').classList.remove('hidden');
+    if (!dashboardInitialized) { initializeDashboard(); dashboardInitialized = true; }
+    return true;
+  } catch (error) {
+    const msgs = {
+      'auth/user-not-found': 'No account found with that email.',
+      'auth/wrong-password': 'Incorrect password.',
+      'auth/invalid-email': 'Invalid email address.',
+      'auth/too-many-requests': 'Too many sign-in attempts — try again later.',
+      'auth/invalid-credential': 'Invalid email or password.'
+    };
+    showToast(msgs[error.code] || 'Login failed. Please check your credentials.', 'error');
+    return false;
+  } finally {
+    if (loginBtn) {
+      loginBtn.disabled = false;
+      loginBtn.innerHTML = '<i class="fas fa-sign-in-alt"></i> Login';
+    }
+  }
+}
+
+function checkLoginStatus() {
+  firebase.auth().onAuthStateChanged(async (user) => {
+    if (user) {
+      try {
+        const staffDoc = await db.collection('staff_accounts').doc(user.uid).get();
+        if (!staffDoc.exists && user.email !== ADMIN_EMAIL) {
+          firebase.auth().signOut();
+          return;
+        }
+        if (staffDoc.exists) currentAdminRole = staffDoc.data().role || 'admin';
+      } catch (_) {}
+      document.getElementById('login-modal')?.classList.remove('active');
+      document.getElementById('dashboard')?.classList.remove('hidden');
+      if (!dashboardInitialized) { initializeDashboard(); dashboardInitialized = true; }
+    }
+  });
+}
+
+checkLoginStatus();
+
+function logout() {
+  firebase.auth().signOut().then(() => {
+    dashboardInitialized = false;
+    document.getElementById('login-modal').classList.add('active');
+    document.getElementById('dashboard').classList.add('hidden');
+    document.getElementById('login-form').reset();
+  });
+}
+
+// Reports & Data Export
+function exportBookingsToCSV() {
+  db.collection('bookings').get().then(snapshot => {
+    let csv = 'ID,Guest,Property,Checkin,Checkout,Status,Total\n';
+    snapshot.forEach(doc => {
+      const b = doc.data();
+      csv += `${doc.id},${b.name},${b.house},${b.checkin},${b.checkout},${b.status},${b.total || 0}\n`;
+    });
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.setAttribute('hidden', '');
+    a.setAttribute('href', url);
+    a.setAttribute('download', 'bookings.csv');
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  });
+}
+
+// Initialize Dashboard
+function applyRoleRestrictions() {
+  const isPrimaryAdmin = firebase.auth().currentUser?.email === ADMIN_EMAIL;
+  const staffLink = document.querySelector('[data-section="staff"]');
+  if (staffLink) staffLink.style.display = isPrimaryAdmin ? '' : 'none';
+}
+
+function initializeDashboard() {
+  // Add Export Button
+  const header = document.querySelector('.header-actions');
+  if (header && !document.getElementById('export-btn')) {
+    const btn = document.createElement('button');
+    btn.id = 'export-btn';
+    btn.className = 'btn btn-outline btn-sm';
+    btn.innerHTML = '<i class="fas fa-file-export"></i> Export CSV';
+    btn.style.marginRight = '10px';
+    btn.onclick = exportBookingsToCSV;
+    header.prepend(btn);
+  }
+  applyRoleRestrictions();
+  loadStats();
+  loadBookings();
+  loadMessages();
+  loadServiceRequests();
+  loadReviews();
+  loadAnnouncements();
+  loadClients();
+  setupRealTimeListeners();
+  initializeCharts();
+  loadNotifications();
+}
+
+// Real-time listeners
+function setupRealTimeListeners() {
+  db.collection('bookings').orderBy('timestamp', 'desc').onSnapshot(snapshot => {
+    loadBookings(); // Force full reload on any change
+    updateStats();
+  });
+
+  // Listen for new messages
+  db.collection('messages').onSnapshot(snapshot => {
+    snapshot.docChanges().forEach(change => {
+      if (change.type === 'added') {
+        const message = change.doc.data();
+        addNotification('message', `New message from ${message.name}: ${message.message.substring(0, 50)}...`, message);
+        sendEmailNotification('message', message);
+      }
+    });
+    loadMessages();
+    updateStats();
+  });
+
+  // Listen for new reviews
+  db.collection('reviews').onSnapshot(snapshot => {
+    snapshot.docChanges().forEach(change => {
+      if (change.type === 'added') {
+        const review = change.doc.data();
+        addNotification('review', `New ${review.rating}-star review: ${review.review.substring(0, 50)}...`, review);
+        sendEmailNotification('review', review);
+      }
+    });
+    loadReviews();
+    updateStats();
+  });
+
+  // Listen for new service requests
+  db.collection('service_requests').onSnapshot(snapshot => {
+    snapshot.docChanges().forEach(change => {
+      if (change.type === 'added') {
+        const req = change.doc.data();
+        addNotification('service', `New service request: ${req.type} from ${req.userEmail || req.userId}`, req);
+      }
+    });
+    loadServiceRequests();
+    updateStats();
+  });
+}
+
+// Email notifications - Fixed to send only once
+const sentNotifications = new Set();
+
+async function sendEmailNotification(type, data) {
+  const notificationKey = `${type}_${data.timestamp?.seconds || Date.now()}`;
+  
+  if (sentNotifications.has(notificationKey)) {
+    return; // Already sent
+  }
+  
+  sentNotifications.add(notificationKey);
+  
+  try {
+    switch(type) {
+      case 'booking':
+        await emailjs.send(emailConfig.serviceId, emailConfig.adminTemplate, {
+          to_name: "Admin",
+          to_email: credentials.username,
+          from_name: data.name,
+          from_email: data.email || '',
+          phone: data.phone || '',
+          house: data.house,
+          guests: data.guests,
+          checkin: data.checkin,
+          checkout: data.checkout,
+          requests: data.requests || '',
+          access: data.access || '',
+          message: `New booking request from ${data.name} for ${data.house}. Check-in: ${data.checkin}, Check-out: ${data.checkout}, Guests: ${data.guests}`,
+          subject: "New Booking Request"
+        });
+        
+        // Send confirmation to client
+        if (data.email) {
+          await emailjs.send(emailConfig.serviceId, emailConfig.clientTemplate, {
+            to_name: data.name,
+            to_email: data.email,
+            from_name: "Gonah Homes",
+            subject: "Booking Confirmation",
+            message: `Thank you ${data.name} for your booking request! Property: ${data.house}, Check-in: ${data.checkin}, Check-out: ${data.checkout}, Guests: ${data.guests}. We will contact you shortly for confirmation. Paybill 247247, Account No 466999 (Gonah Nexus)`
+          });
+        }
+        break;
+        
+      case 'message':
+        await emailjs.send(emailConfig.serviceId, emailConfig.adminTemplate, {
+          to_name: "Admin",
+          to_email: credentials.username,
+          from_name: data.name,
+          from_email: data.email || '',
+          phone: '',
+          house: 'Contact Form',
+          guests: '',
+          checkin: '',
+          checkout: '',
+          requests: data.message,
+          access: '',
+          message: `New contact message from ${data.name} (${data.email}): ${data.message}`,
+          subject: "New Contact Message"
+        });
+        break;
+        
+      case 'review':
+        await emailjs.send(emailConfig.serviceId, emailConfig.adminTemplate, {
+          to_name: "Admin",
+          to_email: credentials.username,
+          from_name: data.user?.name || 'Anonymous',
+          from_email: data.user?.email || credentials.username,
+          phone: '',
+          house: '',
+          guests: '',
+          checkin: '',
+          checkout: '',
+          requests: data.review,
+          access: '',
+          message: `New ${data.rating}-star review: ${data.review}`,
+          subject: "New Review Received"
+        });
+        break;
+    }
+    showToast('Notification sent successfully', 'success');
+  } catch (error) {
+    console.error('Error sending email notification:', error);
+    showToast('Failed to send notification', 'error');
+  }
+}
+
+// Load statistics
+async function loadStats() {
+  try {
+    const [bookingsSnap, messagesSnap, reviewsSnap, serviceSnap] = await Promise.all([
+      db.collection('bookings').get(),
+      db.collection('messages').get(),
+      db.collection('reviews').get(),
+      db.collection('service_requests').get()
+    ]);
+
+    const totalBookings = bookingsSnap.size;
+    const unreadMessages = messagesSnap.docs.filter(doc => doc.data().status === 'new').length;
+    const pendingServices = serviceSnap.docs.filter(doc => doc.data().status === 'pending').length;
+    const avgRating = reviewsSnap.docs.reduce((sum, doc) => sum + (parseFloat(doc.data().rating) || 0), 0) / reviewsSnap.size || 5.0;
+    const monthlyRevenue = totalBookings * 5000; // Example calculation
+
+    document.getElementById('total-bookings').textContent = totalBookings;
+    document.getElementById('unread-messages').textContent = unreadMessages;
+    document.getElementById('avg-rating').textContent = avgRating.toFixed(1);
+    document.getElementById('monthly-revenue').textContent = `KSh ${monthlyRevenue.toLocaleString()}`;
+  } catch (error) {
+    console.error('Error loading stats:', error);
+  }
+}
+
+// Load bookings
+async function loadBookings() {
+  try {
+    const bookingsTable = document.getElementById('bookings-table');
+    if (!bookingsTable) {
+        console.error('Bookings table element not found');
+        return;
+    }
+    
+    // Use a simpler query first to verify data exists
+    const snapshot = await db.collection('bookings').get();
+    bookingsTable.innerHTML = '';
+
+    if (snapshot.empty) {
+        bookingsTable.innerHTML = '<tr><td colspan="8" style="text-align:center;">No bookings found in database</td></tr>';
+        return;
+    }
+
+    snapshot.docs.sort((a, b) => (b.data().timestamp?.seconds || 0) - (a.data().timestamp?.seconds || 0)).forEach(doc => {
+      const booking = doc.data();
+      const bookingId = booking.id || doc.id.substring(0, 8);
+      const row = document.createElement('tr');
+      row.innerHTML = `
+        <td style="font-family:monospace;font-size:0.82rem;">${bookingId}</td>
+        <td>
+          <strong>${booking.name || 'N/A'}</strong><br>
+          <small>${booking.email || ''}</small><br>
+          <small>${booking.phone || ''}</small>
+        </td>
+        <td>${booking.house || 'N/A'}</td>
+        <td>${booking.checkin || 'N/A'}</td>
+        <td>${booking.checkout || 'N/A'}</td>
+        <td>
+          <span class="status status-${booking.status || 'pending'}">${(booking.status || 'pending').toUpperCase()}</span>
+          ${booking.paymentMethod ? `<br><small style="color:#2e7d32;font-size:0.75rem;"><i class="fas fa-check-circle"></i> ${booking.paymentMethod} · ${booking.transactionRef || ''}</small>` : ''}
+          ${booking.cancellationReason ? `<br><small style="color:#c62828;font-size:0.75rem;" title="${booking.cancellationReason}"><i class="fas fa-times-circle"></i> ${booking.cancellationReason.substring(0,35)}${booking.cancellationReason.length>35?'...':''}</small>` : ''}
+        </td>
+        <td><button class="btn btn-sm btn-outline" onclick="viewUserDocs('booking_${doc.id}')"><i class="fas fa-id-card"></i> View IDs</button></td>
+        <td style="white-space:nowrap;display:flex;flex-direction:column;gap:0.3rem;padding:0.5rem;">
+          ${booking.status !== 'confirmed' && booking.status !== 'cancelled' && booking.status !== 'completed' ?
+            `<button class="btn btn-success btn-sm" onclick="openPaymentModal('${doc.id}')"><i class="fas fa-check"></i> Confirm</button>` : ''}
+          ${booking.status !== 'cancelled' && booking.status !== 'completed' ?
+            `<button class="btn btn-danger btn-sm" onclick="openCancellationModal('${doc.id}')"><i class="fas fa-times"></i> Cancel</button>` : ''}
+          ${booking.status === 'confirmed' ?
+            `<button class="btn btn-outline btn-sm" onclick="updateBookingStatus('${doc.id}', 'completed')"><i class="fas fa-flag-checkered"></i> Complete</button>` : ''}
+        </td>
+      `;
+      bookingsTable.appendChild(row);
+    });
+  } catch (error) {
+    console.error('Error loading bookings:', error);
+    const bookingsTable = document.getElementById('bookings-table');
+    if (bookingsTable) bookingsTable.innerHTML = `<tr><td colspan="8" style="text-align:center; color:red;">Error: ${error.message}</td></tr>`;
+  }
+}
+
+async function viewUserDocs(userId) {
+  if (!userId) return alert('No user ID associated');
+  const docs = await db.collection('users').doc(userId).collection('documents').get();
+  if (docs.empty) return alert('No documents uploaded');
+  
+  let list = 'Uploaded Documents:\n';
+  docs.forEach(doc => {
+    list += `- ${doc.data().name}: ${doc.data().url}\n`;
+  });
+  alert(list);
+}
+
+// Update booking status
+async function updateBookingStatus(bookingId, status) {
+  try {
+    await db.collection('bookings').doc(bookingId).update({
+      status: status,
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+    
+    // Send email to client about status update
+    const bookingDoc = await db.collection('bookings').doc(bookingId).get();
+    const booking = bookingDoc.data();
+    
+    if (booking.email) {
+      let message = '';
+      switch(status) {
+        case 'confirmed':
+          message = `Your booking for ${booking.house} has been confirmed! Check-in: ${booking.checkin}, Check-out: ${booking.checkout}. We look forward to hosting you!`;
+          break;
+        case 'completed':
+          message = `Thank you for staying with us! We hope you enjoyed your time at ${booking.house}. Please leave us a review!`;
+          break;
+        case 'cancelled':
+          message = `Your booking for ${booking.house} has been cancelled. If you have any questions, please contact us.`;
+          break;
+      }
+      
+      try {
+        await emailjs.send(emailConfig.serviceId, emailConfig.clientTemplate, {
+          to_name: booking.name,
+          to_email: booking.email,
+          from_name: "Gonah Homes",
+          subject: `Booking ${status.charAt(0).toUpperCase() + status.slice(1)} - Gonah Homes`,
+          message: message
+        });
+      } catch (emailErr) {
+        console.warn('Status email could not be sent (booking still updated):', emailErr.message);
+      }
+    }
+    
+    // Write in-app notification to Firestore
+    try {
+      await db.collection('admin_notifications').add({
+        type: 'booking_' + status,
+        bookingId: bookingId,
+        house: booking.house || '',
+        guestName: booking.name || '',
+        guestEmail: booking.email || '',
+        message: `Booking ${bookingId} (${booking.house || 'N/A'}) marked as ${status} for ${booking.name || 'guest'}`,
+        timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+        read: false
+      });
+    } catch (_) {}
+
+    showToast(`Booking ${status} successfully`, 'success');
+    loadBookings();
+  } catch (error) {
+    console.error('Error updating booking:', error);
+    showToast('Error updating booking', 'error');
+  }
+}
+
+// Load messages
+async function loadMessages() {
+  try {
+    const snapshot = await db.collection('messages').orderBy('timestamp', 'desc').get();
+    const messagesList = document.getElementById('messages-list');
+    messagesList.innerHTML = '';
+
+    snapshot.forEach(doc => {
+      const message = doc.data();
+      const messageItem = document.createElement('div');
+      messageItem.className = 'message-item';
+      messageItem.onclick = () => showMessageDetail(doc.id, message);
+      
+      messageItem.innerHTML = `
+        <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+          <strong>${message.name}</strong>
+          <span class="status status-${message.status || 'new'}">${(message.status || 'new').toUpperCase()}</span>
+        </div>
+        <div style="color: var(--text-light); font-size: 0.9rem; margin-bottom: 0.5rem;">${message.email}</div>
+        <div style="color: var(--text-color); font-size: 0.9rem;">${message.message.substring(0, 100)}...</div>
+      `;
+      
+      messagesList.appendChild(messageItem);
+    });
+  } catch (error) {
+    console.error('Error loading messages:', error);
+  }
+}
+
+// Load service requests
+async function loadServiceRequests() {
+  try {
+    const snapshot = await db.collection('service_requests').orderBy('timestamp', 'desc').get();
+    const list = document.getElementById('service-requests-list');
+    list.innerHTML = '';
+
+    if (snapshot.empty) {
+      list.innerHTML = '<div class="empty-state"><i class="fas fa-concierge-bell"></i><p>No service requests yet.</p></div>';
+      return;
+    }
+
+    snapshot.forEach(doc => {
+      const req = doc.data();
+      const item = document.createElement('div');
+      item.className = 'message-item';
+      item.onclick = () => showServiceRequestDetail(doc.id, req);
+      const date = req.timestamp ? new Date(req.timestamp.toDate()).toLocaleDateString() : 'N/A';
+      item.innerHTML = `
+        <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+          <strong>${req.type || 'Request'}</strong>
+          <span class="status status-${req.status || 'pending'}">${(req.status || 'pending').toUpperCase()}</span>
+        </div>
+        <div style="color: var(--text-light); font-size: 0.9rem; margin-bottom: 0.5rem;">${req.userEmail || req.userId || 'Guest'}</div>
+        <div style="color: var(--text-color); font-size: 0.9rem;">${(req.details || '').substring(0, 100)}...</div>
+        <div style="font-size: 0.78rem; color: #999; margin-top: 0.3rem;">${date}</div>
+      `;
+      list.appendChild(item);
+    });
+  } catch (error) {
+    console.error('Error loading service requests:', error);
+  }
+}
+
+// Show service request detail
+function showServiceRequestDetail(requestId, req) {
+  const detail = document.getElementById('service-request-detail');
+  const date = req.timestamp ? new Date(req.timestamp.toDate()).toLocaleString() : 'N/A';
+  detail.innerHTML = `
+    <div style="padding: 1.5rem;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+        <h3>${req.type || 'Service Request'}</h3>
+        <span class="status status-${req.status || 'pending'}">${(req.status || 'pending').toUpperCase()}</span>
+      </div>
+      <div style="margin-bottom: 1rem;"><strong>From:</strong> ${req.userEmail || req.userId || 'Guest'}</div>
+      <div style="margin-bottom: 1rem;"><strong>Date:</strong> ${date}</div>
+      <div style="background: #f9f9f9; padding: 1rem; border-radius: 8px; margin-bottom: 1rem;">
+        <strong>Details:</strong><br>${req.details || 'No details provided.'}
+      </div>
+      <div style="display: flex; gap: 0.5rem;">
+        <button class="btn btn-sm" onclick="updateServiceRequestStatus('${requestId}', 'completed')" style="background:#2e7d32;color:#fff;border:none;border-radius:6px;padding:0.4rem 1rem;cursor:pointer;">
+          <i class="fas fa-check"></i> Mark Completed
+        </button>
+        <button class="btn btn-sm" onclick="updateServiceRequestStatus('${requestId}', 'cancelled')" style="background:#c62828;color:#fff;border:none;border-radius:6px;padding:0.4rem 1rem;cursor:pointer;">
+          <i class="fas fa-times"></i> Cancel
+        </button>
+      </div>
+    </div>
+  `;
+}
+
+// Update service request status
+async function updateServiceRequestStatus(requestId, status) {
+  try {
+    await db.collection('service_requests').doc(requestId).update({ status, updatedAt: firebase.firestore.FieldValue.serverTimestamp() });
+    loadServiceRequests();
+  } catch (err) {
+    showToast('Error: ' + err.message, 'error');
+  }
+}
+
+// Show message detail
+function showMessageDetail(messageId, message) {
+  const messageDetail = document.getElementById('message-detail');
+  messageDetail.innerHTML = `
+    <div style="padding: 1.5rem;">
+      <div style="display: flex; justify-content: between; align-items: center; margin-bottom: 1rem;">
+        <h3>${message.name}</h3>
+        <span class="status status-${message.status || 'new'}">${(message.status || 'new').toUpperCase()}</span>
+      </div>
+      <p><strong>Email:</strong> ${message.email}</p>
+      <p><strong>Received:</strong> ${message.timestamp ? new Date(message.timestamp.toDate()).toLocaleString() : 'Unknown'}</p>
+      <hr style="margin: 1rem 0;">
+      <div style="margin-bottom: 1.5rem;">
+        <h4>Message:</h4>
+        <p>${message.message}</p>
+      </div>
+      <div>
+        <h4>Reply:</h4>
+        <textarea id="reply-text-${messageId}" rows="4" style="width: 100%; margin-bottom: 1rem; padding: 0.5rem; border: 1px solid var(--border-color); border-radius: var(--border-radius);"></textarea>
+        <button class="btn btn-primary" onclick="replyToMessage('${messageId}', '${message.email}', '${message.name}')">Send Reply</button>
+        <button class="btn btn-outline" onclick="markMessageAsRead('${messageId}')">Mark as Read</button>
+      </div>
+    </div>
+  `;
+  
+  // Mark message items as active
+  document.querySelectorAll('.message-item').forEach(item => item.classList.remove('active'));
+  event.target.closest('.message-item').classList.add('active');
+}
+
+// Reply to message
+async function replyToMessage(messageId, clientEmail, clientName) {
+  const replyText = document.getElementById(`reply-text-${messageId}`).value.trim();
+  
+  if (!replyText) {
+    showToast('Please enter a reply message', 'warning');
+    return;
+  }
+  
+  try {
+    await emailjs.send(emailConfig.serviceId, emailConfig.clientTemplate, {
+      to_name: clientName,
+      to_email: clientEmail,
+      from_name: "Gonah Homes",
+      subject: "Reply from Gonah Homes",
+      message: replyText
+    });
+    
+    // Update message status
+    await db.collection('messages').doc(messageId).update({
+      status: 'replied',
+      reply: replyText,
+      repliedAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+    
+    showToast('Reply sent successfully', 'success');
+    loadMessages();
+  } catch (error) {
+    console.error('Error sending reply:', error);
+    showToast('Error sending reply', 'error');
+  }
+}
+
+// Mark message as read
+async function markMessageAsRead(messageId) {
+  try {
+    await db.collection('messages').doc(messageId).update({
+      status: 'read',
+      readAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+    showToast('Message marked as read', 'success');
+    loadMessages();
+  } catch (error) {
+    console.error('Error marking message as read:', error);
+  }
+}
+
+// Load reviews
+async function loadReviews() {
+  try {
+    const snapshot = await db.collection('reviews').orderBy('timestamp', 'desc').get();
+    const reviewsGrid = document.getElementById('reviews-grid');
+    if (!reviewsGrid) return;
+    reviewsGrid.innerHTML = '';
+
+    if (snapshot.empty) {
+      reviewsGrid.innerHTML = '<p style="color:var(--text-light);text-align:center;padding:2rem;">No reviews yet.</p>';
+      return;
+    }
+
+    snapshot.forEach(doc => {
+      const review = doc.data();
+      const reviewCard = document.createElement('div');
+      reviewCard.className = 'review-card';
+      const stars = '★'.repeat(parseInt(review.rating) || 5).padEnd(5, '☆');
+      const isApproved = review.approved === true;
+      const guestName = review.name || review.user?.name || 'Anonymous';
+      const guestEmail = review.email || review.user?.email || '';
+      const safeEmail = guestEmail.replace(/'/g, '');
+      const safeName = guestName.replace(/'/g, '');
+
+      reviewCard.innerHTML = `
+        <div class="review-header">
+          <div style="flex:1;">
+            <strong>${guestName}</strong>
+            ${guestEmail ? `<div style="font-size:0.8rem;color:var(--text-light);">${guestEmail}</div>` : ''}
+            <div class="review-rating" style="margin-top:0.25rem;">${stars}</div>
+          </div>
+          <div style="display:flex;flex-direction:column;align-items:flex-end;gap:0.4rem;flex-shrink:0;">
+            <span style="background:${isApproved ? '#e8f5e9' : '#fce4ec'};color:${isApproved ? '#2e7d32' : '#b71c1c'};padding:2px 10px;border-radius:12px;font-size:0.75rem;font-weight:600;white-space:nowrap;">
+              ${isApproved ? '✓ Visible to guests' : '🚫 Hidden from guests'}
+            </span>
+            <div style="display:flex;gap:0.3rem;flex-wrap:wrap;justify-content:flex-end;">
+              <button class="btn ${isApproved ? 'btn-warning' : 'btn-success'} btn-sm" onclick="toggleReviewVisibility('${doc.id}', ${isApproved})"><i class="fas fa-eye${isApproved ? '-slash' : ''}"></i> ${isApproved ? 'Hide' : 'Show'}</button>
+              <button class="btn btn-info btn-sm" onclick="replyToReview('${doc.id}', '${safeEmail}', '${safeName}')"><i class="fas fa-reply"></i> Reply</button>
+              <button class="btn btn-danger btn-sm" onclick="deleteReview('${doc.id}')"><i class="fas fa-trash"></i> Delete</button>
+            </div>
+          </div>
+        </div>
+        <p style="margin:0.75rem 0;line-height:1.5;">${review.review || ''}</p>
+        ${review.imageUrl ? `<div style="margin:0.5rem 0;"><img src="${review.imageUrl}" alt="Review image" style="max-width:100%;max-height:200px;object-fit:cover;border-radius:8px;"></div>` : ''}
+        <small style="color: var(--text-light);">
+          ${review.property ? `<strong>${review.property}</strong> · ` : ''}
+          ${review.timestamp ? new Date(review.timestamp.toDate()).toLocaleDateString() : 'Unknown date'}
+        </small>
+        ${review.adminReply ? `
+          <div style="margin-top: 1rem; padding: 1rem; background: var(--bg-color); border-radius: var(--border-radius); border-left: 3px solid var(--primary-color);">
+            <strong>Management Reply:</strong><br>${review.adminReply}
+          </div>
+        ` : ''}
+      `;
+
+      reviewsGrid.appendChild(reviewCard);
+    });
+  } catch (error) {
+    console.error('Error loading reviews:', error);
+    const reviewsGrid = document.getElementById('reviews-grid');
+    if (reviewsGrid) reviewsGrid.innerHTML = `<p style="color:red;padding:1rem;">Error loading reviews: ${error.message}</p>`;
+  }
+}
+
+async function toggleReviewVisibility(reviewId, currentlyVisible) {
+  try {
+    await db.collection('reviews').doc(reviewId).update({
+      approved: !currentlyVisible,
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+    showToast(currentlyVisible ? 'Review hidden from guests.' : 'Review is now visible to guests.', 'success');
+    loadReviews();
+  } catch (error) {
+    console.error('Error updating review visibility:', error);
+    showToast('Error updating review: ' + error.message, 'error');
+  }
+}
+
+async function deleteReview(reviewId) {
+  if (!confirm('Permanently delete this review? This cannot be undone.')) return;
+  try {
+    await db.collection('reviews').doc(reviewId).delete();
+    showToast('Review deleted.', 'success');
+    loadReviews();
+  } catch (error) {
+    console.error('Error deleting review:', error);
+    showToast('Error deleting review: ' + error.message, 'error');
+  }
+}
+
+// Reply to review
+async function replyToReview(reviewId, clientEmail, clientName) {
+  const replyText = prompt('Enter your reply to this review:');
+  
+  if (!replyText) return;
+  
+  try {
+    // Update review with admin reply
+    await db.collection('reviews').doc(reviewId).update({
+      adminReply: replyText,
+      repliedAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+    
+    // Send email to client if email exists8
+    if (clientEmail) {
+      await emailjs.send(emailConfig.serviceId, emailConfig.clientTemplate, {
+        to_name: clientName || 'Guest',
+        to_email: clientEmail,
+        from_name: "Gonah Homes",
+        subject: "Reply to your review - Gonah Homes",
+        message: `Thank you for your review! Here's our response:\n\n${replyText}\n\nWe appreciate your feedback and look forward to serving you again.`
+      });
+    }
+    
+    showToast('Reply sent successfully', 'success');
+    loadReviews();
+  } catch (error) {
+    console.error('Error replying to review:', error);
+    showToast('Error sending reply', 'error');
+  }
+}
+
+// Load announcements
+async function loadAnnouncements() {
+  try {
+    const snapshot = await db.collection('announcements').orderBy('createdAt', 'desc').get();
+    const announcementsGrid = document.getElementById('announcements-grid');
+    announcementsGrid.innerHTML = '';
+
+    snapshot.forEach(doc => {
+      const announcement = doc.data();
+      const announcementCard = document.createElement('div');
+      announcementCard.className = 'announcement-card';
+      
+      announcementCard.innerHTML = `
+        <div class="announcement-type ${announcement.type}">${announcement.type.toUpperCase()}</div>
+        <h3>${announcement.title}</h3>
+        <p>${announcement.message}</p>
+        <div style="margin-top: 1rem;">
+          <small style="color: var(--text-light);">
+            Created: ${announcement.createdAt ? new Date(announcement.createdAt.toDate()).toLocaleDateString() : 'Unknown'}
+            ${announcement.validUntil ? ` | Valid until: ${new Date(announcement.validUntil.toDate()).toLocaleDateString()}` : ''}
+          </small>
+        </div>
+        <div style="margin-top: 1rem;">
+          <button class="btn btn-danger btn-sm" onclick="deleteAnnouncement('${doc.id}')">Delete</button>
+          <button class="btn btn-outline btn-sm" onclick="toggleAnnouncementStatus('${doc.id}', ${announcement.active || true})">${announcement.active ? 'Deactivate' : 'Activate'}</button>
+        </div>
+      `;
+      
+      announcementsGrid.appendChild(announcementCard);
+    });
+  } catch (error) {
+    console.error('Error loading announcements:', error);
+  }
+}
+
+// Create announcement
+async function createAnnouncement(formData) {
+  try {
+    await db.collection('announcements').add({
+      title: formData.title,
+      type: formData.type,
+      message: formData.message,
+      validUntil: formData.validUntil ? firebase.firestore.Timestamp.fromDate(new Date(formData.validUntil)) : null,
+      active: formData.active,
+      createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+      views: 0,
+      clicks: 0
+    });
+    
+    showToast('Announcement created successfully', 'success');
+    loadAnnouncements();
+    closeAnnouncementModal();
+  } catch (error) {
+    console.error('Error creating announcement:', error);
+    showToast('Error creating announcement', 'error');
+  }
+}
+
+// Delete announcement
+async function deleteAnnouncement(announcementId) {
+  if (!confirm('Are you sure you want to delete this announcement?')) return;
+  try {
+    await db.collection('announcements').doc(announcementId).delete();
+    showToast('Announcement deleted successfully', 'success');
+    loadAnnouncements();
+  } catch (error) {
+    console.error('Error deleting announcement:', error);
+    showToast('Error deleting announcement', 'error');
+  }
+}
+
+async function toggleAnnouncementStatus(announcementId, currentlyActive) {
+  try {
+    await db.collection('announcements').doc(announcementId).update({ active: !currentlyActive });
+    showToast(`Announcement ${currentlyActive ? 'deactivated' : 'activated'}.`, 'success');
+    loadAnnouncements();
+  } catch (error) {
+    console.error('Error toggling announcement:', error);
+    showToast('Error updating announcement', 'error');
+  }
+}
+
+// Load clients
+async function loadClients() {
+  try {
+    const snapshot = await db.collection('bookings').get();
+    const clientsMap = new Map();
+    
+    snapshot.forEach(doc => {
+      const booking = doc.data();
+      if (booking.email) {
+        if (clientsMap.has(booking.email)) {
+          const client = clientsMap.get(booking.email);
+          client.totalBookings++;
+          client.lastBooking = booking.timestamp?.toDate() || new Date();
+        } else {
+          clientsMap.set(booking.email, {
+            name: booking.name,
+            email: booking.email,
+            phone: booking.phone,
+            totalBookings: 1,
+            firstBooking: booking.timestamp?.toDate() || new Date(),
+            lastBooking: booking.timestamp?.toDate() || new Date()
+          });
+        }
+      }
+    });
+    
+    const clientsGrid = document.getElementById('clients-grid');
+    clientsGrid.innerHTML = '';
+    
+    Array.from(clientsMap.values()).forEach(client => {
+      const clientCard = document.createElement('div');
+      clientCard.className = 'client-card';
+      
+      clientCard.innerHTML = `
+        <div class="client-header">
+          <div class="client-avatar">${client.name.charAt(0).toUpperCase()}</div>
+          <div>
+            <strong>${client.name}</strong>
+            <div style="color: var(--text-light); font-size: 0.9rem;">${client.email}</div>
+          </div>
+        </div>
+        <div style="margin-bottom: 0.5rem;"><strong>Phone:</strong> ${client.phone}</div>
+        <div style="margin-bottom: 0.5rem;"><strong>Total Bookings:</strong> ${client.totalBookings}</div>
+        <div style="margin-bottom: 0.5rem;"><strong>First Booking:</strong> ${client.firstBooking.toLocaleDateString()}</div>
+        <div><strong>Last Booking:</strong> ${client.lastBooking.toLocaleDateString()}</div>
+      `;
+      
+      clientsGrid.appendChild(clientCard);
+    });
+  } catch (error) {
+    console.error('Error loading clients:', error);
+  }
+}
+
+// Initialize charts with empty data, then populate from Firestore
+function initializeCharts() {
+  const bookingsCtx = document.getElementById('bookingsChart')?.getContext('2d');
+  const propertiesCtx = document.getElementById('propertiesChart')?.getContext('2d');
+
+  if (bookingsCtx) {
+    charts.bookingsChart = new Chart(bookingsCtx, {
+      type: 'line',
+      data: {
+        labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
+        datasets: [{
+          label: 'Bookings',
+          data: [0,0,0,0,0,0,0,0,0,0,0,0],
+          borderColor: 'rgb(128, 0, 0)',
+          backgroundColor: 'rgba(128, 0, 0, 0.1)',
+          tension: 0.4,
+          fill: true
+        }]
+      },
+      options: {
+        responsive: true,
+        plugins: { legend: { display: false } },
+        scales: { y: { beginAtZero: true, ticks: { precision: 0 } } }
+      }
+    });
+  }
+
+  if (propertiesCtx) {
+    charts.propertiesChart = new Chart(propertiesCtx, {
+      type: 'doughnut',
+      data: {
+        labels: ['Studio', 'One Bedroom', 'Two Bedroom', 'Three Bedroom', 'Four Bedroom', 'Maisonette'],
+        datasets: [{
+          data: [0,0,0,0,0,0],
+          backgroundColor: [
+            'rgba(128, 0, 0, 0.85)',
+            'rgba(160, 32, 0, 0.85)',
+            'rgba(200, 64, 0, 0.85)',
+            'rgba(128, 0, 0, 0.6)',
+            'rgba(160, 32, 0, 0.6)',
+            'rgba(200, 64, 0, 0.6)'
+          ]
+        }]
+      },
+      options: {
+        responsive: true,
+        plugins: { legend: { position: 'bottom' } }
+      }
+    });
+  }
+
+  loadAnalyticsData();
+}
+
+async function loadAnalyticsData() {
+  try {
+    const snapshot = await db.collection('bookings').get();
+    const monthCounts = new Array(12).fill(0);
+    const propMap = {
+      'Studio Apartment': 0,
+      'One Bedroom Apartment': 0,
+      'Two Bedroom Apartment': 0,
+      'Three Bedroom Apartment': 0,
+      'Four Bedroom Apartment': 0,
+      'Luxury Maisonette': 0
+    };
+    const prices = {
+      'Studio Apartment': 3500, 'One Bedroom Apartment': 4500,
+      'Two Bedroom Apartment': 6000, 'Three Bedroom Apartment': 8000,
+      'Four Bedroom Apartment': 10000, 'Luxury Maisonette': 15000
+    };
+    let totalRevenue = 0;
+
+    snapshot.forEach(doc => {
+      const b = doc.data();
+      if (b.status === 'cancelled') return;
+      if (b.timestamp) monthCounts[new Date(b.timestamp.toDate()).getMonth()]++;
+      if (b.house && propMap.hasOwnProperty(b.house)) propMap[b.house]++;
+      if (b.checkin && b.checkout && b.house) {
+        const nights = Math.round((new Date(b.checkout) - new Date(b.checkin)) / 86400000);
+        if (nights > 0) totalRevenue += nights * (prices[b.house] || 5000);
+      }
+    });
+
+    if (charts.bookingsChart) {
+      charts.bookingsChart.data.datasets[0].data = monthCounts;
+      charts.bookingsChart.update();
+    }
+
+    if (charts.propertiesChart) {
+      charts.propertiesChart.data.datasets[0].data = Object.values(propMap);
+      charts.propertiesChart.update();
+    }
+
+    const revenueEl = document.getElementById('monthly-revenue');
+    if (revenueEl) revenueEl.textContent = `KSh ${totalRevenue.toLocaleString()}`;
+  } catch (error) {
+    console.error('Error loading analytics:', error);
+  }
+}
+
+// Notification system
+function addNotification(type, message, data) {
+  notifications.unshift({
+    id: Date.now(),
+    type: type,
+    message: message,
+    data: data,
+    timestamp: new Date(),
+    read: false
+  });
+  
+  updateNotificationCount();
+  updateNotificationList();
+  showToast(message, 'info');
+}
+
+function updateNotificationCount() {
+  const unreadCount = notifications.filter(n => !n.read).length;
+  document.getElementById('notification-count').textContent = unreadCount;
+  document.getElementById('notification-count').style.display = unreadCount > 0 ? 'flex' : 'none';
+}
+
+function updateNotificationList() {
+  const notificationList = document.getElementById('notification-list');
+  notificationList.innerHTML = '';
+  
+  notifications.slice(0, 10).forEach(notification => {
+    const notificationItem = document.createElement('div');
+    notificationItem.style.padding = '1rem';
+    notificationItem.style.borderBottom = '1px solid var(--border-color)';
+    notificationItem.style.backgroundColor = notification.read ? 'transparent' : 'var(--bg-color)';
+    
+    notificationItem.innerHTML = `
+      <div style="font-weight: ${notification.read ? 'normal' : 'bold'};">
+        ${notification.message}
+      </div>
+      <small style="color: var(--text-light);">
+        ${notification.timestamp.toLocaleString()}
+      </small>
+    `;
+    
+    notificationItem.onclick = () => {
+      notification.read = true;
+      updateNotificationCount();
+      updateNotificationList();
+    };
+    
+    notificationList.appendChild(notificationItem);
+  });
+}
+
+function toggleNotifications() {
+  const dropdown = document.getElementById('notification-dropdown');
+  dropdown.classList.toggle('active');
+}
+
+function markAllRead() {
+  notifications.forEach(n => n.read = true);
+  updateNotificationCount();
+  updateNotificationList();
+}
+
+function loadNotifications() {
+  updateNotificationCount();
+  updateNotificationList();
+}
+
+// Toast notifications
+function showToast(message, type = 'info') {
+  const toast = document.createElement('div');
+  toast.className = `toast ${type}`;
+  toast.textContent = message;
+  
+  document.body.appendChild(toast);
+  
+  setTimeout(() => toast.classList.add('show'), 100);
+  setTimeout(() => {
+    toast.classList.remove('show');
+    setTimeout(() => document.body.removeChild(toast), 300);
+  }, 3000);
+}
+
+// Modal functions
+function showAnnouncementModal() {
+  document.getElementById('announcement-modal').classList.add('active');
+}
+
+function closeAnnouncementModal() {
+  document.getElementById('announcement-modal').classList.remove('active');
+  document.getElementById('announcement-form').reset();
+}
+
+// Navigation
+// ===================== STAFF ACCOUNT MANAGEMENT =====================
+const PROPERTY_NAMES = ['Studio Apartment','One Bedroom Apartment','Two Bedroom Apartment','Three Bedroom Apartment','Four Bedroom Apartment','Luxury Maisonette'];
+
+async function loadStaff() {
+  const list = document.getElementById('staff-list');
+  if (!list) return;
+  list.innerHTML = '<p style="color:var(--text-light);padding:1rem;">Loading...</p>';
+  try {
+    const snap = await db.collection('staff_accounts').get();
+    if (snap.empty) {
+      list.innerHTML = '<p style="color:var(--text-light);padding:1rem;">No additional staff accounts yet. Click "Add Staff" to create one.</p>';
+      return;
+    }
+    let html = '';
+    snap.forEach(doc => {
+      const s = doc.data();
+      html += `
+        <div class="card" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:1rem;margin-bottom:0.75rem;padding:1rem 1.25rem;">
+          <div>
+            <strong style="display:block;">${s.displayName || s.email}</strong>
+            <span style="font-size:0.85rem;color:var(--text-light);">${s.email}</span>
+            ${s.createdAt ? `<span style="font-size:0.8rem;color:var(--text-light);display:block;">Added ${new Date(s.createdAt.toDate()).toLocaleDateString()}</span>` : ''}
+          </div>
+          <div style="display:flex;align-items:center;gap:0.75rem;">
+            <span style="background:#e8f5e9;color:#2e7d32;padding:2px 10px;border-radius:12px;font-size:0.8rem;font-weight:600;">${(s.role||'staff').toUpperCase()}</span>
+            <button class="btn btn-danger btn-sm" onclick="removeStaffAccess('${doc.id}')"><i class="fas fa-user-minus"></i> Remove Access</button>
+          </div>
+        </div>`;
+    });
+    list.innerHTML = html;
+  } catch (err) {
+    list.innerHTML = `<p style="color:red;padding:1rem;">Error loading staff: ${err.message}</p>`;
+  }
+}
+
+async function createStaffAccount() {
+  const email = document.getElementById('staff-email').value.trim();
+  const password = document.getElementById('staff-password').value;
+  const displayName = document.getElementById('staff-name').value.trim();
+  const role = document.getElementById('staff-role').value;
+
+  if (!email || !password || password.length < 6) {
+    showToast('Fill all fields. Password must be at least 6 characters.', 'error');
+    return;
+  }
+  const btn = document.getElementById('create-staff-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Creating...';
+
+  try {
+    // Create user via a secondary Firebase app instance (avoids signing out the current admin)
+    let secondaryApp;
+    try { secondaryApp = firebase.app('StaffCreation'); }
+    catch(_) { secondaryApp = firebase.initializeApp(firebaseConfig, 'StaffCreation'); }
+
+    const cred = await secondaryApp.auth().createUserWithEmailAndPassword(email, password);
+    const uid = cred.user.uid;
+
+    await db.collection('staff_accounts').doc(uid).set({
+      email,
+      displayName: displayName || email.split('@')[0],
+      role,
+      createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+      createdBy: firebase.auth().currentUser?.email || ADMIN_EMAIL,
+      active: true
+    });
+
+    await secondaryApp.auth().signOut();
+    try { secondaryApp.delete(); } catch(_) {}
+
+    showToast(`Staff account created for ${email}.`, 'success');
+    document.getElementById('staff-modal').classList.remove('active');
+    document.getElementById('staff-form').reset();
+    loadStaff();
+  } catch (err) {
+    const msgs = {
+      'auth/email-already-in-use': 'An account with that email already exists.',
+      'auth/weak-password': 'Password must be at least 6 characters.',
+      'auth/invalid-email': 'Invalid email address.'
+    };
+    showToast(msgs[err.code] || 'Error creating account: ' + err.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fas fa-user-plus"></i> Create Account';
+  }
+}
+
+async function removeStaffAccess(uid) {
+  if (!confirm('Remove this staff member\'s dashboard access?\n\nTheir Firebase account remains, but they will no longer be able to log into the admin dashboard.')) return;
+  try {
+    await db.collection('staff_accounts').doc(uid).delete();
+    showToast('Staff access removed.', 'success');
+    loadStaff();
+  } catch (err) {
+    showToast('Error removing staff: ' + err.message, 'error');
+  }
+}
+
+// ===================== PROPERTY IMAGE MANAGEMENT =====================
+async function loadProperties() {
+  const container = document.getElementById('properties-list');
+  if (!container) return;
+  container.innerHTML = '<p style="color:var(--text-light);">Loading...</p>';
+
+  let overrides = {};
+  try {
+    const snap = await db.collection('property_settings').get();
+    snap.forEach(doc => { overrides[doc.id] = doc.data(); });
+  } catch(_) {}
+
+  let html = '<div style="display:grid;gap:1.25rem;">';
+  PROPERTY_NAMES.forEach(name => {
+    const imgs = (overrides[name] && overrides[name].images) ? overrides[name].images : [];
+    const key = 'prop_' + name.replace(/\s+/g,'_');
+    html += `
+      <div class="card" style="padding:1.25rem 1.5rem;">
+        <h3 style="margin:0 0 0.3rem;">${name}</h3>
+        <p style="font-size:0.83rem;color:var(--text-light);margin:0 0 0.85rem;">
+          Select up to 5 photos from your gallery. Photos are saved immediately and appear on the website.
+        </p>
+
+        ${imgs.length > 0 ? `
+        <div style="margin-bottom:0.85rem;">
+          <p style="font-size:0.78rem;color:var(--text-light);margin:0 0 0.35rem;">Current photos (${imgs.length}):</p>
+          <div style="display:flex;gap:0.4rem;flex-wrap:wrap;">
+            ${imgs.map((u,i)=>`<img src="${u}" alt="Photo ${i+1}" style="width:72px;height:54px;object-fit:cover;border-radius:7px;border:1px solid #ddd;" onerror="this.style.opacity=0.25">`).join('')}
+          </div>
+        </div>` : ''}
+
+        <div id="zone-${key}" style="border:2px dashed #ddd;border-radius:10px;padding:1.4rem;text-align:center;cursor:pointer;background:#fafafa;position:relative;transition:all 0.2s;margin-bottom:0.6rem;">
+          <input type="file" id="${key}" accept="image/*" multiple
+            style="position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;z-index:2;"
+            onchange="previewPropertyImages('${key}')">
+          <i class="fas fa-cloud-upload-alt" style="font-size:1.8rem;color:#800000;display:block;margin-bottom:0.3rem;"></i>
+          <p style="margin:0;font-size:0.87rem;color:#444;font-weight:600;">Click or drag photos here</p>
+          <p style="margin:0.15rem 0 0;font-size:0.75rem;color:#aaa;">JPG, PNG, WebP — up to 5 images</p>
+        </div>
+        <div style="margin-bottom:0.6rem;">
+          <p style="font-size:0.78rem;color:var(--text-light);margin:0 0 0.35rem;">Or enter image URLs (one per line):</p>
+          <textarea id="url-${key}" rows="2" placeholder="https://example.com/photo1.jpg
+https://example.com/photo2.jpg" style="width:100%;padding:0.6rem;border:1.5px solid #ddd;border-radius:8px;font-size:0.82rem;font-family:inherit;resize:vertical;"></textarea>
+          <button class="btn btn-outline btn-sm" style="margin-top:0.4rem;" onclick="savePropertyUrls('${name}','${key}')">
+            <i class="fas fa-link"></i> Save URLs
+          </button>
+        </div>
+
+        <div id="preview-${key}" style="display:flex;gap:0.4rem;flex-wrap:wrap;margin-bottom:0.6rem;min-height:0;"></div>
+
+        <div style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center;">
+          <button class="btn btn-primary btn-sm" id="save-btn-${key}" onclick="savePropertyImages('${name}','${key}')">
+            <i class="fas fa-save"></i> Save Photos
+          </button>
+          ${imgs.length > 0 ? `<button class="btn btn-outline btn-sm" onclick="clearPropertyImages('${name}')"><i class="fas fa-undo"></i> Reset to Default</button>` : ''}
+          <span id="save-status-${key}" style="font-size:0.78rem;color:var(--text-light);"></span>
+        </div>
+      </div>`;
+  });
+  html += '</div>';
+  container.innerHTML = html;
+}
+
+function previewPropertyImages(key) {
+  const input = document.getElementById(key);
+  const previewEl = document.getElementById('preview-' + key);
+  const zone = document.getElementById('zone-' + key);
+  if (!input || !previewEl) return;
+  const files = Array.from(input.files).slice(0, 5);
+  previewEl.innerHTML = '';
+  if (!files.length) return;
+  files.forEach(file => {
+    const reader = new FileReader();
+    reader.onload = ev => {
+      const img = document.createElement('img');
+      img.src = ev.target.result;
+      img.style.cssText = 'width:72px;height:54px;object-fit:cover;border-radius:7px;border:2px solid #800000;';
+      previewEl.appendChild(img);
+    };
+    reader.readAsDataURL(file);
+  });
+  if (zone) { zone.style.borderColor = '#2e7d32'; zone.style.background = '#f1faf3'; }
+  const statusEl = document.getElementById('save-status-' + key);
+  if (statusEl) statusEl.textContent = `${files.length} photo${files.length!==1?'s':''} selected — click Save to apply`;
+}
+
+async function savePropertyImages(propertyName, key) {
+  const input = document.getElementById(key);
+  if (!input || !input.files.length) {
+    showToast('Please select at least one photo first.', 'error'); return;
+  }
+  const files = Array.from(input.files).slice(0, 5);
+  const btn = document.getElementById('save-btn-' + key);
+  const statusEl = document.getElementById('save-status-' + key);
+  if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...'; }
+  if (statusEl) statusEl.textContent = 'Compressing photos…';
+
+  const compressImg = (file) => new Promise((res, rej) => {
+    const reader = new FileReader();
+    reader.onload = ev => {
+      const img = new Image();
+      img.onload = () => {
+        let w = img.width, h = img.height, maxD = 1200;
+        if (w > maxD || h > maxD) {
+          if (w > h) { h = Math.round(h * maxD / w); w = maxD; }
+          else { w = Math.round(w * maxD / h); h = maxD; }
+        }
+        const c = document.createElement('canvas');
+        c.width = w; c.height = h;
+        c.getContext('2d').drawImage(img, 0, 0, w, h);
+        res(c.toDataURL('image/jpeg', 0.82));
+      };
+      img.onerror = rej;
+      img.src = ev.target.result;
+    };
+    reader.onerror = rej;
+    reader.readAsDataURL(file);
+  });
+
+  try {
+    if (statusEl) statusEl.textContent = 'Saving to cloud…';
+    const base64Images = await Promise.all(files.map(compressImg));
+    await db.collection('property_settings').doc(propertyName).set({
+      images: base64Images,
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+      updatedBy: firebase.auth().currentUser?.email || ADMIN_EMAIL
+    }, { merge: true });
+    showToast(`${base64Images.length} photo${base64Images.length!==1?'s':''} saved for ${propertyName}.`, 'success');
+    loadProperties();
+  } catch (err) {
+    showToast('Error saving photos: ' + err.message, 'error');
+    if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-save"></i> Save Photos'; }
+    if (statusEl) statusEl.textContent = '';
+  }
+}
+
+async function clearPropertyImages(propertyName) {
+  if (!confirm(`Reset "${propertyName}" images back to the default photos?`)) return;
+  try {
+    await db.collection('property_settings').doc(propertyName).delete();
+    showToast('Images reset to default.', 'success');
+    loadProperties();
+  } catch (err) {
+    showToast('Error resetting: ' + err.message, 'error');
+  }
+}
+
+// Save image URLs for a property (dual-mode alongside file upload)
+async function savePropertyUrls(propertyName, key) {
+  const textarea = document.getElementById('url-' + key);
+  if (!textarea) return;
+  const raw = textarea.value.trim();
+  if (!raw) { showToast('Please paste at least one image URL.', 'error'); return; }
+  const urls = raw.split(/\n+/).map(u => u.trim()).filter(u => /^https?:\/\/.+\.(jpe?g|png|webp|gif)(\?.*)?$/i.test(u));
+  if (!urls.length) { showToast('No valid image URLs found. Use direct links ending in .jpg, .png, or .webp.', 'error'); return; }
+  if (urls.length > 5) { showToast('Maximum 5 URLs allowed. Using the first 5.', 'info'); urls.length = 5; }
+  try {
+    await db.collection('property_settings').doc(propertyName).set({
+      images: urls,
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+      updatedBy: firebase.auth().currentUser?.email || ADMIN_EMAIL
+    }, { merge: true });
+    showToast(`${urls.length} URL${urls.length!==1?'s':''} saved for ${propertyName}.`, 'success');
+    loadProperties();
+  } catch (err) {
+    showToast('Error saving URLs: ' + err.message, 'error');
+  }
+}
+
+// ===================== PAYMENT & CANCELLATION MODALS =====================
+const PROPERTY_PRICES = {
+  'Studio Apartment': 3500,
+  'One Bedroom Apartment': 4500,
+  'Two Bedroom Apartment': 6000,
+  'Three Bedroom Apartment': 8000,
+  'Four Bedroom Apartment': 10000,
+  'Luxury Maisonette': 15000
+};
+
+let _pendingPaymentId = null;
+let _pendingCancelId = null;
+let _pendingBooking = null;
+let _pendingExpectedTotal = 0;
+let _pendingNights = 0;
+
+async function openPaymentModal(bookingId) {
+  _pendingPaymentId = bookingId;
+  _pendingExpectedTotal = 0;
+  _pendingNights = 0;
+  try {
+    const snap = await db.collection('bookings').doc(bookingId).get();
+    _pendingBooking = snap.data();
+    const b = _pendingBooking;
+
+    // Calculate expected total
+    const cin  = new Date(b.checkin);
+    const cout = new Date(b.checkout);
+    const nights = Math.max(1, Math.round((cout - cin) / 86400000));
+    const pricePerNight = PROPERTY_PRICES[b.house] || 0;
+    const expectedTotal = nights * pricePerNight;
+    _pendingExpectedTotal = expectedTotal;
+    _pendingNights = nights;
+
+    document.getElementById('payment-modal-info').innerHTML =
+      `<strong>${b.house || 'N/A'}</strong> &bull; ${b.name || ''}<br>
+       <span style="color:#666;">${b.checkin || ''} → ${b.checkout || ''} &bull; ${nights} night${nights!==1?'s':''} &bull; ${b.email || ''}</span><br>
+       ${expectedTotal > 0 ? `<strong style="color:#800000;">Expected Total: KSh ${expectedTotal.toLocaleString()}</strong>
+       <span style="color:#888;font-size:0.82rem;"> (${nights} night${nights!==1?'s':''} × KSh ${pricePerNight.toLocaleString()}/night)</span>` : ''}`;
+
+    // Auto-fill amount with expected total
+    if (expectedTotal > 0) document.getElementById('payment-amount').value = expectedTotal;
+  } catch(_) {}
+  document.getElementById('payment-form').reset();
+  if (_pendingExpectedTotal > 0) document.getElementById('payment-amount').value = _pendingExpectedTotal;
+  document.getElementById('payment-modal').classList.add('active');
+}
+
+function closePaymentModal() {
+  document.getElementById('payment-modal').classList.remove('active');
+  _pendingPaymentId = null; _pendingBooking = null; _pendingExpectedTotal = 0;
+}
+
+async function submitPaymentConfirmation() {
+  if (!_pendingPaymentId) return;
+  const method = document.getElementById('payment-method').value;
+  const ref    = document.getElementById('payment-ref').value.trim();
+  const amount = document.getElementById('payment-amount').value;
+  const notes  = document.getElementById('payment-notes').value.trim();
+  if (!method || !ref || !amount) { showToast('Please fill all required fields.', 'error'); return; }
+
+  // Validate amount matches expected total
+  if (_pendingExpectedTotal > 0 && Number(amount) !== _pendingExpectedTotal) {
+    const entered = Number(amount).toLocaleString();
+    const expected = _pendingExpectedTotal.toLocaleString();
+    showToast(
+      `Amount KSh ${entered} does not match the expected total of KSh ${expected} for ${_pendingNights} night${_pendingNights!==1?'s':''}. Please enter the correct amount to confirm.`,
+      'error'
+    );
+    return;
+  }
+
+  const btn = document.getElementById('confirm-payment-btn');
+  btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Confirming...';
+  try {
+    await db.collection('bookings').doc(_pendingPaymentId).update({
+      status: 'confirmed',
+      paymentMethod: method, transactionRef: ref,
+      amountPaid: Number(amount), paymentNotes: notes,
+      paymentConfirmedAt: firebase.firestore.FieldValue.serverTimestamp(),
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+
+    const b = _pendingBooking || {};
+    if (b.email) {
+      const msg = `Your booking has been CONFIRMED!\n\nBooking ID: ${_pendingPaymentId}\nProperty: ${b.house}\nCheck-in: ${b.checkin}\nCheck-out: ${b.checkout}\n\nPayment Received:\nMethod: ${method}\nTransaction Reference: ${ref}\nAmount: KSh ${Number(amount).toLocaleString()}${notes ? '\nNotes: ' + notes : ''}\n\nWe look forward to hosting you at Gonah Homes!`;
+      try {
+        await emailjs.send(emailConfig.serviceId, emailConfig.clientTemplate, {
+          to_name: b.name, to_email: b.email, from_name: 'Gonah Homes',
+          subject: `Booking Confirmed — ${_pendingPaymentId}`, message: msg
+        });
+      } catch(e) { console.warn('Email failed:', e.message); }
+    }
+    try {
+      await db.collection('admin_notifications').add({
+        type: 'booking_confirmed', bookingId: _pendingPaymentId,
+        house: b.house || '', guestName: b.name || '',
+        message: `Booking ${_pendingPaymentId} confirmed. ${method} ref: ${ref}`,
+        timestamp: firebase.firestore.FieldValue.serverTimestamp(), read: false
+      });
+    } catch(_) {}
+
+    showToast('Booking confirmed. Guest notified by email.', 'success');
+    closePaymentModal(); loadBookings();
+  } catch(err) {
+    showToast('Error confirming: ' + err.message, 'error');
+  } finally {
+    btn.disabled = false; btn.innerHTML = '<i class="fas fa-check-circle"></i> Confirm Booking & Notify Guest';
+  }
+}
+
+async function openCancellationModal(bookingId) {
+  _pendingCancelId = bookingId;
+  try {
+    const snap = await db.collection('bookings').doc(bookingId).get();
+    _pendingBooking = snap.data();
+    const b = _pendingBooking;
+    document.getElementById('cancel-modal-info').innerHTML =
+      `<strong>${b.house || 'N/A'}</strong> &bull; ${b.name || ''}<br>
+       <span style="color:#666;">${b.checkin || ''} → ${b.checkout || ''} &bull; ${b.email || ''}</span>`;
+  } catch(_) {}
+  document.getElementById('cancel-form').reset();
+  document.getElementById('cancel-modal').classList.add('active');
+}
+
+function closeCancellationModal() {
+  document.getElementById('cancel-modal').classList.remove('active');
+  _pendingCancelId = null; _pendingBooking = null;
+}
+
+async function submitCancellation() {
+  if (!_pendingCancelId) return;
+  const reason = document.getElementById('cancel-reason').value.trim();
+  if (!reason) { showToast('Please provide a cancellation reason.', 'error'); return; }
+
+  const btn = document.getElementById('confirm-cancel-btn');
+  btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Cancelling...';
+  try {
+    await db.collection('bookings').doc(_pendingCancelId).update({
+      status: 'cancelled',
+      cancellationReason: reason,
+      cancelledAt: firebase.firestore.FieldValue.serverTimestamp(),
+      cancelledBy: firebase.auth().currentUser?.email || ADMIN_EMAIL,
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+
+    const b = _pendingBooking || {};
+    if (b.email) {
+      const msg = `We regret to inform you that your booking has been CANCELLED.\n\nBooking ID: ${_pendingCancelId}\nProperty: ${b.house}\nCheck-in: ${b.checkin}\nCheck-out: ${b.checkout}\n\nReason: ${reason}\n\nFor any queries please contact us at gonahhomes0@gmail.com or +254 799 466 723. We apologise for the inconvenience.`;
+      try {
+        await emailjs.send(emailConfig.serviceId, emailConfig.clientTemplate, {
+          to_name: b.name, to_email: b.email, from_name: 'Gonah Homes',
+          subject: `Booking Cancelled — ${_pendingCancelId}`, message: msg
+        });
+      } catch(e) { console.warn('Email failed:', e.message); }
+    }
+
+    showToast('Booking cancelled. Guest notified by email.', 'success');
+    closeCancellationModal(); loadBookings();
+  } catch(err) {
+    showToast('Error cancelling: ' + err.message, 'error');
+  } finally {
+    btn.disabled = false; btn.innerHTML = '<i class="fas fa-times-circle"></i> Cancel Booking & Notify Guest';
+  }
+}
+
+// ===================== SECTION SWITCHING =====================
+function switchSection(sectionName) {
+  // Update nav links
+  document.querySelectorAll('.nav-link').forEach(link => {
+    link.classList.remove('active');
+  });
+  document.querySelector(`[data-section="${sectionName}"]`).classList.add('active');
+  
+  // Update content sections
+  document.querySelectorAll('.content-section').forEach(section => {
+    section.classList.remove('active');
+  });
+  document.getElementById(`${sectionName}-section`).classList.add('active');
+  
+  // Update page title
+  const titles = {
+    overview: 'Dashboard Overview',
+    bookings: 'Booking Management',
+    messages: 'Message Management',
+    reviews: 'Review Management',
+    analytics: 'Analytics & Reports',
+    announcements: 'Announcements & Offers',
+    clients: 'Client Management',
+    staff: 'Staff Accounts',
+    properties: 'Property Management',
+    settings: 'System Settings'
+  };
+  document.getElementById('page-title').textContent = titles[sectionName] || sectionName;
+
+  // Lazy-load data for sections not loaded at startup
+  if (sectionName === 'staff') {
+    if (firebase.auth().currentUser?.email !== ADMIN_EMAIL) {
+      showToast('Only the primary admin can manage staff accounts.', 'error');
+      switchSection('overview');
+      return;
+    }
+    loadStaff();
+  }
+  if (sectionName === 'properties') loadProperties();
+
+  currentSection = sectionName;
+}
+
+function updateStats() {
+  loadStats();
+}
+
+// Event listeners
+function toggleSidebar() {
+  const sidebar = document.querySelector('.sidebar');
+  if (sidebar) sidebar.classList.toggle('active');
+}
+
+// Close sidebar when clicking a nav link on mobile
+document.addEventListener('click', function(e) {
+  const sidebar = document.querySelector('.sidebar');
+  const toggle = document.getElementById('menu-toggle');
+  if (!sidebar || !toggle) return;
+  // If mobile sidebar is open and click is outside sidebar and not on toggle
+  if (window.innerWidth <= 768 && sidebar.classList.contains('active')) {
+    if (!sidebar.contains(e.target) && e.target !== toggle && !toggle.contains(e.target)) {
+      sidebar.classList.remove('active');
+    }
+  }
+});
+
+document.addEventListener('DOMContentLoaded', function() {
+  // Login form
+  document.getElementById('login-form').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    const username = document.getElementById('username').value.trim();
+    const password = document.getElementById('password').value;
+    await login(username, password);
+  });
+
+  // Navigation
+  document.querySelectorAll('.nav-link').forEach(link => {
+    link.addEventListener('click', function(e) {
+      e.preventDefault();
+      const section = this.getAttribute('data-section');
+      switchSection(section);
+      // Close mobile sidebar after navigation
+      if (window.innerWidth <= 768) {
+        document.querySelector('.sidebar')?.classList.remove('active');
+      }
+    });
+  });
+  
+  // Announcement form
+  document.getElementById('announcement-form').addEventListener('submit', function(e) {
+    e.preventDefault();
+    const formData = {
+      title: document.getElementById('announcement-title').value,
+      type: document.getElementById('announcement-type').value,
+      message: document.getElementById('announcement-message').value,
+      validUntil: document.getElementById('announcement-expiry').value,
+      active: document.getElementById('announcement-active').checked
+    };
+    createAnnouncement(formData);
+  });
+  
+  // Close modals when clicking outside
+  document.querySelectorAll('.modal').forEach(modal => {
+    modal.addEventListener('click', function(e) {
+      if (e.target === modal) {
+        modal.classList.remove('active');
+      }
+    });
+  });
+  
+  // Search and filter functionality
+  document.getElementById('booking-search').addEventListener('input', filterBookings);
+  document.getElementById('booking-status-filter').addEventListener('change', filterBookings);
+  document.getElementById('message-search').addEventListener('input', filterMessages);
+  document.getElementById('rating-filter').addEventListener('change', filterReviews);
+  document.getElementById('client-search').addEventListener('input', filterClients);
+});
+
+// Filter functions
+function filterBookings() {
+  const search = document.getElementById('booking-search').value.toLowerCase();
+  const status = document.getElementById('booking-status-filter').value;
+  
+  const rows = document.querySelectorAll('#bookings-table tr');
+  rows.forEach(row => {
+    const text = row.textContent.toLowerCase();
+    const statusSpan = row.querySelector('.status');
+    const rowStatus = statusSpan ? statusSpan.textContent.toLowerCase() : '';
+    
+    const matchesSearch = text.includes(search);
+    const matchesStatus = !status || rowStatus.includes(status);
+    
+    row.style.display = matchesSearch && matchesStatus ? '' : 'none';
+  });
+}
+
+function filterMessages() {
+  const search = document.getElementById('message-search').value.toLowerCase();
+  
+  const messages = document.querySelectorAll('.message-item');
+  messages.forEach(message => {
+    const text = message.textContent.toLowerCase();
+    message.style.display = text.includes(search) ? '' : 'none';
+  });
+}
+
+function filterReviews() {
+  const rating = document.getElementById('rating-filter').value;
+  
+  const reviews = document.querySelectorAll('.review-card');
+  reviews.forEach(review => {
+    const stars = review.querySelectorAll('.review-rating');
+    if (stars.length > 0) {
+      const reviewRating = (stars[0].textContent.match(/★/g) || []).length;
+      review.style.display = !rating || reviewRating.toString() === rating ? '' : 'none';
+    }
+  });
+}
+
+function filterClients() {
+  const search = document.getElementById('client-search').value.toLowerCase();
+  
+  const clients = document.querySelectorAll('.client-card');
+  clients.forEach(client => {
+    const text = client.textContent.toLowerCase();
+    client.style.display = text.includes(search) ? '' : 'none';
+  });
+}
+
+console.log('Gonah Homes Backend Dashboard initialized successfully!');

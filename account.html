@@ -1,0 +1,981 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, max-age=0">
+    <title>My Account - Gonah Homes</title>
+    <link rel="stylesheet" href="styles.css?v=3">
+    <link rel="stylesheet" href="customer-dashboard.css?v=3">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        .login-page {
+            min-height: 80vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem;
+            background: linear-gradient(135deg, rgba(128,0,0,0.05) 0%, rgba(255,214,0,0.05) 100%);
+        }
+        .login-card {
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.12);
+            padding: 2.5rem;
+            width: 100%;
+            max-width: 440px;
+        }
+        .login-card .login-logo {
+            text-align: center;
+            margin-bottom: 1.5rem;
+        }
+        .login-card .login-logo h2 {
+            color: var(--primary-color, #800000);
+            font-size: 1.8rem;
+        }
+        .login-card .login-logo p {
+            color: #666;
+            font-size: 0.95rem;
+            margin-top: 0.3rem;
+        }
+        .login-card .form-group {
+            margin-bottom: 1.2rem;
+        }
+        .login-card .form-group label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 0.4rem;
+            color: #333;
+        }
+        .login-card .form-group input {
+            width: 100%;
+            padding: 0.75rem 1rem;
+            border: 1.5px solid #ddd;
+            border-radius: 8px;
+            font-size: 1rem;
+            box-sizing: border-box;
+            transition: border-color 0.2s;
+        }
+        .login-card .form-group input:focus {
+            outline: none;
+            border-color: var(--primary-color, #800000);
+        }
+        .login-card .form-group small {
+            display: block;
+            color: #888;
+            font-size: 0.8rem;
+            margin-top: 0.3rem;
+        }
+        .login-card .btn-full {
+            width: 100%;
+            padding: 0.85rem;
+            font-size: 1rem;
+            margin-top: 0.5rem;
+        }
+        .login-notice {
+            background: #fff8e1;
+            border: 1px solid #ffe082;
+            border-radius: 8px;
+            padding: 0.75rem 1rem;
+            margin-top: 1rem;
+            font-size: 0.85rem;
+            color: #856404;
+            text-align: center;
+        }
+        #login-error {
+            background: #ffebee;
+            border: 1px solid #f44336;
+            border-radius: 8px;
+            padding: 0.75rem 1rem;
+            color: #c62828;
+            font-size: 0.9rem;
+            margin-bottom: 1rem;
+            display: none;
+        }
+        #login-loading {
+            text-align: center;
+            color: #666;
+            font-size: 0.9rem;
+            margin-top: 0.5rem;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <header class="main-header">
+        <nav class="navbar">
+            <div class="nav-container">
+                <div class="nav-logo">
+                    <a href="index.html" style="text-decoration:none;"><h2 style="color:var(--primary-color,#800000)">Gonah Homes</h2></a>
+                </div>
+                <div class="nav-menu">
+                    <a href="index.html" class="nav-link">Home</a>
+                    <a href="index.html#accommodations" class="nav-link">Accommodations</a>
+                    <button id="auth-btn" class="btn btn-primary" style="display:none;">Logout</button>
+                </div>
+            </div>
+        </nav>
+    </header>
+
+    <!-- Login Section (shown when not logged in) -->
+    <div id="login-section" class="login-page">
+        <div class="login-card">
+            <div class="login-logo">
+                <h2><i class="fas fa-home"></i> My Account</h2>
+                <p>Enter your booking details to access your dashboard</p>
+            </div>
+            <div id="login-error"></div>
+            <form id="auth-form">
+                <div class="form-group">
+                    <label for="auth-email"><i class="fas fa-envelope"></i> Email Address</label>
+                    <input type="email" id="auth-email" placeholder="Enter your booking email" required autocomplete="email">
+                </div>
+                <div class="form-group">
+                    <label for="auth-booking-id"><i class="fas fa-hashtag"></i> Booking ID</label>
+                    <input type="text" id="auth-booking-id" placeholder="e.g. GNH-ABCD12" required autocomplete="off">
+                    <small>Found in your booking confirmation message</small>
+                </div>
+                <button type="submit" id="auth-submit" class="btn btn-primary btn-full">
+                    <i class="fas fa-sign-in-alt"></i> Access My Booking
+                </button>
+                <div id="login-loading"><i class="fas fa-spinner fa-spin"></i> Verifying...</div>
+            </form>
+            <div class="login-notice">
+                <i class="fas fa-info-circle"></i>
+                No registration needed. Your account is created automatically when you make a booking.
+            </div>
+        </div>
+    </div>
+
+    <!-- Dashboard (shown when logged in) -->
+    <main class="dashboard-container" id="dashboard-content" style="display:none;">
+        <section class="profile-section">
+            <div class="profile-pic-container">
+                <img id="profile-pic" src="" alt="Profile">
+            </div>
+            <h2 id="user-name-display">Welcome</h2>
+            <p id="user-email-display"></p>
+        </section>
+
+        <!-- Active Announcements from Admin -->
+        <div id="announcements-area" style="max-width:800px;margin:0 auto 0.5rem;padding:0 1rem;"></div>
+
+        <nav class="dashboard-tabs">
+            <div class="account-nav-tab active" onclick="switchTab('bookings', this)">
+                <i class="fas fa-calendar-check"></i> My Bookings
+            </div>
+            <div class="account-nav-tab" onclick="switchTab('documents', this)">
+                <i class="fas fa-id-card"></i> ID Documents
+            </div>
+            <div class="account-nav-tab" onclick="switchTab('requests', this)">
+                <i class="fas fa-concierge-bell"></i> Service Requests
+            </div>
+        </nav>
+
+        <div id="bookings-tab" class="tab-content">
+            <div id="active-bookings" class="mb-2"></div>
+            <div id="past-bookings" class="mb-2"></div>
+        </div>
+
+        <div id="documents-tab" class="tab-content" style="display:none;">
+            <div id="doc-payment-notice" style="display:none;"></div>
+            <h3 style="margin:0 0 0.25rem;">Upload Identification</h3>
+            <p style="margin:0 0 1rem;color:#666;font-size:0.9rem;">Upload your ID, Passport or any required document. Supported: JPG, PNG, PDF (max 5 MB each).</p>
+
+            <!-- Drag & Drop Upload Zone -->
+            <div id="upload-zone" style="border:2.5px dashed #ddd;border-radius:12px;padding:2rem 1rem;text-align:center;cursor:pointer;transition:all 0.2s;background:#fafafa;position:relative;margin-bottom:0.75rem;">
+                <input type="file" id="id-upload" accept="image/*,.pdf" style="position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;z-index:2;">
+                <div id="upload-zone-content">
+                    <i class="fas fa-cloud-upload-alt" style="font-size:2.4rem;color:#800000;display:block;margin-bottom:0.5rem;"></i>
+                    <p style="margin:0;font-weight:600;color:#333;font-size:0.95rem;">Drag &amp; drop your file here</p>
+                    <p style="margin:0.2rem 0 0;font-size:0.82rem;color:#999;">or click anywhere in this box to browse</p>
+                    <p style="margin:0.5rem 0 0;font-size:0.75rem;color:#ccc;">JPG &nbsp;·&nbsp; PNG &nbsp;·&nbsp; PDF &nbsp;·&nbsp; max 5 MB</p>
+                </div>
+                <div id="upload-file-preview" style="display:none;pointer-events:none;"></div>
+            </div>
+
+            <!-- Progress Bar -->
+            <div id="upload-progress-wrap" style="display:none;margin-bottom:0.75rem;">
+                <div style="display:flex;justify-content:space-between;margin-bottom:0.3rem;">
+                    <span id="upload-progress-label" style="font-size:0.82rem;color:#555;">Uploading...</span>
+                    <span id="upload-progress-pct" style="font-size:0.82rem;color:#800000;font-weight:600;">0%</span>
+                </div>
+                <div style="background:#f0f0f0;border-radius:20px;height:8px;overflow:hidden;">
+                    <div id="upload-progress-bar" style="height:100%;background:#800000;border-radius:20px;width:0%;transition:width 0.25s;"></div>
+                </div>
+            </div>
+
+            <!-- Toast -->
+            <div id="upload-toast" style="display:none;border-radius:8px;padding:0.7rem 1rem;margin-bottom:0.75rem;font-size:0.87rem;"></div>
+
+            <button id="upload-id-btn" class="btn btn-primary" style="width:100%;" disabled>
+                <i class="fas fa-upload"></i> Upload Document
+            </button>
+
+            <div id="uploaded-docs" style="margin-top:1.25rem;"></div>
+        </div>
+
+        <div id="requests-tab" class="tab-content" style="display:none;">
+            <div id="req-payment-notice" style="display:none;background:#fff3e0;border:1px solid #ffe0b2;border-radius:10px;padding:1rem 1.25rem;margin-bottom:1rem;">
+                <p style="margin:0;color:#e65100;font-size:0.9rem;"><i class="fas fa-hourglass-half"></i> <strong>Awaiting Payment Confirmation</strong><br>
+                Service requests are available once your booking is confirmed by our team.</p>
+            </div>
+            <h3>Service Requests</h3>
+            <form id="service-request-form">
+                <div class="form-group" style="margin-bottom:1rem;">
+                    <label>Request Type</label>
+                    <select id="request-type" required style="width:100%;padding:0.75rem;border:1.5px solid #ddd;border-radius:8px;font-size:1rem;">
+                        <option value="housekeeping">Housekeeping</option>
+                        <option value="room-service">Room Service</option>
+                        <option value="maintenance">Maintenance</option>
+                        <option value="early-checkin">Early Check-in Request</option>
+                        <option value="late-checkout">Late Check-out Request</option>
+                    </select>
+                </div>
+                <div class="form-group" style="margin-bottom:1rem;">
+                    <label>Details</label>
+                    <textarea id="request-details" placeholder="Enter details (e.g. preferred time)..." 
+                        style="width:100%;padding:0.75rem;border:1.5px solid #ddd;border-radius:8px;font-size:1rem;min-height:100px;box-sizing:border-box;"></textarea>
+                </div>
+                <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-paper-plane"></i> Submit Request
+                </button>
+            </form>
+        </div>
+    </main>
+
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
+
+    <!-- PDF Generation -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+    <script>
+        // Firebase init
+        const firebaseConfig = {
+            apiKey: "AIzaSyABTVp797tNu353FBVLzsOp90aIX2mNF74",
+            authDomain: "my-website-project2797.firebaseapp.com",
+            projectId: "my-website-project2797",
+            storageBucket: "my-website-project2797.appspot.com",
+            messagingSenderId: "406226552922",
+            appId: "1:406226552922:web:ffdf2ccf6f77a57964b063"
+        };
+        if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
+        const auth = firebase.auth();
+        const storage = firebase.storage();
+
+        // ---- Avatar Helper ----
+        function buildAvatar(name, email) {
+            let hash = 0;
+            const str = (email || name || '').toLowerCase();
+            for (let i = 0; i < str.length; i++) {
+                hash = str.charCodeAt(i) + ((hash << 5) - hash);
+                hash = hash & hash;
+            }
+            const colors = ['7B2D00','8B1A1A','6A0F49','0D47A1','1B5E20','006064','4A148C','E65100','37474F','880E4F'];
+            const bg = colors[Math.abs(hash) % colors.length];
+            return `https://ui-avatars.com/api/?name=${encodeURIComponent(name || 'Guest')}&size=150&background=${bg}&color=fff&rounded=true&bold=true`;
+        }
+
+        // ---- Login Flow ----
+        const loginSection = document.getElementById('login-section');
+        const dashboardContent = document.getElementById('dashboard-content');
+        const authForm = document.getElementById('auth-form');
+        const loginError = document.getElementById('login-error');
+        const loginLoading = document.getElementById('login-loading');
+        const authBtn = document.getElementById('auth-btn');
+
+        function showLogin() {
+            loginSection.style.display = 'flex';
+            dashboardContent.style.display = 'none';
+            authBtn.style.display = 'none';
+        }
+
+        function showDashboard(user) {
+            loginSection.style.display = 'none';
+            dashboardContent.style.display = 'block';
+            authBtn.style.display = 'inline-block';
+            authBtn.textContent = 'Logout';
+            authBtn.onclick = () => {
+                localStorage.removeItem('booking_code_user');
+                auth.signOut().finally(() => { window.location.href = 'index.html'; });
+            };
+            document.getElementById('user-name-display').textContent = 'Welcome, ' + user.name;
+            document.getElementById('user-email-display').textContent = user.email;
+            const profilePic = document.getElementById('profile-pic');
+            profilePic.src = buildAvatar(user.name, user.email);
+            loadBookings(user);
+            loadAnnouncements();
+        }
+
+        // Always show login form — pre-fill from URL params if redirected from booking
+        const _urlP = new URLSearchParams(window.location.search);
+        const _preEmail = _urlP.get('email');
+        const _preCode = _urlP.get('code');
+        if (_preEmail) document.getElementById('auth-email').value = _preEmail;
+        if (_preCode) document.getElementById('auth-booking-id').value = _preCode;
+        showLogin();
+
+        // Login form submission
+        authForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const email = document.getElementById('auth-email').value.trim();
+            const bookingId = document.getElementById('auth-booking-id').value.trim().toUpperCase();
+            loginError.style.display = 'none';
+            loginLoading.style.display = 'block';
+            authForm.querySelector('button[type="submit"]').disabled = true;
+
+            try {
+                const snap = await db.collection('bookings')
+                    .where('email', '==', email)
+                    .where('id', '==', bookingId)
+                    .get();
+                if (snap.empty) throw new Error('No booking found with that email and Booking ID. Please check and try again.');
+                const b = snap.docs[0].data();
+                const user = { name: b.name || email.split('@')[0], email: b.email, code: bookingId };
+                localStorage.setItem('booking_code_user', JSON.stringify(user));
+                showDashboard(user);
+            } catch (err) {
+                loginError.textContent = err.message;
+                loginError.style.display = 'block';
+            } finally {
+                loginLoading.style.display = 'none';
+                authForm.querySelector('button[type="submit"]').disabled = false;
+            }
+        });
+
+        // ---- Dashboard Logic ----
+        function switchTab(tabName, el) {
+            document.querySelectorAll('.tab-content').forEach(t => t.style.display = 'none');
+            document.querySelectorAll('.account-nav-tab').forEach(t => t.classList.remove('active'));
+            document.getElementById(tabName + '-tab').style.display = 'block';
+            if (el) el.classList.add('active');
+            if (tabName === 'documents') {
+                const user = JSON.parse(localStorage.getItem('booking_code_user') || 'null');
+                if (user) loadUploadedDocs(user);
+            }
+        }
+
+        async function loadBookings(user) {
+            const activeDiv = document.getElementById('active-bookings');
+            const pastDiv = document.getElementById('past-bookings');
+            activeDiv.innerHTML = '<h3><i class="fas fa-calendar-check"></i> Upcoming Bookings</h3>';
+            pastDiv.innerHTML = '<h3><i class="fas fa-history"></i> Past Bookings</h3>';
+
+            try {
+                const snap = await db.collection('bookings').where('email', '==', user.email).get();
+                if (snap.empty) {
+                    activeDiv.innerHTML += '<p style="color:#666;">No bookings found.</p>';
+                    return;
+                }
+                let hasActive = false, hasPast = false, hasConfirmed = false;
+                snap.forEach(doc => {
+                    const b = doc.data();
+                    const card = createBookingCard(b, doc.id);
+                    const checkin = new Date(b.checkin);
+                    if (b.status === 'confirmed') hasConfirmed = true;
+                    if (checkin >= new Date()) {
+                        activeDiv.appendChild(card);
+                        startCountdown(b.checkin, doc.id);
+                        hasActive = true;
+                    } else {
+                        pastDiv.appendChild(card);
+                        hasPast = true;
+                    }
+                });
+                updatePaymentRestriction(hasConfirmed);
+                if (!hasActive) activeDiv.innerHTML += '<p style="color:#666;">No upcoming bookings.</p>';
+                if (!hasPast) pastDiv.innerHTML += '<p style="color:#666;">No past bookings.</p>';
+            } catch (err) {
+                activeDiv.innerHTML += `<p style="color:red;">Error loading bookings: ${err.message}</p>`;
+            }
+        }
+
+        // Cache for loaded document data (base64 or URL) keyed by Firestore doc ID
+        const _docCache = {};
+
+        let _viewerObjectUrl = null;
+
+        function _openDoc(docId) {
+            const d = _docCache[docId];
+            if (!d) { alert('Document not found. Please refresh the page and try again.'); return; }
+            const win = window.open('', '_blank');
+            if (!win) { alert('Please allow pop-ups to view documents.'); return; }
+            const isPdf = d.type === 'application/pdf' || (d.name && d.name.toLowerCase().endsWith('.pdf'));
+
+            if (isPdf && d.data) {
+                // PDFs: use data URI directly (small enough)
+                win.document.write(`<html><body style="margin:0;background:#333;height:100vh;">
+                  <embed src="${d.data}" type="application/pdf" width="100%" height="100%">
+                </body></html>`);
+                win.document.close();
+            } else if (d.data && d.data.startsWith('data:')) {
+                // Images: convert base64 to Blob to avoid crashing the tab
+                try {
+                    if (_viewerObjectUrl) { URL.revokeObjectURL(_viewerObjectUrl); }
+                    const parts = d.data.split(',');
+                    const mime = parts[0].match(/:(.*?);/)[1];
+                    const byteString = atob(parts[1]);
+                    const ab = new ArrayBuffer(byteString.length);
+                    const ia = new Uint8Array(ab);
+                    for (let i = 0; i < byteString.length; i++) { ia[i] = byteString.charCodeAt(i); }
+                    const blob = new Blob([ab], { type: mime });
+                    _viewerObjectUrl = URL.createObjectURL(blob);
+                    win.document.write(`<html><body style="margin:0;background:#111;display:flex;align-items:center;justify-content:center;min-height:100vh;">
+                      <img src="${_viewerObjectUrl}" style="max-width:100%;max-height:100vh;object-fit:contain;">
+                    </body></html>`);
+                    win.document.close();
+                } catch (e) {
+                    win.close();
+                    alert('Could not open image: ' + e.message);
+                }
+            } else if (d.url) {
+                win.document.write(`<html><body style="margin:0;background:#111;display:flex;align-items:center;justify-content:center;min-height:100vh;">
+                  <img src="${d.url}" style="max-width:100%;max-height:100vh;object-fit:contain;" onerror="document.body.innerHTML='<p style=color:#fff;font-family:sans-serif;>Image unavailable</p>'">
+                </body></html>`);
+                win.document.close();
+            }
+        }
+
+        async function loadUploadedDocs(user) {
+            const container = document.getElementById('uploaded-docs');
+            container.innerHTML = '<p style="color:#888;font-size:0.9rem;">Loading documents...</p>';
+            try {
+                const snap = await db.collection('users').doc('booking_' + user.code).collection('documents').orderBy('uploadedAt', 'desc').get();
+                if (snap.empty) {
+                    container.innerHTML = '<p style="color:#888;font-size:0.9rem;">No documents uploaded yet.</p>';
+                    return;
+                }
+                let html = '<div style="display:flex;flex-direction:column;gap:0.75rem;margin-top:0.5rem;">';
+                snap.forEach(doc => {
+                    const d = doc.data();
+                    _docCache[doc.id] = d;
+                    const date = d.uploadedAt ? new Date(d.uploadedAt.toDate()).toLocaleDateString() : '';
+                    const isPdf = d.name && (d.name.toLowerCase().endsWith('.pdf') || d.type === 'application/pdf');
+                    // Support both old (url) and new (data) storage
+                    const hasContent = !!(d.data || d.url);
+                    const viewBtn = hasContent
+                        ? `<button onclick="_openDoc('${doc.id}')" style="background:none;border:none;color:#800000;font-size:0.85rem;cursor:pointer;padding:0;white-space:nowrap;"><i class="fas fa-eye"></i> View</button>`
+                        : '';
+                    html += `
+                        <div style="display:flex;align-items:center;gap:0.75rem;background:rgba(128,0,0,0.05);border:1px solid #ddd;border-radius:8px;padding:0.75rem;">
+                            <i class="fas ${isPdf ? 'fa-file-pdf' : 'fa-file-image'}" style="font-size:1.5rem;color:#800000;flex-shrink:0;"></i>
+                            <div style="flex:1;min-width:0;">
+                                <p style="margin:0;font-weight:600;font-size:0.9rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${d.name}</p>
+                                ${date ? `<p style="margin:0;font-size:0.78rem;color:#888;">Uploaded ${date}</p>` : ''}
+                            </div>
+                            ${viewBtn}
+                        </div>`;
+                });
+                html += '</div>';
+                container.innerHTML = html;
+            } catch (err) {
+                container.innerHTML = `
+                    <p style="color:red;font-size:0.9rem;">Error loading documents: ${err.message}</p>
+                    <div style="margin-top:0.75rem;padding:0.85rem 1rem;background:#e8f5e9;border:1px solid #a5d6a7;border-radius:10px;">
+                        <p style="margin:0;font-size:0.85rem;color:#1b5e20;">
+                            <i class="fab fa-whatsapp" style="font-size:1.1rem;vertical-align:middle;"></i>
+                            <strong>Send via WhatsApp instead</strong>
+                        </p>
+                        <p style="margin:0.3rem 0 0;font-size:0.8rem;color:#2e7d32;">
+                            Save your document to your phone, then
+                            <a href="https://wa.me/254799466723?text=Hi%20Gonah%20Homes%2C%20I%20would%20like%20to%20send%20my%20document%20for%20booking%20${encodeURIComponent(user.code || '')}" 
+                               target="_blank" style="color:#1b5e20;font-weight:600;text-decoration:underline;">
+                                click here to send on WhatsApp <i class="fas fa-external-link-alt" style="font-size:0.7rem;"></i>
+                            </a>
+                        </p>
+                    </div>`;
+            }
+        }
+
+        function createBookingCard(booking, id) {
+            const card = document.createElement('div');
+            card.className = 'booking-card';
+            const statusColor = { confirmed: '#2e7d32', pending: '#e65100', cancelled: '#c62828', completed: '#1565c0' }[booking.status] || '#555';
+
+            // Invoice for pending bookings, receipt section for confirmed
+            const invoiceHtml = (booking.status === 'pending') ? `
+                <div style="background:#fff3e0;border:1px solid #ffe0b2;border-radius:8px;padding:0.75rem 0.85rem;margin:0.6rem 0;">
+                    <p style="margin:0 0 0.3rem;font-weight:700;font-size:0.82rem;color:#e65100;"><i class="fas fa-file-invoice"></i> Payment Invoice</p>
+                    <p style="margin:0;font-size:0.82rem;"><strong>Amount Due:</strong> KSh ${Number(booking.total||0).toLocaleString()}</p>
+                    <p style="margin:0;font-size:0.82rem;"><strong>Paybill:</strong> 247247 &nbsp;·&nbsp; <strong>Account:</strong> 466999</p>
+                    <p style="margin:0;font-size:0.82rem;"><strong>Business:</strong> Gonah Nexus</p>
+                    <p style="margin:0.2rem 0 0;font-size:0.75rem;color:#e65100;">Complete payment within 24 hours to confirm your booking.</p>
+                </div>` : '';
+
+            const receiptHtml = (booking.status === 'confirmed' && booking.paymentMethod) ? `
+                <div style="background:#e8f5e9;border:1px solid #a5d6a7;border-radius:8px;padding:0.6rem 0.85rem;margin:0.6rem 0;">
+                    <p style="margin:0 0 0.25rem;font-weight:700;font-size:0.82rem;color:#2e7d32;"><i class="fas fa-check-circle"></i> Payment Confirmed</p>
+                    <p style="margin:0;font-size:0.82rem;"><strong>Method:</strong> ${booking.paymentMethod}</p>
+                    <p style="margin:0;font-size:0.82rem;"><strong>Reference:</strong> ${booking.transactionRef || '—'}</p>
+                    <p style="margin:0;font-size:0.82rem;"><strong>Amount Paid:</strong> KSh ${Number(booking.amountPaid||0).toLocaleString()}</p>
+                    ${booking.paymentNotes ? `<p style="margin:0;font-size:0.82rem;"><strong>Notes:</strong> ${booking.paymentNotes}</p>` : ''}
+                </div>` : '';
+
+            // Cancellation reason block
+            const cancelHtml = (booking.status === 'cancelled') ? `
+                <div style="background:#fce4ec;border:1px solid #f48fb1;border-radius:8px;padding:0.6rem 0.85rem;margin:0.6rem 0;">
+                    <p style="margin:0 0 0.2rem;font-weight:700;font-size:0.82rem;color:#c62828;"><i class="fas fa-times-circle"></i> Booking Cancelled</p>
+                    ${booking.cancellationReason ? `<p style="margin:0;font-size:0.82rem;"><strong>Reason:</strong> ${booking.cancellationReason}</p>` : ''}
+                </div>` : '';
+
+            // Safe booking JSON for receipt/invoice download
+            const safeBooking = JSON.stringify({
+                house: booking.house, name: booking.name, email: booking.email,
+                checkin: booking.checkin, checkout: booking.checkout, guests: booking.guests,
+                phone: booking.phone, status: booking.status, total: booking.total || 0,
+                paymentMethod: booking.paymentMethod || '', transactionRef: booking.transactionRef || '',
+                amountPaid: booking.amountPaid || 0, paymentNotes: booking.paymentNotes || '',
+                cancellationReason: booking.cancellationReason || ''
+            }).replace(/"/g, '&quot;');
+
+            card.innerHTML = `
+                <div class="booking-header">
+                    <h4><i class="fas fa-home"></i> ${booking.house || 'N/A'}</h4>
+                    <span class="status-badge" style="background:${statusColor};color:#fff;padding:3px 10px;border-radius:20px;font-size:0.8rem;">
+                        ${(booking.status || 'pending').toUpperCase()}
+                    </span>
+                </div>
+                <p><i class="fas fa-sign-in-alt"></i> Check-in: <strong>${booking.checkin || 'N/A'}</strong></p>
+                <p><i class="fas fa-sign-out-alt"></i> Check-out: <strong>${booking.checkout || 'N/A'}</strong></p>
+                <p><i class="fas fa-tag"></i> Booking ID: <strong>${id}</strong></p>
+                ${invoiceHtml}
+                ${receiptHtml}
+                ${cancelHtml}
+                <div id="countdown-${id}" class="countdown-timer" style="font-size:0.85rem;color:var(--primary-color,#800000);margin:0.5rem 0;"></div>
+                <div class="booking-actions" style="margin-top:0.75rem;display:flex;gap:0.5rem;flex-wrap:wrap;">
+                    <button onclick="downloadReceipt('${id}', ${safeBooking})" class="btn btn-outline btn-sm">
+                        <i class="fas fa-${booking.status === 'pending' ? 'file-invoice' : 'download'}"></i> ${booking.status === 'pending' ? 'Invoice' : 'Receipt'}
+                    </button>
+                    ${booking.status !== 'cancelled' && booking.status !== 'completed' ? `<button onclick="cancelBooking('${id}')" class="btn btn-sm" style="background:#c62828;color:#fff;border:none;border-radius:6px;padding:0.35rem 0.85rem;cursor:pointer;">
+                        <i class="fas fa-times"></i> Cancel
+                    </button>` : ''}
+                </div>
+            `;
+            return card;
+        }
+
+        function startCountdown(checkinDate, id) {
+            const el = document.getElementById('countdown-' + id);
+            if (!el) return;
+            const target = new Date(checkinDate).getTime();
+            function update() {
+                const diff = target - Date.now();
+                if (diff < 0) { el.innerHTML = "<i class='fas fa-key'></i> Check-in day!"; return; }
+                const d = Math.floor(diff / 86400000);
+                const h = Math.floor((diff % 86400000) / 3600000);
+                const m = Math.floor((diff % 3600000) / 60000);
+                el.innerHTML = `<i class='fas fa-clock'></i> Check-in in: ${d}d ${h}h ${m}m`;
+            }
+            update();
+            setInterval(update, 60000);
+        }
+
+        async function cancelBooking(id) {
+            const reason = prompt('Please provide a reason for cancellation (optional):');
+            if (reason === null) return; // user clicked Cancel on prompt
+            try {
+                await db.collection('bookings').doc(id).update({
+                    status: 'cancelled',
+                    cancellationReason: reason || 'Cancelled by guest',
+                    cancelledAt: firebase.firestore.FieldValue.serverTimestamp()
+                });
+                const user = JSON.parse(localStorage.getItem('booking_code_user') || sessionStorage.getItem('booking_code_user') || 'null');
+                if (user) loadBookings(user);
+            } catch (err) { alert('Error: ' + err.message); }
+        }
+
+        function updatePaymentRestriction(hasConfirmed) {
+            const docNotice = document.getElementById('doc-payment-notice');
+            const reqNotice = document.getElementById('req-payment-notice');
+            const uploadBtn = document.getElementById('upload-id-btn');
+            const idInput = document.getElementById('id-upload');
+            const serviceForm = document.getElementById('service-request-form');
+
+            // ID upload: always available (pending or confirmed)
+            if (docNotice) docNotice.style.display = 'none';
+            if (uploadBtn) uploadBtn.disabled = false;
+            if (idInput) idInput.disabled = false;
+
+            // Service requests: only for confirmed bookings
+            if (hasConfirmed) {
+                if (reqNotice) reqNotice.style.display = 'none';
+                if (serviceForm) serviceForm.querySelectorAll('input,textarea,select,button').forEach(el => el.disabled = false);
+            } else {
+                if (reqNotice) reqNotice.style.display = 'block';
+                if (serviceForm) serviceForm.querySelectorAll('input,textarea,select,button').forEach(el => el.disabled = true);
+            }
+        }
+
+        async function loadAnnouncements() {
+            const area = document.getElementById('announcements-area');
+            if (!area) return;
+            try {
+                const now = new Date();
+                const snap = await db.collection('announcements')
+                    .where('active', '==', true)
+                    .limit(5)
+                    .get();
+
+                if (snap.empty) { area.innerHTML = ''; return; }
+
+                const typeStyle = {
+                    offer:       { bg:'#e8f5e9', border:'#a5d6a7', color:'#1b5e20', icon:'fas fa-tag' },
+                    news:        { bg:'#e3f2fd', border:'#90caf9', color:'#0d47a1', icon:'fas fa-newspaper' },
+                    maintenance: { bg:'#fff8e1', border:'#ffe082', color:'#f57f17', icon:'fas fa-tools' },
+                    general:     { bg:'#f3e5f5', border:'#ce93d8', color:'#4a148c', icon:'fas fa-bullhorn' }
+                };
+
+                let html = '';
+                snap.forEach(doc => {
+                    const a = doc.data();
+                    if (a.validUntil && new Date(a.validUntil.toDate()) < now) return;
+                    const t = typeStyle[a.type] || typeStyle.general;
+                    html += `<div style="background:${t.bg};border:1px solid ${t.border};border-radius:10px;padding:0.85rem 1.1rem;margin-bottom:0.6rem;display:flex;align-items:flex-start;gap:0.75rem;">
+                        <i class="${t.icon}" style="color:${t.color};margin-top:2px;flex-shrink:0;font-size:1.1rem;"></i>
+                        <div>
+                            <strong style="color:${t.color};font-size:0.9rem;">${a.title || ''}</strong>
+                            <p style="margin:0.2rem 0 0;font-size:0.85rem;color:#444;line-height:1.4;">${a.message || ''}</p>
+                        </div>
+                    </div>`;
+                });
+                area.innerHTML = html;
+            } catch (err) {
+                console.warn('Could not load announcements:', err.message);
+            }
+        }
+
+        function downloadReceipt(id, booking) {
+            const statusColors = { confirmed:'#2e7d32', pending:'#e65100', cancelled:'#c62828', completed:'#1565c0' };
+            const sc = statusColors[booking.status] || '#555';
+            const isInvoice = booking.status === 'pending';
+            const docTitle = isInvoice ? 'Invoice' : 'Receipt';
+
+            const paymentBlock = isInvoice ? `
+              <div style="background:#fff3e0;border:1px solid #ffe0b2;border-radius:8px;padding:0.8rem 1rem;margin-top:0.75rem;">
+                <p style="margin:0 0 0.3rem;font-weight:700;color:#e65100;font-size:0.85rem;"><i class="fas fa-file-invoice"></i> Payment Due</p>
+                <p style="margin:0;font-size:0.83rem;"><strong>Amount Due:</strong> KSh ${Number(booking.total||0).toLocaleString()}</p>
+                <p style="margin:0;font-size:0.83rem;"><strong>Paybill Number:</strong> 247247</p>
+                <p style="margin:0;font-size:0.83rem;"><strong>Account Number:</strong> 466999</p>
+                <p style="margin:0;font-size:0.83rem;"><strong>Business Name:</strong> Gonah Nexus</p>
+                <p style="margin:0.25rem 0 0;font-size:0.75rem;color:#e65100;">Please complete payment within 24 hours to confirm this booking.</p>
+              </div>
+              <div style="background:#f5f5f5;border-radius:8px;padding:0.75rem 1rem;margin-top:0.6rem;">
+                <p style="margin:0 0 0.25rem;font-weight:700;font-size:0.82rem;color:#555;"><i class="fas fa-info-circle"></i> Payment Rules</p>
+                <ul style="margin:0;padding-left:1.1rem;font-size:0.78rem;color:#666;line-height:1.6;">
+                  <li>Payment must be made within 24 hours of booking.</li>
+                  <li>Use your Booking ID as the payment reference.</li>
+                  <li>Free cancellation up to 48 hours before check-in.</li>
+                  <li>Late cancellations forfeit 50% of the total amount.</li>
+                  <li>All payments are non-refundable after check-in.</li>
+                </ul>
+              </div>` :
+              (booking.status === 'confirmed' && booking.paymentMethod) ? `
+              <div style="background:#e8f5e9;border:1px solid #a5d6a7;border-radius:8px;padding:0.8rem 1rem;margin-top:0.75rem;">
+                <p style="margin:0 0 0.3rem;font-weight:700;color:#2e7d32;font-size:0.85rem;">✔ Payment Confirmed</p>
+                <p style="margin:0;font-size:0.83rem;"><strong>Method:</strong> ${booking.paymentMethod}</p>
+                <p style="margin:0;font-size:0.83rem;"><strong>Reference:</strong> ${booking.transactionRef || '—'}</p>
+                <p style="margin:0;font-size:0.83rem;"><strong>Amount Paid:</strong> KSh ${Number(booking.amountPaid||0).toLocaleString()}</p>
+                ${booking.paymentNotes ? `<p style="margin:0;font-size:0.83rem;"><strong>Notes:</strong> ${booking.paymentNotes}</p>` : ''}
+              </div>` : '';
+
+            const cancelBlock = (booking.status === 'cancelled' && booking.cancellationReason) ? `
+              <div style="background:#fce4ec;border:1px solid #f48fb1;border-radius:8px;padding:0.8rem 1rem;margin-top:0.75rem;">
+                <p style="margin:0 0 0.3rem;font-weight:700;color:#c62828;font-size:0.85rem;">✖ Booking Cancelled</p>
+                <p style="margin:0;font-size:0.83rem;"><strong>Reason:</strong> ${booking.cancellationReason}</p>
+              </div>` : '';
+
+            const dateIssued = new Date().toLocaleDateString('en-KE',{day:'numeric',month:'long',year:'numeric'});
+
+            const html = `<!DOCTYPE html><html><head>
+              <title>${docTitle} — ${id}</title><meta charset="utf-8">
+              <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
+              <style>*{box-sizing:border-box}body{margin:0;padding:28px;font-family:'Poppins',sans-serif;background:#fff;max-width:520px;}button{display:none!important}@media print{body{padding:0}}</style>
+            </head><body>
+              <div style="border-radius:12px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.13);">
+                <div style="background:linear-gradient(135deg,#800000,#b30000);color:#fff;padding:1.4rem 1.5rem 1rem;text-align:center;">
+                  <!-- LOGO PLACEHOLDER — Replace with your business logo image -->
+                  <div style="width:80px;height:80px;border-radius:50%;background:#fff;margin:0 auto 0.6rem;display:flex;align-items:center;justify-content:center;overflow:hidden;">
+                    <span style="font-size:2.2rem;">🏠</span>
+                  </div>
+                  <h2 style="margin:0;font-size:1.1rem;letter-spacing:2px;font-weight:700;">GONAH HOMES</h2>
+                  <p style="margin:0.1rem 0 0;opacity:0.8;font-size:0.72rem;">A brand of Gonah Nexus · Mombasa, Kenya</p>
+                </div>
+                <div style="background:#fff8e1;border-bottom:2px dashed #ffd600;padding:0.85rem 1.5rem;text-align:center;">
+                  <p style="margin:0;font-size:0.68rem;color:#999;text-transform:uppercase;letter-spacing:2px;">${docTitle}</p>
+                  <p style="margin:0.15rem 0;font-size:1.8rem;font-family:monospace;font-weight:700;color:#800000;letter-spacing:4px;">${id}</p>
+                  <span style="background:${sc};color:#fff;padding:3px 12px;border-radius:20px;font-size:0.73rem;font-weight:600;">${(booking.status||'pending').toUpperCase()}</span>
+                </div>
+                <div style="background:#fff;padding:1rem 1.5rem;">
+                  <table style="width:100%;border-collapse:collapse;font-size:0.86rem;">
+                    <tr style="border-bottom:1px solid #f0f0f0;"><td style="padding:0.45rem 0;color:#888;width:42%;">Guest</td><td style="font-weight:600;">${booking.name||'—'}</td></tr>
+                    <tr style="border-bottom:1px solid #f0f0f0;"><td style="padding:0.45rem 0;color:#888;">Email</td><td style="font-weight:600;">${booking.email||'—'}</td></tr>
+                    <tr style="border-bottom:1px solid #f0f0f0;"><td style="padding:0.45rem 0;color:#888;">Property</td><td style="font-weight:600;">${booking.house||'—'}</td></tr>
+                    <tr style="border-bottom:1px solid #f0f0f0;"><td style="padding:0.45rem 0;color:#888;">Check-in</td><td style="font-weight:600;">${booking.checkin||'—'}</td></tr>
+                    <tr style="border-bottom:1px solid #f0f0f0;"><td style="padding:0.45rem 0;color:#888;">Check-out</td><td style="font-weight:600;">${booking.checkout||'—'} (10:00 AM)</td></tr>
+                    ${booking.total ? `<tr style="border-bottom:1px solid #f0f0f0;"><td style="padding:0.45rem 0;color:#888;">${isInvoice?'Amount Due':'Total'}</td><td style="font-weight:600;">KSh ${Number(booking.total).toLocaleString()}</td></tr>` : ''}
+                    <tr><td style="padding:0.45rem 0;color:#888;">Date Issued</td><td style="font-weight:600;">${dateIssued}</td></tr>
+                  </table>
+                  ${paymentBlock}${cancelBlock}
+                </div>
+                <div style="background:#f9f9f9;border-top:1px solid #eee;padding:0.65rem 1.5rem;text-align:center;">
+                  <p style="margin:0;font-size:0.72rem;color:#bbb;">📧 gonahhomes0@gmail.com &nbsp;·&nbsp; 📞 +254 799 466 723</p>
+                  <p style="margin:0.25rem 0 0;font-size:0.65rem;color:#bbb;">Gonah Nexus · Paybill 247247 · Account 466999</p>
+                </div>
+              </div>
+              <script>setTimeout(()=>{window.print();},800);<\/script>
+            </body></html>`;
+
+            const win = window.open('','_blank','width=560,height=820');
+            if (!win) { alert('Please allow pop-ups to download the receipt.'); return; }
+            win.document.write(html);
+            win.document.close();
+        }
+
+        // ---- Image Compression via Canvas ----
+        function _compressImage(file, maxDim, quality) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = ev => {
+                    const img = new Image();
+                    img.onload = () => {
+                        let w = img.width, h = img.height;
+                        if (w > maxDim || h > maxDim) {
+                            if (w > h) { h = Math.round(h * maxDim / w); w = maxDim; }
+                            else { w = Math.round(w * maxDim / h); h = maxDim; }
+                        }
+                        const canvas = document.createElement('canvas');
+                        canvas.width = w; canvas.height = h;
+                        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+                        resolve(canvas.toDataURL('image/jpeg', quality));
+                    };
+                    img.onerror = reject;
+                    img.src = ev.target.result;
+                };
+                reader.onerror = reject;
+                reader.readAsDataURL(file);
+            });
+        }
+
+        function _readAsBase64(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = ev => resolve(ev.target.result);
+                reader.onerror = reject;
+                reader.readAsDataURL(file);
+            });
+        }
+
+        // ---- Upload Zone Interactions ----
+        const _uploadZone = document.getElementById('upload-zone');
+        const _idInput    = document.getElementById('id-upload');
+
+        _uploadZone.addEventListener('dragover', e => {
+            e.preventDefault();
+            _uploadZone.style.borderColor = '#800000';
+            _uploadZone.style.background  = '#fff8f8';
+        });
+        _uploadZone.addEventListener('dragleave', () => {
+            _uploadZone.style.borderColor = '#ddd';
+            _uploadZone.style.background  = '#fafafa';
+        });
+        _uploadZone.addEventListener('drop', e => {
+            e.preventDefault();
+            _uploadZone.style.borderColor = '#ddd';
+            _uploadZone.style.background  = '#fafafa';
+            const f = e.dataTransfer.files[0];
+            if (f) { _handleFileSelect(f); }
+        });
+        _idInput.addEventListener('change', () => {
+            if (_idInput.files[0]) _handleFileSelect(_idInput.files[0]);
+        });
+
+        function _showUploadToast(msg, type) {
+            const toast = document.getElementById('upload-toast');
+            const styles = {
+                success: { bg:'#e8f5e9', color:'#2e7d32', icon:'fa-check-circle' },
+                error:   { bg:'#fdecea', color:'#b71c1c', icon:'fa-times-circle' },
+                info:    { bg:'#fff3e0', color:'#e65100', icon:'fa-info-circle' }
+            }[type] || { bg:'#f5f5f5', color:'#333', icon:'fa-info-circle' };
+            toast.style.cssText = `display:block;border-radius:8px;padding:0.7rem 1rem;margin-bottom:0.75rem;font-size:0.87rem;background:${styles.bg};color:${styles.color};border:1px solid ${styles.bg};`;
+            toast.innerHTML = `<i class="fas ${styles.icon}"></i> ${msg}`;
+            if (type === 'success') setTimeout(() => { toast.style.display = 'none'; }, 5000);
+        }
+
+        function _clearUploadSelection() {
+            _idInput.value = '';
+            _currentFile = null;
+            if (_previewObjectUrl) { URL.revokeObjectURL(_previewObjectUrl); _previewObjectUrl = null; }
+            document.getElementById('upload-file-preview').style.display = 'none';
+            document.getElementById('upload-zone-content').style.display = 'block';
+            document.getElementById('upload-id-btn').disabled = true;
+            _uploadZone.style.borderColor = '#ddd';
+        }
+
+        let _currentFile = null;
+        let _previewObjectUrl = null;
+
+        function _handleFileSelect(file) {
+            if (file.size > 5 * 1024 * 1024) {
+                _showUploadToast('File is too large. Maximum size is 5 MB.', 'error');
+                _idInput.value = '';
+                return;
+            }
+            const allowed = ['image/jpeg','image/png','image/webp','image/gif','application/pdf'];
+            if (!allowed.includes(file.type) && !file.name.toLowerCase().endsWith('.pdf')) {
+                _showUploadToast('Only JPG, PNG, WebP, and PDF files are supported.', 'error');
+                _idInput.value = '';
+                return;
+            }
+
+            _currentFile = file;
+            document.getElementById('upload-zone-content').style.display = 'none';
+            const preview = document.getElementById('upload-file-preview');
+            preview.style.display = 'block';
+            preview.style.pointerEvents = 'none';
+
+            const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+            const sizeKb = (file.size / 1024).toFixed(0);
+
+            if (_previewObjectUrl) { URL.revokeObjectURL(_previewObjectUrl); _previewObjectUrl = null; }
+
+            if (!isPdf) {
+                _previewObjectUrl = URL.createObjectURL(file);
+                preview.innerHTML = `
+                    <img src="${_previewObjectUrl}" style="max-height:130px;max-width:100%;border-radius:8px;object-fit:cover;display:block;margin:0 auto 0.5rem;" alt="Preview">
+                    <p style="margin:0;font-size:0.85rem;font-weight:600;color:#333;">${file.name}</p>
+                    <p style="margin:0.1rem 0 0;font-size:0.78rem;color:#888;">${sizeKb} KB</p>
+                    <button onclick="event.stopPropagation();_clearUploadSelection()" style="background:none;border:none;color:#c62828;font-size:0.78rem;cursor:pointer;margin-top:0.35rem;pointer-events:auto;">
+                        <i class="fas fa-times"></i> Remove file
+                    </button>`;
+            } else {
+                preview.innerHTML = `
+                    <i class="fas fa-file-pdf" style="font-size:2.4rem;color:#c62828;display:block;margin-bottom:0.4rem;"></i>
+                    <p style="margin:0;font-size:0.85rem;font-weight:600;color:#333;">${file.name}</p>
+                    <p style="margin:0.1rem 0 0;font-size:0.78rem;color:#888;">${sizeKb} KB</p>
+                    <button onclick="event.stopPropagation();_clearUploadSelection()" style="background:none;border:none;color:#c62828;font-size:0.78rem;cursor:pointer;margin-top:0.35rem;pointer-events:auto;">
+                        <i class="fas fa-times"></i> Remove file
+                    </button>`;
+            }
+
+            _uploadZone.style.borderColor = '#2e7d32';
+            _uploadZone.style.background  = '#f1faf3';
+            document.getElementById('upload-id-btn').disabled = false;
+            document.getElementById('upload-toast').style.display = 'none';
+        }
+
+        // ---- Upload Button — stores file as base64 in Firestore (no Storage auth needed) ----
+        document.getElementById('upload-id-btn').addEventListener('click', async () => {
+            const file = _currentFile || _idInput.files[0];
+            if (!file) { _showUploadToast('Please select a file first.', 'info'); return; }
+            const user = JSON.parse(localStorage.getItem('booking_code_user') || 'null');
+            if (!user) return;
+
+            const btn          = document.getElementById('upload-id-btn');
+            const progressWrap = document.getElementById('upload-progress-wrap');
+            const progressBar  = document.getElementById('upload-progress-bar');
+            const progressPct  = document.getElementById('upload-progress-pct');
+            const progressLbl  = document.getElementById('upload-progress-label');
+
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
+            progressWrap.style.display = 'block';
+            progressBar.style.width    = '15%';
+            progressPct.textContent    = '15%';
+            progressLbl.textContent    = `Preparing ${file.name}...`;
+
+            try {
+                const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+                let base64Data;
+
+                if (isPdf) {
+                    if (file.size > 250 * 1024) {
+                        _showUploadToast('PDF is too large. Please use a file under 250 KB (try scanning at lower resolution or splitting into pages).', 'error');
+                        progressWrap.style.display = 'none';
+                        btn.disabled = false;
+                        btn.innerHTML = '<i class="fas fa-upload"></i> Upload Document';
+                        return;
+                    }
+                    progressBar.style.width = '40%'; progressPct.textContent = '40%';
+                    base64Data = await _readAsBase64(file);
+                } else {
+                    // Compress image to max 800px, quality 0.72 — typically 40-120 KB
+                    progressBar.style.width = '40%'; progressPct.textContent = '40%';
+                    base64Data = await _compressImage(file, 800, 0.72);
+                }
+
+                progressBar.style.width = '75%'; progressPct.textContent = '75%';
+                progressLbl.textContent = 'Saving...';
+
+                await db.collection('users').doc('booking_' + user.code).collection('documents').add({
+                    name: file.name,
+                    type: file.type || (isPdf ? 'application/pdf' : 'image/jpeg'),
+                    size: file.size,
+                    data: base64Data,
+                    uploadedAt: firebase.firestore.FieldValue.serverTimestamp()
+                });
+
+                progressBar.style.width = '100%'; progressPct.textContent = '100%';
+                setTimeout(() => {
+                    progressWrap.style.display = 'none';
+                    _clearUploadSelection();
+                    _uploadZone.style.borderColor = '#ddd';
+                    _uploadZone.style.background  = '#fafafa';
+                    _showUploadToast(`"${file.name}" uploaded successfully!`, 'success');
+                    loadUploadedDocs(user);
+                    btn.disabled = false;
+                    btn.innerHTML = '<i class="fas fa-upload"></i> Upload Document';
+                }, 350);
+
+            } catch (err) {
+                progressWrap.style.display = 'none';
+                _showUploadToast(`Upload failed: ${err.message}. You can send your document via WhatsApp instead.`, 'error');
+                // Show WhatsApp fallback
+                const container = document.getElementById('uploaded-docs');
+                const waHtml = container.querySelector('.whatsapp-fallback');
+                if (!waHtml) {
+                    container.insertAdjacentHTML('afterbegin', `
+                    <div class="whatsapp-fallback" style="margin-bottom:0.75rem;padding:0.85rem 1rem;background:#e8f5e9;border:1px solid #a5d6a7;border-radius:10px;">
+                        <p style="margin:0;font-size:0.85rem;color:#1b5e20;">
+                            <i class="fab fa-whatsapp" style="font-size:1.1rem;vertical-align:middle;"></i>
+                            <strong>Send via WhatsApp instead</strong>
+                        </p>
+                        <p style="margin:0.3rem 0 0;font-size:0.8rem;color:#2e7d32;">
+                            <a href="https://wa.me/254799466723?text=Hi%20Gonah%20Homes%2C%20I%20would%20like%20to%20send%20my%20document" 
+                               target="_blank" style="color:#1b5e20;font-weight:600;text-decoration:underline;">
+                                Click here to send on WhatsApp <i class="fas fa-external-link-alt" style="font-size:0.7rem;"></i>
+                            </a>
+                        </p>
+                    </div>`);
+                }
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fas fa-upload"></i> Upload Document';
+            }
+        });
+
+        // Service Request
+        document.getElementById('service-request-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const user = JSON.parse(localStorage.getItem('booking_code_user') || 'null');
+            if (!user) return;
+            const type = document.getElementById('request-type').value;
+            const details = document.getElementById('request-details').value;
+            try {
+                await db.collection('service_requests').add({
+                    userId: 'booking_' + user.code,
+                    userEmail: user.email,
+                    type, details,
+                    status: 'pending',
+                    timestamp: firebase.firestore.FieldValue.serverTimestamp()
+                });
+                alert('Request submitted successfully!');
+                e.target.reset();
+            } catch (err) { alert('Error: ' + err.message); }
+        });
+    </script>
+</body>
+</html>

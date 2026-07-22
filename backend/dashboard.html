@@ -1,0 +1,529 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gonah Homes - Management Dashboard</title>
+    <link rel="stylesheet" href="dashboard.css?v=3">
+    <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, max-age=0">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body>
+    <div id="login-modal" class="modal active">
+        <div class="modal-content">
+            <h2><i class="fas fa-lock"></i> Management Access</h2>
+            <form id="login-form">
+                <div class="form-group">
+                    <label for="username"><i class="fas fa-user"></i> Username/Email</label>
+                    <input type="text" id="username" required>
+                </div>
+                <div class="form-group">
+                    <label for="password"><i class="fas fa-key"></i> Password</label>
+                    <input type="password" id="password" required>
+                </div>
+                <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-sign-in-alt"></i> Login
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <div id="dashboard" class="dashboard hidden">
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <h2><i class="fas fa-home"></i> Gonah Homes</h2>
+            </div>
+            <nav class="sidebar-nav">
+                <a href="#" class="nav-link active" data-section="overview">
+                    <i class="fas fa-chart-line"></i> Overview
+                </a>
+                <a href="#" class="nav-link" data-section="bookings">
+                    <i class="fas fa-calendar-check"></i> Bookings
+                </a>
+                <a href="#" class="nav-link" data-section="messages">
+                    <i class="fas fa-envelope"></i> Messages
+                </a>
+                <a href="#" class="nav-link" data-section="service-requests">
+                    <i class="fas fa-concierge-bell"></i> Service Requests
+                </a>
+                <a href="#" class="nav-link" data-section="reviews">
+                    <i class="fas fa-star"></i> Reviews
+                </a>
+                <a href="#" class="nav-link" data-section="analytics">
+                    <i class="fas fa-chart-bar"></i> Analytics
+                </a>
+                <a href="#" class="nav-link" data-section="announcements">
+                    <i class="fas fa-bullhorn"></i> Announcements
+                </a>
+                <a href="#" class="nav-link" data-section="clients">
+                    <i class="fas fa-users"></i> Clients
+                </a>
+                <a href="#" class="nav-link" data-section="staff">
+                    <i class="fas fa-user-shield"></i> Staff Accounts
+                </a>
+                <a href="#" class="nav-link" data-section="properties">
+                    <i class="fas fa-building"></i> Properties
+                </a>
+                <a href="#" class="nav-link" data-section="settings">
+                    <i class="fas fa-cog"></i> Settings
+                </a>
+            </nav>
+            <div class="sidebar-footer">
+                <button class="btn btn-outline" onclick="logout()">
+                    <i class="fas fa-sign-out-alt"></i> Logout
+                </button>
+            </div>
+        </aside>
+
+        <main class="main-content">
+            <header class="content-header">
+                <button class="menu-toggle" id="menu-toggle" onclick="toggleSidebar()" aria-label="Toggle menu">
+                    <i class="fas fa-bars"></i>
+                </button>
+                <h1 id="page-title">Dashboard Overview</h1>
+                <div class="header-actions">
+                    <div class="notifications">
+                        <button class="notification-btn" onclick="toggleNotifications()">
+                            <i class="fas fa-bell"></i>
+                            <span class="notification-count" id="notification-count">0</span>
+                        </button>
+                        <div class="notification-dropdown" id="notification-dropdown">
+                            <div class="notification-header">
+                                <h4>Notifications</h4>
+                                <button onclick="markAllRead()">Mark all read</button>
+                            </div>
+                            <div class="notification-list" id="notification-list">
+                                <!-- Notifications will be populated here -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <div class="content-body">
+                <!-- Overview Section -->
+                <section id="overview-section" class="content-section active">
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <div class="stat-icon">
+                                <i class="fas fa-calendar-check"></i>
+                            </div>
+                            <div class="stat-info">
+                                <h3 id="total-bookings">0</h3>
+                                <p>Total Bookings</p>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon">
+                                <i class="fas fa-dollar-sign"></i>
+                            </div>
+                            <div class="stat-info">
+                                <h3 id="monthly-revenue">KSh 0</h3>
+                                <p>Monthly Revenue</p>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon">
+                                <i class="fas fa-envelope"></i>
+                            </div>
+                            <div class="stat-info">
+                                <h3 id="unread-messages">0</h3>
+                                <p>Unread Messages</p>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon">
+                                <i class="fas fa-star"></i>
+                            </div>
+                            <div class="stat-info">
+                                <h3 id="avg-rating">5.0</h3>
+                                <p>Average Rating</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="charts-grid">
+                        <div class="chart-card">
+                            <h3>Monthly Bookings Trend</h3>
+                            <canvas id="bookingsChart"></canvas>
+                        </div>
+                        <div class="chart-card">
+                            <h3>Popular Properties</h3>
+                            <canvas id="propertiesChart"></canvas>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Bookings Section -->
+                <section id="bookings-section" class="content-section">
+                    <div class="section-header">
+                        <h2>Booking Management</h2>
+                        <div class="search-filter">
+                            <input type="text" id="booking-search" placeholder="Search bookings...">
+                            <select id="booking-status-filter">
+                                <option value="">All Status</option>
+                                <option value="pending">Pending</option>
+                                <option value="confirmed">Confirmed</option>
+                                <option value="completed">Completed</option>
+                                <option value="cancelled">Cancelled</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="table-container">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Guest</th>
+                                    <th>Property</th>
+                                    <th>Check-in</th>
+                                    <th>Check-out</th>
+                                    <th>Status</th>
+                                    <th>Documents</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="bookings-table">
+                                <!-- Bookings will be populated here -->
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <!-- Messages Section -->
+                <section id="messages-section" class="content-section">
+                    <div class="section-header">
+                        <h2>Message Management</h2>
+                        <input type="text" id="message-search" placeholder="Search messages...">
+                    </div>
+                    <div class="messages-container">
+                        <div class="messages-list" id="messages-list">
+                            <!-- Messages will be populated here -->
+                        </div>
+                        <div class="message-detail" id="message-detail">
+                            <div class="message-placeholder">
+                                <i class="fas fa-envelope"></i>
+                                <p>Select a message to view details</p>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Service Requests Section -->
+                <section id="service-requests-section" class="content-section">
+                    <div class="section-header">
+                        <h2>Service Requests</h2>
+                        <input type="text" id="service-request-search" placeholder="Search requests...">
+                    </div>
+                    <div class="messages-container">
+                        <div class="messages-list" id="service-requests-list">
+                            <!-- Service requests will be populated here -->
+                        </div>
+                        <div class="message-detail" id="service-request-detail">
+                            <div class="message-placeholder">
+                                <i class="fas fa-concierge-bell"></i>
+                                <p>Select a request to view details</p>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Reviews Section -->
+                <section id="reviews-section" class="content-section">
+                    <div class="section-header">
+                        <h2>Review Management</h2>
+                        <div class="review-filters">
+                            <select id="rating-filter">
+                                <option value="">All Ratings</option>
+                                <option value="5">5 Stars</option>
+                                <option value="4">4 Stars</option>
+                                <option value="3">3 Stars</option>
+                                <option value="2">2 Stars</option>
+                                <option value="1">1 Star</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="reviews-grid" id="reviews-grid">
+                        <!-- Reviews will be populated here -->
+                    </div>
+                </section>
+
+                <!-- Analytics Section -->
+                <section id="analytics-section" class="content-section">
+                    <div class="analytics-header">
+                        <h2>Analytics & Reports</h2>
+                        <div class="date-range">
+                            <input type="date" id="start-date">
+                            <input type="date" id="end-date">
+                            <button class="btn btn-primary" onclick="updateAnalytics()">Update</button>
+                        </div>
+                    </div>
+                    
+                    <div class="analytics-grid">
+                        <div class="analytics-card">
+                            <h3>Top Performing Properties</h3>
+                            <div id="top-properties"></div>
+                        </div>
+                        <div class="analytics-card">
+                            <h3>Frequent Clients</h3>
+                            <div id="frequent-clients"></div>
+                        </div>
+                        <div class="analytics-card">
+                            <h3>Monthly Comparison</h3>
+                            <canvas id="monthlyChart"></canvas>
+                        </div>
+                        <div class="analytics-card">
+                            <h3>Revenue Breakdown</h3>
+                            <canvas id="revenueChart"></canvas>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Announcements Section -->
+                <section id="announcements-section" class="content-section">
+                    <div class="section-header">
+                        <h2>Announcements & Offers</h2>
+                        <button class="btn btn-primary" onclick="showAnnouncementModal()">
+                            <i class="fas fa-plus"></i> New Announcement
+                        </button>
+                    </div>
+                    <div class="announcements-grid" id="announcements-grid">
+                        <!-- Announcements will be populated here -->
+                    </div>
+                </section>
+
+                <!-- Clients Section -->
+                <section id="clients-section" class="content-section">
+                    <div class="section-header">
+                        <h2>Client Management</h2>
+                        <input type="text" id="client-search" placeholder="Search clients...">
+                    </div>
+                    <div class="clients-grid" id="clients-grid">
+                        <!-- Clients will be populated here -->
+                    </div>
+                </section>
+
+                <!-- Settings Section -->
+                <section id="settings-section" class="content-section">
+                    <div class="settings-container">
+                        <h2>System Settings</h2>
+                        <div class="settings-grid">
+                            <div class="setting-card">
+                                <h3>Email Configuration</h3>
+                                <form id="email-settings">
+                                    <div class="form-group">
+                                        <label>EmailJS Service ID</label>
+                                        <input type="text" id="emailjs-service" value="service_ky2kj3t">
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Admin Template ID</label>
+                                        <input type="text" id="admin-template" value="template_24gjzd3">
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Client Template ID</label>
+                                        <input type="text" id="client-template" value="template_6duvs5n">
+                                    </div>
+                                    <button type="submit" class="btn btn-primary">Save</button>
+                                </form>
+                            </div>
+                            <div class="setting-card">
+                                <h3>Notification Settings</h3>
+                                <form id="notification-settings">
+                                    <div class="form-group">
+                                        <label>
+                                            <input type="checkbox" id="email-notifications" checked>
+                                            Email Notifications
+                                        </label>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>
+                                            <input type="checkbox" id="sms-notifications">
+                                            SMS Notifications
+                                        </label>
+                                    </div>
+                                    <button type="submit" class="btn btn-primary">Save</button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Staff Accounts Section -->
+                <section id="staff-section" class="content-section">
+                    <div class="section-header" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:1rem;margin-bottom:1.5rem;">
+                        <div>
+                            <h2 style="margin:0;">Staff Accounts</h2>
+                            <p style="color:var(--text-light);margin:0.25rem 0 0;font-size:0.9rem;">Create and manage admin/staff logins for this dashboard.</p>
+                        </div>
+                        <button class="btn btn-primary" onclick="document.getElementById('staff-modal').classList.add('active')">
+                            <i class="fas fa-user-plus"></i> Add Staff Member
+                        </button>
+                    </div>
+                    <div id="staff-list">
+                        <p style="color:var(--text-light);">Loading...</p>
+                    </div>
+                </section>
+
+                <!-- Property Management Section -->
+                <section id="properties-section" class="content-section">
+                    <div style="margin-bottom:1.5rem;">
+                        <h2 style="margin:0 0 0.4rem;">Property Images</h2>
+                        <p style="color:var(--text-light);margin:0;font-size:0.9rem;">Update the photo gallery for each property. Changes take effect on the website immediately.</p>
+                    </div>
+                    <div id="properties-list">
+                        <p style="color:var(--text-light);">Loading...</p>
+                    </div>
+                </section>
+
+            </div>
+        </main>
+    </div>
+
+    <!-- Staff Creation Modal -->
+    <div id="staff-modal" class="modal">
+        <div class="modal-content" style="background:#fff;border-radius:14px;padding:2rem;width:100%;max-width:440px;margin:1rem;">
+            <div class="modal-header" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.5rem;">
+                <h3 style="margin:0;"><i class="fas fa-user-shield"></i> Add Staff Member</h3>
+                <button onclick="document.getElementById('staff-modal').classList.remove('active')" style="background:none;border:none;font-size:1.4rem;cursor:pointer;color:#666;">&times;</button>
+            </div>
+            <form id="staff-form" onsubmit="event.preventDefault(); createStaffAccount();">
+                <div class="form-group" style="margin-bottom:1rem;">
+                    <label style="display:block;font-weight:600;margin-bottom:0.35rem;">Display Name</label>
+                    <input type="text" id="staff-name" placeholder="e.g. Jane Receptionist" style="width:100%;padding:0.65rem 0.85rem;border:1.5px solid #ddd;border-radius:8px;font-size:0.95rem;box-sizing:border-box;">
+                </div>
+                <div class="form-group" style="margin-bottom:1rem;">
+                    <label style="display:block;font-weight:600;margin-bottom:0.35rem;">Email Address <span style="color:red;">*</span></label>
+                    <input type="email" id="staff-email" required placeholder="staff@example.com" style="width:100%;padding:0.65rem 0.85rem;border:1.5px solid #ddd;border-radius:8px;font-size:0.95rem;box-sizing:border-box;">
+                </div>
+                <div class="form-group" style="margin-bottom:1rem;">
+                    <label style="display:block;font-weight:600;margin-bottom:0.35rem;">Password <span style="color:red;">*</span></label>
+                    <input type="password" id="staff-password" required placeholder="Min. 6 characters" style="width:100%;padding:0.65rem 0.85rem;border:1.5px solid #ddd;border-radius:8px;font-size:0.95rem;box-sizing:border-box;">
+                </div>
+                <div class="form-group" style="margin-bottom:1.5rem;">
+                    <label style="display:block;font-weight:600;margin-bottom:0.35rem;">Role</label>
+                    <select id="staff-role" style="width:100%;padding:0.65rem 0.85rem;border:1.5px solid #ddd;border-radius:8px;font-size:0.95rem;box-sizing:border-box;">
+                        <option value="receptionist">Receptionist</option>
+                        <option value="manager">Manager</option>
+                        <option value="admin">Admin</option>
+                    </select>
+                </div>
+                <p style="font-size:0.82rem;color:#888;margin:0 0 1rem;"><i class="fas fa-info-circle"></i> The new staff member will be able to log in to this dashboard using their email and password.</p>
+                <button type="submit" id="create-staff-btn" class="btn btn-primary" style="width:100%;">
+                    <i class="fas fa-user-plus"></i> Create Account
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modals -->
+    <div id="announcement-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Create Announcement</h3>
+                <button onclick="closeAnnouncementModal()" class="close-btn">&times;</button>
+            </div>
+            <form id="announcement-form">
+                <div class="form-group">
+                    <label>Title</label>
+                    <input type="text" id="announcement-title" required>
+                </div>
+                <div class="form-group">
+                    <label>Type</label>
+                    <select id="announcement-type" required>
+                        <option value="offer">Special Offer</option>
+                        <option value="news">News</option>
+                        <option value="maintenance">Maintenance</option>
+                        <option value="general">General</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Message</label>
+                    <textarea id="announcement-message" rows="4" required></textarea>
+                </div>
+                <div class="form-group">
+                    <label>Valid Until (Optional)</label>
+                    <input type="date" id="announcement-expiry">
+                </div>
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" id="announcement-active" checked>
+                        Active
+                    </label>
+                </div>
+                <button type="submit" class="btn btn-primary">Create Announcement</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Payment Confirmation Modal -->
+    <div id="payment-modal" class="modal">
+        <div class="modal-content" style="background:#fff;border-radius:14px;padding:2rem;width:100%;max-width:480px;margin:1rem;max-height:90vh;overflow-y:auto;">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.25rem;">
+                <h3 style="margin:0;color:#2e7d32;"><i class="fas fa-check-circle"></i> Confirm Booking</h3>
+                <button onclick="closePaymentModal()" style="background:none;border:none;font-size:1.5rem;cursor:pointer;color:#666;line-height:1;">&times;</button>
+            </div>
+            <div id="payment-modal-info" style="background:#f8f9fa;border-radius:8px;padding:0.85rem 1rem;margin-bottom:1.25rem;font-size:0.88rem;color:#333;border-left:4px solid #2e7d32;"></div>
+            <form id="payment-form" onsubmit="event.preventDefault(); submitPaymentConfirmation();">
+                <div style="margin-bottom:1rem;">
+                    <label style="display:block;font-weight:600;margin-bottom:0.35rem;font-size:0.9rem;">Payment Method <span style="color:red;">*</span></label>
+                    <select id="payment-method" required style="width:100%;padding:0.65rem 0.85rem;border:1.5px solid #ddd;border-radius:8px;font-size:0.95rem;box-sizing:border-box;background:#fff;">
+                        <option value="">Select payment method...</option>
+                        <option value="Paybill">Paybill</option>
+                        <option value="Bank Transfer">Bank Transfer</option>
+                        <option value="Pesapal">Pesapal</option>
+                        <option value="Cash">Cash</option>
+                        <option value="Cheque">Cheque</option>
+                        <option value="Other">Other</option>
+                    </select>
+                </div>
+                <div style="margin-bottom:1rem;">
+                    <label style="display:block;font-weight:600;margin-bottom:0.35rem;font-size:0.9rem;">Transaction Reference <span style="color:red;">*</span></label>
+                    <input type="text" id="payment-ref" required placeholder="e.g. QHJ7X8K2PL or Bank Ref No." style="width:100%;padding:0.65rem 0.85rem;border:1.5px solid #ddd;border-radius:8px;font-size:0.95rem;box-sizing:border-box;">
+                </div>
+                <div style="margin-bottom:1rem;">
+                    <label style="display:block;font-weight:600;margin-bottom:0.35rem;font-size:0.9rem;">Amount Paid (KSh) <span style="color:red;">*</span></label>
+                    <input type="number" id="payment-amount" required min="0" placeholder="e.g. 4500" style="width:100%;padding:0.65rem 0.85rem;border:1.5px solid #ddd;border-radius:8px;font-size:0.95rem;box-sizing:border-box;">
+                </div>
+                <div style="margin-bottom:1.5rem;">
+                    <label style="display:block;font-weight:600;margin-bottom:0.35rem;font-size:0.9rem;">Additional Notes (optional)</label>
+                    <textarea id="payment-notes" rows="2" placeholder="Any notes about this payment..." style="width:100%;padding:0.65rem 0.85rem;border:1.5px solid #ddd;border-radius:8px;font-size:0.95rem;box-sizing:border-box;resize:vertical;"></textarea>
+                </div>
+                <button type="submit" id="confirm-payment-btn" class="btn btn-success" style="width:100%;padding:0.8rem;font-size:0.95rem;">
+                    <i class="fas fa-check-circle"></i> Confirm Booking & Notify Guest
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Cancellation Reason Modal -->
+    <div id="cancel-modal" class="modal">
+        <div class="modal-content" style="background:#fff;border-radius:14px;padding:2rem;width:100%;max-width:430px;margin:1rem;">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.25rem;">
+                <h3 style="margin:0;color:#c62828;"><i class="fas fa-times-circle"></i> Cancel Booking</h3>
+                <button onclick="closeCancellationModal()" style="background:none;border:none;font-size:1.5rem;cursor:pointer;color:#666;line-height:1;">&times;</button>
+            </div>
+            <div id="cancel-modal-info" style="background:#f8f9fa;border-radius:8px;padding:0.85rem 1rem;margin-bottom:1.25rem;font-size:0.88rem;color:#333;border-left:4px solid #c62828;"></div>
+            <form id="cancel-form" onsubmit="event.preventDefault(); submitCancellation();">
+                <div style="margin-bottom:1.5rem;">
+                    <label style="display:block;font-weight:600;margin-bottom:0.35rem;font-size:0.9rem;">Reason for Cancellation <span style="color:red;">*</span></label>
+                    <textarea id="cancel-reason" required rows="4" placeholder="e.g. Payment not received within deadline, Maintenance issue, Guest requested cancellation..." style="width:100%;padding:0.65rem 0.85rem;border:1.5px solid #ddd;border-radius:8px;font-size:0.95rem;box-sizing:border-box;resize:vertical;"></textarea>
+                    <p style="margin:0.4rem 0 0;font-size:0.8rem;color:#888;"><i class="fas fa-envelope"></i> A copy will be sent to the guest's email automatically.</p>
+                </div>
+                <button type="submit" id="confirm-cancel-btn" class="btn btn-danger" style="width:100%;padding:0.8rem;font-size:0.95rem;">
+                    <i class="fas fa-times-circle"></i> Cancel Booking & Notify Guest
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Firebase and Chart.js -->
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.emailjs.com/dist/email.min.js"></script>
+    <script src="dashboard.js?v=3"></script>
+</body>
+</html>
