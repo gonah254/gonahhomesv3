@@ -9,8 +9,155 @@
     <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, max-age=0">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        /* Password Gate Styles */
+        .password-gate {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, #800000 0%, #b30000 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+            opacity: 1;
+            transition: opacity 0.3s ease;
+        }
+
+        .password-gate.hidden {
+            display: none;
+        }
+
+        .gate-container {
+            background: white;
+            border-radius: 16px;
+            padding: 3rem 2.5rem;
+            width: 100%;
+            max-width: 440px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            text-align: center;
+        }
+
+        .gate-logo {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+            color: #800000;
+        }
+
+        .gate-title {
+            font-size: 1.8rem;
+            font-weight: 700;
+            color: #333;
+            margin-bottom: 0.5rem;
+        }
+
+        .gate-subtitle {
+            color: #666;
+            font-size: 0.95rem;
+            margin-bottom: 2rem;
+        }
+
+        .gate-form {
+            display: flex;
+            flex-direction: column;
+            gap: 1.2rem;
+        }
+
+        .gate-form input {
+            padding: 0.85rem 1rem;
+            border: 1.5px solid #ddd;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-family: 'Poppins', sans-serif;
+            transition: border-color 0.2s;
+        }
+
+        .gate-form input:focus {
+            outline: none;
+            border-color: #800000;
+            box-shadow: 0 0 0 3px rgba(128, 0, 0, 0.1);
+        }
+
+        .gate-form button {
+            padding: 0.85rem;
+            background: #800000;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s;
+            font-family: 'Poppins', sans-serif;
+        }
+
+        .gate-form button:hover {
+            background: #600000;
+        }
+
+        .gate-form button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
+        .gate-error {
+            color: #c62828;
+            background: #ffebee;
+            border: 1px solid #ef5350;
+            border-radius: 8px;
+            padding: 0.75rem 1rem;
+            margin-bottom: 1rem;
+            font-size: 0.9rem;
+            display: none;
+        }
+
+        .gate-loading {
+            display: none;
+            text-align: center;
+            color: #800000;
+            font-size: 0.9rem;
+        }
+
+        .gate-info {
+            font-size: 0.8rem;
+            color: #999;
+            margin-top: 1.5rem;
+            padding-top: 1.5rem;
+            border-top: 1px solid #eee;
+        }
+    </style>
 </head>
 <body>
+    <!-- PASSWORD GATE (appears before dashboard) -->
+    <div id="password-gate" class="password-gate">
+        <div class="gate-container">
+            <div class="gate-logo">
+                <i class="fas fa-lock"></i>
+            </div>
+            <h2 class="gate-title">Admin Access</h2>
+            <p class="gate-subtitle">Enter your credentials to continue</p>
+            
+            <div id="gate-error" class="gate-error"></div>
+            
+            <form id="gate-form" class="gate-form" onsubmit="handleGateSubmit(event)">
+                <input type="email" id="gate-email" placeholder="Email address" required autocomplete="email">
+                <input type="password" id="gate-password" placeholder="Password" required autocomplete="current-password">
+                <button type="submit" id="gate-submit-btn">
+                    <i class="fas fa-sign-in-alt"></i> Access Dashboard
+                </button>
+                <div class="gate-loading" id="gate-loading">
+                    <i class="fas fa-spinner fa-spin"></i> Verifying...
+                </div>
+            </form>
+            
+            <div class="gate-info">
+                <i class="fas fa-shield-alt"></i> This session will expire when you close your browser
+            </div>
+        </div>
+    </div>
+
     <div id="login-modal" class="modal active">
         <div class="modal-content">
             <h2><i class="fas fa-lock"></i> Management Access</h2>
@@ -488,7 +635,7 @@
                 </div>
                 <div style="margin-bottom:1.5rem;">
                     <label style="display:block;font-weight:600;margin-bottom:0.35rem;font-size:0.9rem;">Additional Notes (optional)</label>
-                    <textarea id="payment-notes" rows="2" placeholder="Any notes about this payment..." style="width:100%;padding:0.65rem 0.85rem;border:1.5px solid #ddd;border-radius:8px;font-size:0.95rem;box-sizing:border-box;resize:vertical;"></textarea>
+                    <textarea id="payment-notes" rows="2" placeholder="Any notes about this payment..." style="width:100%;padding:0.65rem 0.85rem;border:1.5px solid #ddd;border-radius:8px;font-size:0.95rem;box-sizing:border-box;"></textarea>
                 </div>
                 <button type="submit" id="confirm-payment-btn" class="btn btn-success" style="width:100%;padding:0.8rem;font-size:0.95rem;">
                     <i class="fas fa-check-circle"></i> Confirm Booking & Notify Guest
@@ -508,7 +655,7 @@
             <form id="cancel-form" onsubmit="event.preventDefault(); submitCancellation();">
                 <div style="margin-bottom:1.5rem;">
                     <label style="display:block;font-weight:600;margin-bottom:0.35rem;font-size:0.9rem;">Reason for Cancellation <span style="color:red;">*</span></label>
-                    <textarea id="cancel-reason" required rows="4" placeholder="e.g. Payment not received within deadline, Maintenance issue, Guest requested cancellation..." style="width:100%;padding:0.65rem 0.85rem;border:1.5px solid #ddd;border-radius:8px;font-size:0.95rem;box-sizing:border-box;resize:vertical;"></textarea>
+                    <textarea id="cancel-reason" required rows="4" placeholder="e.g. Payment not received within deadline, Maintenance issue, Guest requested cancellation..." style="width:100%;padding:0.65rem 0.85rem;border:1.5px solid #ddd;border-radius:8px;font-size:0.95rem;box-sizing:border-box;"></textarea>
                     <p style="margin:0.4rem 0 0;font-size:0.8rem;color:#888;"><i class="fas fa-envelope"></i> A copy will be sent to the guest's email automatically.</p>
                 </div>
                 <button type="submit" id="confirm-cancel-btn" class="btn btn-danger" style="width:100%;padding:0.8rem;font-size:0.95rem;">
@@ -524,6 +671,63 @@
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.emailjs.com/dist/email.min.js"></script>
+    
+    <!-- Password Gate Script (runs before dashboard.js) -->
+    <script>
+        function checkGateAccess() {
+            const sessionToken = sessionStorage.getItem('admin_session_token');
+            const gateEl = document.getElementById('password-gate');
+            
+            if (sessionToken && sessionToken === 'authenticated') {
+                gateEl.classList.add('hidden');
+                return true;
+            } else {
+                gateEl.classList.remove('hidden');
+                return false;
+            }
+        }
+
+        function handleGateSubmit(e) {
+            e.preventDefault();
+            
+            const email = document.getElementById('gate-email').value.trim();
+            const password = document.getElementById('gate-password').value;
+            const errorEl = document.getElementById('gate-error');
+            const loadingEl = document.getElementById('gate-loading');
+            const submitBtn = document.getElementById('gate-submit-btn');
+            
+            errorEl.style.display = 'none';
+            errorEl.textContent = '';
+            
+            loadingEl.style.display = 'block';
+            submitBtn.disabled = true;
+            
+            setTimeout(() => {
+                const validEmail = 'gonahhomes0@gmail.com';
+                const validPassword = 'gonahhomes@0799466723';
+                
+                if (email === validEmail && password === validPassword) {
+                    sessionStorage.setItem('admin_session_token', 'authenticated');
+                    document.getElementById('password-gate').classList.add('hidden');
+                    document.getElementById('login-modal').classList.remove('active');
+                    document.getElementById('dashboard').classList.remove('hidden');
+                    loadingEl.style.display = 'none';
+                    submitBtn.disabled = false;
+                    document.getElementById('gate-form').reset();
+                } else {
+                    errorEl.textContent = 'Invalid email or password. Please try again.';
+                    errorEl.style.display = 'block';
+                    loadingEl.style.display = 'none';
+                    submitBtn.disabled = false;
+                }
+            }, 800);
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            checkGateAccess();
+        });
+    </script>
+    
     <script src="dashboard.js?v=3"></script>
 </body>
 </html>
