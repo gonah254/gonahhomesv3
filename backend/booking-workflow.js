@@ -31,6 +31,17 @@ const STATUS_LABELS = {
     'cancelled': '⛔ Cancelled'
 };
 
+const PROPERTY_PRICES = {
+    'Studio Apartment': 3500,
+    'One Bedroom Apartment': 4500,
+    'Two Bedroom Apartment': 6000,
+    'Three Bedroom Apartment': 8000,
+    'Four Bedroom Apartment': 10000,
+    'Luxury Maisonette': 15000
+};
+
+const ADMIN_EMAIL = 'gonahhomes0@gmail.com';
+
 /**
  * Load pending bookings for admin review
  */
@@ -121,26 +132,26 @@ function createBookingCard(bookingId, booking, status) {
 
             ${booking.access ? `
                 <div style="background: #f0f7ff; padding: 1rem; border-radius: 6px; margin-bottom: 1rem; border-left: 3px solid #2196f3;">
-                    <p style="margin: 0 0 0.5rem; font-weight: 600; color: #2196f3;">🔑 Access Instructions</p>
+                    <p style="margin: 0 0 0.5rem; font-weight: 600; color: #2196f3;">🔑 Accessibility Needs</p>
                     <p style="margin: 0; font-size: 0.9rem; color: #333;">${booking.access}</p>
                 </div>
             ` : ''}
 
             <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
                 ${booking.status === 'pending' ? `
-                    <button onclick="approveBooking('${bookingId}')" class="btn btn-sm" style="background: #4caf50; color: white; padding: 0.6rem 1.2rem; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">
+                    <button onclick="approveBooking('${bookingId}')" class="btn btn-sm" style="background: #4caf50; color: white; padding: 0.6rem 1.2rem; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 0.85rem;">
                         <i class="fas fa-check"></i> Approve
                     </button>
-                    <button onclick="rejectBooking('${bookingId}')" class="btn btn-sm" style="background: #f44336; color: white; padding: 0.6rem 1.2rem; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">
+                    <button onclick="rejectBooking('${bookingId}')" class="btn btn-sm" style="background: #f44336; color: white; padding: 0.6rem 1.2rem; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 0.85rem;">
                         <i class="fas fa-times"></i> Reject
                     </button>
                 ` : ''}
                 ${booking.status === 'approved' ? `
-                    <button onclick="openPaymentModal('${bookingId}')" class="btn btn-sm" style="background: #2196f3; color: white; padding: 0.6rem 1.2rem; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">
+                    <button onclick="openPaymentConfirmModal('${bookingId}')" class="btn btn-sm" style="background: #2196f3; color: white; padding: 0.6rem 1.2rem; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 0.85rem;">
                         <i class="fas fa-money-bill"></i> Confirm Payment
                     </button>
                 ` : ''}
-                <button onclick="viewBookingDetails('${bookingId}')" class="btn btn-sm" style="background: #673ab7; color: white; padding: 0.6rem 1.2rem; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">
+                <button onclick="viewBookingDetails('${bookingId}')" class="btn btn-sm" style="background: #673ab7; color: white; padding: 0.6rem 1.2rem; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 0.85rem;">
                     <i class="fas fa-eye"></i> Details
                 </button>
             </div>
@@ -152,14 +163,14 @@ function createBookingCard(bookingId, booking, status) {
  * Approve a pending booking
  */
 async function approveBooking(bookingId) {
-    const reason = prompt('Add optional approval note:');
+    const reason = prompt('Add optional approval note:') || '';
     
     try {
         const updateData = {
             status: 'approved',
             approvedAt: firebase.firestore.FieldValue.serverTimestamp(),
-            approvedBy: firebase.auth().currentUser?.email || ADMIN_EMAIL,
-            approvalNote: reason || ''
+            approvedBy: ADMIN_EMAIL,
+            approvalNote: reason
         };
 
         await db.collection('bookings').doc(bookingId).update(updateData);
@@ -175,21 +186,21 @@ async function approveBooking(bookingId) {
                 const price = PROPERTY_PRICES[booking.house] || 0;
                 const total = nights * price;
 
-                await emailjs.send(emailConfig.serviceId, emailConfig.clientTemplate, {
+                await emailjs.send('service_ky2kj3t', 'template_6duvs5n', {
                     to_name: booking.name,
                     to_email: booking.email,
                     from_name: 'Gonah Homes',
                     subject: 'Booking Approved - Payment Required',
-                    message: `Great news! Your booking for ${booking.house} has been APPROVED!\n\n📅 Check-in: ${booking.checkin}\n📅 Check-out: ${booking.checkout}\n👥 Guests: ${booking.guests}\n\n💰 Amount to Pay: KSh ${total.toLocaleString()}\n(${nights} night${nights !== 1 ? 's' : ''} × KSh ${price.toLocaleString()}/night)\n\nPlease complete your payment to confirm the booking. Our team will send payment details in a follow-up email.\n\nThank you!`
+                    message: `Great news! Your booking for ${booking.house} has been APPROVED!\n\n📅 Check-in: ${booking.checkin}\n📅 Check-out: ${booking.checkout}\n👥 Guests: ${booking.guests}\n\n💰 Amount to Pay: KSh ${total.toLocaleString()}\n(${nights} night${nights !== 1 ? 's' : ''} × KSh ${price.toLocaleString()}/night)\n\nPlease complete your payment to confirm the booking.\n\nThank you!`
                 });
             } catch (emailErr) {
                 console.warn('Could not send approval email:', emailErr.message);
             }
         }
 
-        showToast('Booking approved! Guest notified.', 'success');
-        loadBookings();
+        showToast('✅ Booking approved! Guest notified.', 'success');
         loadPendingBookings();
+        updateBookingStats();
     } catch (error) {
         console.error('Error approving booking:', error);
         showToast('Error approving booking', 'error');
@@ -210,7 +221,7 @@ async function rejectBooking(bookingId) {
         const updateData = {
             status: 'rejected',
             rejectedAt: firebase.firestore.FieldValue.serverTimestamp(),
-            rejectedBy: firebase.auth().currentUser?.email || ADMIN_EMAIL,
+            rejectedBy: ADMIN_EMAIL,
             rejectionReason: reason
         };
 
@@ -223,7 +234,7 @@ async function rejectBooking(bookingId) {
         // Send rejection email to guest
         if (booking.email) {
             try {
-                await emailjs.send(emailConfig.serviceId, emailConfig.clientTemplate, {
+                await emailjs.send('service_ky2kj3t', 'template_6duvs5n', {
                     to_name: booking.name,
                     to_email: booking.email,
                     from_name: 'Gonah Homes',
@@ -235,12 +246,101 @@ async function rejectBooking(bookingId) {
             }
         }
 
-        showToast('Booking rejected. Guest notified.', 'success');
-        loadBookings();
+        showToast('❌ Booking rejected. Guest notified.', 'success');
         loadPendingBookings();
+        updateBookingStats();
     } catch (error) {
         console.error('Error rejecting booking:', error);
         showToast('Error rejecting booking', 'error');
+    }
+}
+
+/**
+ * Open payment confirmation modal
+ */
+async function openPaymentConfirmModal(bookingId) {
+    try {
+        const doc = await db.collection('bookings').doc(bookingId).get();
+        if (!doc.exists) {
+            showToast('Booking not found', 'error');
+            return;
+        }
+
+        const booking = doc.data();
+        const nights = Math.round((new Date(booking.checkout) - new Date(booking.checkin)) / 86400000);
+        const price = PROPERTY_PRICES[booking.house] || 0;
+        const total = nights * price;
+
+        // Store booking ID in modal for submission
+        const modal = document.getElementById('payment-modal');
+        if (modal) {
+            document.getElementById('current-booking-id').value = bookingId;
+            document.getElementById('payment-modal-info').innerHTML = `
+                <strong>${booking.name}</strong> - ${booking.house}<br>
+                ${booking.checkin} to ${booking.checkout} (${nights} nights)<br>
+                Expected Amount: <strong>KSh ${total.toLocaleString()}</strong>
+            `;
+            modal.classList.add('active');
+        }
+    } catch (error) {
+        console.error('Error opening payment modal:', error);
+        showToast('Error opening payment form', 'error');
+    }
+}
+
+/**
+ * Submit payment confirmation
+ */
+async function submitBookingPaymentConfirmation() {
+    const bookingId = document.getElementById('current-booking-id')?.value;
+    const method = document.getElementById('payment-method')?.value;
+    const ref = document.getElementById('payment-ref')?.value;
+    const amount = document.getElementById('payment-amount')?.value;
+    const notes = document.getElementById('payment-notes')?.value || '';
+
+    if (!bookingId || !method || !ref || !amount) {
+        showToast('Please fill all required fields', 'error');
+        return;
+    }
+
+    try {
+        const bookingDoc = await db.collection('bookings').doc(bookingId).get();
+        const booking = bookingDoc.data();
+
+        const updateData = {
+            status: 'confirmed',
+            paymentMethod: method,
+            paymentReference: ref,
+            paymentAmount: parseFloat(amount),
+            paymentNotes: notes,
+            confirmedAt: firebase.firestore.FieldValue.serverTimestamp(),
+            confirmedBy: ADMIN_EMAIL
+        };
+
+        await db.collection('bookings').doc(bookingId).update(updateData);
+
+        // Send confirmation email
+        if (booking.email) {
+            try {
+                await emailjs.send('service_ky2kj3t', 'template_6duvs5n', {
+                    to_name: booking.name,
+                    to_email: booking.email,
+                    from_name: 'Gonah Homes',
+                    subject: 'Booking Confirmed!',
+                    message: `Excellent! Your booking has been confirmed and payment received.\n\n📍 Property: ${booking.house}\n📅 Check-in: ${booking.checkin}\n📅 Check-out: ${booking.checkout}\n\n💳 Payment: KSh ${amount}\nMethod: ${method}\nRef: ${ref}\n\nWe look forward to hosting you!\n\nBest regards,\nGonah Homes Team`
+                });
+            } catch (emailErr) {
+                console.warn('Could not send confirmation email:', emailErr.message);
+            }
+        }
+
+        showToast('✅ Booking confirmed! Confirmation email sent.', 'success');
+        closePaymentModal();
+        loadPendingBookings();
+        updateBookingStats();
+    } catch (error) {
+        console.error('Error confirming payment:', error);
+        showToast('Error confirming payment', 'error');
     }
 }
 
@@ -264,22 +364,19 @@ async function viewBookingDetails(bookingId) {
 
         const detailsHtml = `
             <div style="padding: 2rem; background: white;">
-                <h2 style="margin-top: 0; color: #800000;">Booking Details</h2>
+                <h2 style="margin-top: 0; color: #800000;">Booking Details - ${bookingId}</h2>
                 
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; margin: 2rem 0;">
                     <div>
-                        <h4 style="color: #666; margin-top: 0;">Guest Information</h4>
+                        <h4 style="color: #666; margin-top: 0;">👤 Guest Information</h4>
                         <p><strong>Name:</strong> ${booking.name}</p>
                         <p><strong>Email:</strong> ${booking.email}</p>
                         <p><strong>Phone:</strong> ${booking.phone || 'N/A'}</p>
-                        <p><strong>ID Type:</strong> ${booking.idType || 'N/A'}</p>
-                        <p><strong>ID Number:</strong> ${booking.idNumber || 'N/A'}</p>
                     </div>
                     
                     <div>
-                        <h4 style="color: #666; margin-top: 0;">Booking Information</h4>
+                        <h4 style="color: #666; margin-top: 0;">📋 Booking Details</h4>
                         <p><strong>Status:</strong> <span style="background: ${STATUS_COLORS[booking.status]}; color: white; padding: 0.3rem 0.8rem; border-radius: 4px;">${STATUS_LABELS[booking.status]}</span></p>
-                        <p><strong>Booking ID:</strong> ${bookingId}</p>
                         <p><strong>Property:</strong> ${booking.house}</p>
                         <p><strong>Check-in:</strong> ${booking.checkin}</p>
                         <p><strong>Check-out:</strong> ${booking.checkout}</p>
@@ -287,7 +384,7 @@ async function viewBookingDetails(bookingId) {
                 </div>
 
                 <div style="background: #f9f9f9; padding: 1.5rem; border-radius: 8px; margin: 2rem 0;">
-                    <h4 style="margin-top: 0; color: #333;">Price Breakdown</h4>
+                    <h4 style="margin-top: 0; color: #333;">💰 Price Breakdown</h4>
                     <p><strong>Nights:</strong> ${nights}</p>
                     <p><strong>Price per Night:</strong> KSh ${price.toLocaleString()}</p>
                     <p style="border-top: 1px solid #ddd; padding-top: 1rem; margin-top: 1rem;">
@@ -297,22 +394,31 @@ async function viewBookingDetails(bookingId) {
 
                 ${booking.requests ? `
                     <div style="background: #e3f2fd; padding: 1.5rem; border-radius: 8px; margin: 2rem 0; border-left: 4px solid #2196f3;">
-                        <h4 style="margin-top: 0; color: #1976d2;">Special Requests</h4>
+                        <h4 style="margin-top: 0; color: #1976d2;">🗒️ Special Requests</h4>
                         <p style="margin: 0;">${booking.requests}</p>
                     </div>
                 ` : ''}
 
                 ${booking.access ? `
                     <div style="background: #e3f2fd; padding: 1.5rem; border-radius: 8px; margin: 2rem 0; border-left: 4px solid #2196f3;">
-                        <h4 style="margin-top: 0; color: #1976d2;">Access Instructions</h4>
+                        <h4 style="margin-top: 0; color: #1976d2;">♿ Accessibility Needs</h4>
                         <p style="margin: 0;">${booking.access}</p>
+                    </div>
+                ` : ''}
+
+                ${booking.confirmedAt ? `
+                    <div style="background: #e8f5e9; padding: 1rem; border-radius: 8px; margin: 1rem 0; border-left: 4px solid #4caf50;">
+                        <p style="margin: 0; font-size: 0.9rem;">
+                            <strong>✅ Payment Confirmed:</strong> ${new Date(booking.confirmedAt.toDate()).toLocaleString()}<br>
+                            Method: ${booking.paymentMethod} | Amount: KSh ${booking.paymentAmount?.toLocaleString() || 'N/A'}
+                        </p>
                     </div>
                 ` : ''}
 
                 ${booking.approvedAt ? `
                     <div style="background: #e8f5e9; padding: 1rem; border-radius: 8px; margin: 1rem 0; border-left: 4px solid #4caf50;">
                         <p style="margin: 0; font-size: 0.9rem;">
-                            <strong>✅ Approved:</strong> ${new Date(booking.approvedAt.toDate()).toLocaleString()} by ${booking.approvedBy}
+                            <strong>✅ Approved:</strong> ${new Date(booking.approvedAt.toDate()).toLocaleString()}
                             ${booking.approvalNote ? `<br>Note: ${booking.approvalNote}` : ''}
                         </p>
                     </div>
@@ -321,15 +427,14 @@ async function viewBookingDetails(bookingId) {
                 ${booking.rejectedAt ? `
                     <div style="background: #ffebee; padding: 1rem; border-radius: 8px; margin: 1rem 0; border-left: 4px solid #f44336;">
                         <p style="margin: 0; font-size: 0.9rem;">
-                            <strong>❌ Rejected:</strong> ${new Date(booking.rejectedAt.toDate()).toLocaleString()} by ${booking.rejectedBy}
-                            <br>Reason: ${booking.rejectionReason}
+                            <strong>❌ Rejected:</strong> ${new Date(booking.rejectedAt.toDate()).toLocaleString()}<br>
+                            Reason: ${booking.rejectionReason}
                         </p>
                     </div>
                 ` : ''}
             </div>
         `;
 
-        // Show in an alert or modal (simple approach)
         const modal = document.createElement('div');
         modal.className = 'modal active';
         modal.style.cssText = 'position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 10000;';
@@ -337,7 +442,7 @@ async function viewBookingDetails(bookingId) {
             <div style="background: white; border-radius: 14px; max-width: 800px; max-height: 90vh; overflow-y: auto; width: 90%;">
                 <div style="position: sticky; top: 0; background: white; padding: 1rem; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center; z-index: 1;">
                     <h3 style="margin: 0;">Booking Details</h3>
-                    <button onclick="this.parentElement.parentElement.parentElement.remove()" style="background: none; border: none; font-size: 1.5rem; cursor: pointer; color: #666;">&times;</button>
+                    <button onclick="this.closest('.modal').remove()" style="background: none; border: none; font-size: 1.5rem; cursor: pointer; color: #666;">&times;</button>
                 </div>
                 <div style="overflow-y: auto; max-height: calc(90vh - 60px);">
                     ${detailsHtml}
@@ -353,14 +458,13 @@ async function viewBookingDetails(bookingId) {
 }
 
 /**
- * Get booking statistics for dashboard
+ * Update booking statistics on dashboard
  */
-async function getBookingStats() {
+async function updateBookingStats() {
     try {
         const snapshot = await db.collection('bookings').get();
         
         const stats = {
-            total: 0,
             pending: 0,
             approved: 0,
             rejected: 0,
@@ -371,7 +475,6 @@ async function getBookingStats() {
 
         snapshot.forEach(doc => {
             const booking = doc.data();
-            stats.total++;
             if (booking.status === 'pending') stats.pending++;
             else if (booking.status === 'approved') stats.approved++;
             else if (booking.status === 'rejected') stats.rejected++;
@@ -379,6 +482,17 @@ async function getBookingStats() {
             else if (booking.status === 'completed') stats.completed++;
             else if (booking.status === 'cancelled') stats.cancelled++;
         });
+
+        // Update dashboard displays
+        const pending = document.getElementById('stat-pending');
+        const approved = document.getElementById('stat-approved');
+        const confirmed = document.getElementById('stat-confirmed');
+        const completed = document.getElementById('stat-completed');
+        
+        if (pending) pending.textContent = stats.pending;
+        if (approved) approved.textContent = stats.approved;
+        if (confirmed) confirmed.textContent = stats.confirmed;
+        if (completed) completed.textContent = stats.completed;
 
         return stats;
     } catch (error) {
@@ -388,66 +502,19 @@ async function getBookingStats() {
 }
 
 /**
- * Create booking workflow section in dashboard
+ * Initialize booking workflow when dashboard loads
  */
-function createBookingWorkflowSection() {
-    const section = document.getElementById('bookings-section');
-    if (!section) return;
-
-    // Add a new tab for workflow
-    const html = `
-        <div style="margin-top: 2rem;">
-            <h2 style="color: #333; margin-bottom: 1rem;">📋 Booking Workflow</h2>
-            
-            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem; margin-bottom: 2rem;">
-                <div style="background: #ffc107; color: white; padding: 1.5rem; border-radius: 8px; text-align: center;">
-                    <p style="margin: 0; font-size: 0.9rem;">Pending Approval</p>
-                    <h3 style="margin: 0.5rem 0 0; font-size: 2rem;" id="stat-pending">0</h3>
-                </div>
-                <div style="background: #4caf50; color: white; padding: 1.5rem; border-radius: 8px; text-align: center;">
-                    <p style="margin: 0; font-size: 0.9rem;">Approved</p>
-                    <h3 style="margin: 0.5rem 0 0; font-size: 2rem;" id="stat-approved">0</h3>
-                </div>
-                <div style="background: #2196f3; color: white; padding: 1.5rem; border-radius: 8px; text-align: center;">
-                    <p style="margin: 0; font-size: 0.9rem;">Payment Confirmed</p>
-                    <h3 style="margin: 0.5rem 0 0; font-size: 2rem;" id="stat-confirmed">0</h3>
-                </div>
-                <div style="background: #9c27b0; color: white; padding: 1.5rem; border-radius: 8px; text-align: center;">
-                    <p style="margin: 0; font-size: 0.9rem;">Completed</p>
-                    <h3 style="margin: 0.5rem 0 0; font-size: 2rem;" id="stat-completed">0</h3>
-                </div>
-            </div>
-
-            <div id="pending-bookings-container" style="margin-top: 2rem;">
-                <p style="text-align: center; color: #999; padding: 2rem;">Loading pending bookings...</p>
-            </div>
-        </div>
-    `;
-
-    // Insert after existing bookings table
-    const table = section.querySelector('.table-container');
-    if (table) {
-        table.insertAdjacentHTML('afterend', html);
-    }
+function initializeBookingWorkflow() {
+    // Load pending bookings
+    loadPendingBookings();
+    
+    // Update stats
+    updateBookingStats();
+    
+    // Refresh every 60 seconds
+    setInterval(() => {
+        updateBookingStats();
+    }, 60000);
 }
 
-// Initialize when properties section is loaded
-document.addEventListener('DOMContentLoaded', () => {
-    // Update stats periodically
-    setInterval(async () => {
-        const stats = await getBookingStats();
-        if (stats) {
-            const pending = document.getElementById('stat-pending');
-            const approved = document.getElementById('stat-approved');
-            const confirmed = document.getElementById('stat-confirmed');
-            const completed = document.getElementById('stat-completed');
-            
-            if (pending) pending.textContent = stats.pending;
-            if (approved) approved.textContent = stats.approved;
-            if (confirmed) confirmed.textContent = stats.confirmed;
-            if (completed) completed.textContent = stats.completed;
-        }
-    }, 30000); // Update every 30 seconds
-});
-
-console.log('Booking Workflow Module loaded successfully!');
+console.log('✅ Booking Workflow Module loaded successfully!');
