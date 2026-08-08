@@ -1,4 +1,4 @@
-DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -96,19 +96,19 @@ DOCTYPE html>
       </div>
       <div class="featured-card">
         <div class="featured-image">
-          <img src="https://images.unsplash.com/photo-1571624436279-b272aff752b5?w=600&h=400&fit=crop" alt="Luxury Maisonette" />
+          <img id="featured-property-image" src="https://images.unsplash.com/photo-1571624436279-b272aff752b5?w=600&h=400&fit=crop" alt="Luxury Maisonette" />
           <div class="featured-badge">Featured</div>
-          <button class="gallery-btn" onclick="openGalleryModal('Luxury Maisonette')" title="View Gallery">
+          <button id="featured-gallery-btn" class="gallery-btn" onclick="openGalleryModal('Luxury Maisonette')" title="View Gallery">
             <i class="fas fa-images"></i> View Gallery
           </button>
         </div>
         <div class="featured-content">
-          <h3>Luxury Maisonette</h3>
-          <p class="featured-description">
+          <h3 id="featured-property-name">Luxury Maisonette</h3>
+          <p id="featured-property-description" class="featured-description">
             Elegant duplex maisonette with private garden, premium amenities, and stunning coastal views. 
             Perfect for families or groups seeking the ultimate coastal experience.
           </p>
-          <div class="featured-features">
+          <div id="featured-property-features" class="featured-features">
             <div class="feature">
               <i class="fas fa-bed"></i>
               <span>4 Bedrooms</span>
@@ -128,10 +128,10 @@ DOCTYPE html>
           </div>
           <div class="card-price-actions">
             <div class="price-tag">
-              <span class="price-amount">KSh 15,000</span>
+              <span id="featured-property-price" class="price-amount">KSh 15,000</span>
               <span class="price-period">/night</span>
             </div>
-            <button class="btn btn-primary" onclick="openBookingModal('Luxury Maisonette')">
+            <button id="featured-book-btn" class="btn btn-primary" onclick="openBookingModal('Luxury Maisonette')">
               <i class="fas fa-calendar-check"></i> Book Now
             </button>
           </div>
@@ -187,7 +187,7 @@ DOCTYPE html>
         <h2>Our Accommodations</h2>
         <p>Find the perfect space for your coastal getaway</p>
       </div>
-      <div class="accommodations-grid">
+      <div id="accommodations-grid" class="accommodations-grid">
         <div class="accommodation-card">
           <div class="card-image">
             <img src="https://images.unsplash.com/photo-1568605114967-8130f3a36994?w=400&h=300&fit=crop" alt="Studio Apartment" />
@@ -498,7 +498,7 @@ DOCTYPE html>
             </div>
             <div class="contact-details">
               <h4>Email</h4>
-              <a href="mailto:info@gonahhomes.com">info@gonahhomes.com</a>
+              <a href="mailto:gonahhomes0@gmail.com">gonahhomes0@gmail.com</a>
             </div>
           </div>
           <div class="contact-item">
@@ -558,10 +558,7 @@ DOCTYPE html>
           </ul>
         </div>
             <li><i class="fas fa-phone"></i> +254 799 466 723</li>
-            <li><i class="fas fa-envelope"></i><a href="mailto:info@gonahhomes.com">info@gonahhomes.com</a></li>
-        <li><i class="fas fa-envelope"></i><a href="mailto:bookings@gonahhomes.com"> bookings@gonahhomes.com</a></li>
-        <li><i class="fas fa-envelope"></i><a href="mailto:admin@gonahhomes.com"> admin@gonahhomes.com</a></li>
-        <li><i class="fas fa-envelope"></i><a href="mailto:info@gonahhomes.com"> support@gonahhomes.com</a></li>
+            <li><i class="fas fa-envelope"></i> gonahhomes0@gmail.com</li>
             <li><i class="fas fa-map-marker-alt"></i> Mombasa, Kenya</li>
           </ul>
         </div>
@@ -779,5 +776,4 @@ DOCTYPE html>
   })();
 </script>
 </body>
-</html>
-
+  </html>
