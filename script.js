@@ -727,3 +727,47 @@ document.addEventListener('DOMContentLoaded', () => {
 
   console.log('Gonah Homes initialized!');
 });
+// OPEN BOOKING MODAL - for dynamic properties
+function openBookingModal(propertyName) {
+  const modal = document.getElementById('booking-modal-bg');
+  if(!modal) return;
+  
+  // Set property name in the modal
+  document.getElementById('booking-property-name').value = propertyName;
+  document.querySelector('#booking-modal-bg .modal h3').innerHTML = `<i class="fas fa-calendar-check"></i> Book ${propertyName}`;
+  
+  modal.style.display = 'flex';
+  document.body.style.overflow = 'hidden';
+}
+
+// OPEN GALLERY MODAL - for dynamic properties  
+async function openGalleryModal(propertyName) {
+  const modal = document.getElementById('gallery-modal-bg');
+  const galleryGrid = document.getElementById('gallery-grid');
+  if(!modal || !galleryGrid) return;
+
+  document.getElementById('gallery-property-name').textContent = propertyName;
+  galleryGrid.innerHTML = '<p>Loading images...</p>';
+  modal.style.display = 'flex';
+
+  try {
+    const db = firebase.firestore();
+    const doc = await db.collection('property_settings').doc(propertyName).get();
+    
+    if(doc.exists && doc.data().images && doc.data().images.length > 0) {
+      const images = doc.data().images;
+      galleryGrid.innerHTML = images.map(img => `
+        <img src="${img}" alt="${propertyName}" onclick="openLightbox('${img}')">
+      `).join('');
+    } else {
+      galleryGrid.innerHTML = '<p>No images uploaded for this property yet.</p>';
+    }
+  } catch(e) {
+    console.error(e);
+    galleryGrid.innerHTML = '<p>Error loading images.</p>';
+  }
+}
+
+function closeGalleryModal() {
+  document.getElementById('gallery-modal-bg').style.display = 'none';
+}
