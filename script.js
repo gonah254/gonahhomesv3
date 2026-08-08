@@ -19,18 +19,31 @@ if (typeof emailjs !== 'undefined') {
 }
 
 const db = firebase.firestore();
+const MAX_PROPERTY_IMAGES = 10;
 
 // ---- Load property photo overrides from Firestore (admin updates) ----
-// This runs early so gallery/booking always uses the latest photos
+// This runs early so gallery, cover photos, cards, and booking use the latest data.
 async function loadPropertyOverrides() {
   try {
     const snap = await db.collection('property_settings').get();
     snap.forEach(doc => {
       const data = doc.data();
-      if (data.images && Array.isArray(data.images) && data.images.length > 0 && typeof propertiesData !== 'undefined' && propertiesData[doc.id]) {
-        propertiesData[doc.id].images = data.images;
-      }
+      if (typeof propertiesData === 'undefined') return;
+      const existing = propertiesData[doc.id] || {};
+      const propertyName = data.name || existing.name || doc.id;
+      propertiesData[doc.id] = {
+        ...existing,
+        ...data,
+        name: propertyName,
+        images: Array.isArray(data.images) && data.images.length
+          ? data.images.slice(0, MAX_PROPERTY_IMAGES)
+          : (existing.images || [])
+      };
+      // Custom properties use their Firestore id as the document key, while
+      // bookings and gallery buttons use the display name.
+      propertiesData[propertyName] = propertiesData[doc.id];
     });
+    renderPublicProperties();
   } catch (err) {
     console.warn('Could not load property overrides:', err.message);
   }
@@ -38,6 +51,99 @@ async function loadPropertyOverrides() {
 loadPropertyOverrides();
 let currentUser = null;
 const adminEmail = "gonahhomes0@gmail.com";
+
+function escapePropertyHtml(value) {
+  return String(value ?? '').replace(/[&<>"']/g, ch => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;'
+  }[ch]));
+}
+
+function propertyList(value) {
+  if (Array.isArray(value)) return value.filter(Boolean).map(String);
+  return String(value || '').split(',').map(item => item.trim()).filter(Boolean);
+}
+
+function propertyFeatures(property) {
+  const amenities = propertyList(property.amenities);
+  const fallback = propertyList(property.features);
+  return (amenities.length ? amenities : fallback).slice(0, 4);
+}
+
+function renderPublicProperties() {
+  const grid = document.getElementById('accommodations-grid');
+  if (!grid || typeof propertiesData === 'undefined') return;
+
+  const properties = Object.entries(propertiesData)
+    .map(([id, property]) => ({ id, ...property, name: property.name || id }))
+    .filter(property => property.name)
+    .filter((property, index, list) => list.findIndex(item => item.name === property.name) === index);
+  if (!properties.length) return;
+
+  grid.innerHTML = properties.map(property => {
+    const images = Array.isArray(property.images) ? property.images : [];
+    const cover = images[0] || 'https://images.unsplash.com/photo-1568605114967-8130f3a36994?w=800&h=600&fit=crop';
+    const features = propertyFeatures(property);
+    const details = [property.type, property.location].filter(Boolean).join(' • ');
+    return `
+      <article class="accommodation-card${property.name === 'Luxury Maisonette' ? ' featured' : ''}">
+        <div class="card-image">
+          <img src="${escapePropertyHtml(cover)}" alt="${escapePropertyHtml(property.name)}" onerror="this.style.opacity=.35">
+          ${property.type ? `<div class="card-badge">${escapePropertyHtml(property.type)}</div>` : ''}
+          <button class="gallery-btn property-gallery-btn" data-property="${escapePropertyHtml(property.name)}" title="View Gallery">
+            <i class="fas fa-images"></i>
+          </button>
+        </div>
+        <div class="card-content">
+          <h3>${escapePropertyHtml(property.name)}</h3>
+          ${details ? `<p class="property-meta">${escapePropertyHtml(details)}</p>` : ''}
+          <p>${escapePropertyHtml(property.description || 'A comfortable Gonah Homes stay prepared for your coastal getaway.')}</p>
+          ${property.landmarks ? `<p class="property-nearby"><i class="fas fa-location-dot"></i> Near ${escapePropertyHtml(propertyList(property.landmarks).join(', '))}</p>` : ''}
+          ${features.length ? `<div class="card-features">${features.map(feature => `<div class="feature"><i class="fas fa-check"></i><span>${escapePropertyHtml(feature)}</span></div>`).join('')}</div>` : ''}
+          <div class="card-price-actions">
+            <div class="price-tag">
+              <span class="price-amount">${escapePropertyHtml(property.currency || 'KSh')} ${Number(property.price || 0).toLocaleString()}</span>
+              <span class="price-period">/night</span>
+            </div>
+            <button class="btn btn-primary property-book-btn" data-property="${escapePropertyHtml(property.name)}">
+              <i class="fas fa-calendar-check"></i> Book Now
+            </button>
+          </div>
+        </div>
+      </article>`;
+  }).join('');
+
+  grid.querySelectorAll('.property-gallery-btn').forEach(button => {
+    button.addEventListener('click', () => openGalleryModal(button.dataset.property));
+  });
+  grid.querySelectorAll('.property-book-btn').forEach(button => {
+    button.addEventListener('click', () => openBookingModal(button.dataset.property));
+  });
+
+  const featured = properties.find(property => property.name === 'Luxury Maisonette') || properties[0];
+  const featuredImage = document.getElementById('featured-property-image');
+  const featuredName = document.getElementById('featured-property-name');
+  const featuredDescription = document.getElementById('featured-property-description');
+  const featuredPrice = document.getElementById('featured-property-price');
+  const featuredBook = document.getElementById('featured-book-btn');
+  const featuredGallery = document.getElementById('featured-gallery-btn');
+  if (featured) {
+    if (featuredImage) {
+      featuredImage.src = featured.images?.[0] || 'https://images.unsplash.com/photo-1571624436279-b272aff752b5?w=800&h=600&fit=crop';
+      featuredImage.alt = featured.name;
+    }
+    if (featuredName) featuredName.textContent = featured.name;
+    if (featuredDescription) featuredDescription.textContent = featured.description || '';
+    if (featuredPrice) featuredPrice.textContent = `${featured.currency || 'KSh'} ${Number(featured.price || 0).toLocaleString()}`;
+    const featuredFeatures = document.getElementById('featured-property-features');
+    if (featuredFeatures) {
+      featuredFeatures.innerHTML = propertyFeatures(featured).map(feature =>
+        `<div class="feature"><i class="fas fa-check"></i><span>${escapePropertyHtml(feature)}</span></div>`
+      ).join('');
+    }
+    if (featuredBook) featuredBook.onclick = () => openBookingModal(featured.name);
+    if (featuredGallery) featuredGallery.onclick = () => openGalleryModal(featured.name);
+  }
+}
 
 // Utility Functions
 function scrollToSection(sectionId) {
@@ -700,6 +806,7 @@ window.scrollToSection = scrollToSection;
 window.currentSlide = (i) => { slideIndex = i-1; showSlide(slideIndex); };
 
 document.addEventListener('DOMContentLoaded', () => {
+  renderPublicProperties();
   initMobileNav();
   initFormHandlers();
   initSmoothScrolling();
@@ -727,4 +834,3 @@ document.addEventListener('DOMContentLoaded', () => {
 
   console.log('Gonah Homes initialized!');
 });
-
