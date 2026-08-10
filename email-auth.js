@@ -1,4 +1,3 @@
-
 // Email Authentication System for Gonah Homes
 class EmailAuthService {
   constructor() {
