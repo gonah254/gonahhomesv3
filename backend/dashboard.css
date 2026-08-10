@@ -23,6 +23,12 @@
   box-sizing: border-box;
 }
 
+html, body, .dashboard, .main-content {
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: hidden;
+}
+
 body {
   font-family: 'Poppins', sans-serif;
   background: var(--bg-color);
@@ -210,6 +216,7 @@ body {
   flex: 1;
   display: flex;
   flex-direction: column;
+  min-width: 0;
 }
 
 .content-header {
@@ -219,6 +226,8 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
 }
 
 .content-header h1 {
@@ -353,7 +362,7 @@ body {
 /* Charts */
 .charts-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(400px, 100%), 1fr));
   gap: 1.5rem;
 }
 
@@ -664,6 +673,16 @@ body {
     padding: 1rem;
   }
 
+  .content-header h1 {
+    font-size: 1.25rem;
+    flex: 1 1 180px;
+  }
+
+  .header-actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+
   .content-body {
     padding: 1rem;
   }
@@ -679,6 +698,35 @@ body {
   .messages-container {
     grid-template-columns: 1fr;
     height: auto;
+  }
+
+  .section-header,
+  .search-filter {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .search-filter input,
+  .search-filter select {
+    width: 100%;
+  }
+
+  .data-table {
+    font-size: .78rem;
+  }
+
+  .data-table th, .data-table td {
+    padding: .65rem .45rem;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .notification-dropdown {
+    position: fixed;
+    top: 4.25rem;
+    left: 1rem;
+    right: 1rem;
+    width: auto;
   }
 }
 
