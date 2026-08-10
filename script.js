@@ -1,4 +1,4 @@
-// Firebase Configuration
+  // Firebase Configuration
 const firebaseConfig = {
   apiKey: "AIzaSyABTVp797tNu353FBVLzsOp90aIX2mNF74",
   authDomain: "my-website-project2797.firebaseapp.com",
@@ -20,6 +20,7 @@ if (typeof emailjs !== 'undefined') {
 
 const db = firebase.firestore();
 const MAX_PROPERTY_IMAGES = 10;
+let propertyOverridesLoaded = false;
 
 // ---- Load property photo overrides from Firestore (admin updates) ----
 // This runs early so gallery, cover photos, cards, and booking use the latest data.
@@ -31,26 +32,32 @@ async function loadPropertyOverrides() {
       if (typeof propertiesData === 'undefined') return;
       const existing = propertiesData[doc.id] || {};
       const propertyName = data.name || existing.name || doc.id;
+      const overrideImages = Array.isArray(data.images)
+        ? data.images.filter(image => typeof image === 'string' && image.trim())
+        : [];
       propertiesData[doc.id] = {
         ...existing,
         ...data,
         name: propertyName,
-        images: Array.isArray(data.images) && data.images.length
-          ? data.images.slice(0, MAX_PROPERTY_IMAGES)
+        images: overrideImages.length
+          ? overrideImages.slice(0, MAX_PROPERTY_IMAGES)
           : (existing.images || [])
       };
       // Custom properties use their Firestore id as the document key, while
       // bookings and gallery buttons use the display name.
       propertiesData[propertyName] = propertiesData[doc.id];
     });
+    propertyOverridesLoaded = true;
     renderPublicProperties();
   } catch (err) {
     console.warn('Could not load property overrides:', err.message);
+    propertyOverridesLoaded = true;
+    renderPublicProperties();
   }
 }
 loadPropertyOverrides();
 let currentUser = null;
-const adminEmail = "gonahhomes0@gmail.com";
+const adminEmail = "admin@gonahhomes.com";
 
 function escapePropertyHtml(value) {
   return String(value ?? '').replace(/[&<>"']/g, ch => ({
@@ -69,26 +76,49 @@ function propertyFeatures(property) {
   return (amenities.length ? amenities : fallback).slice(0, 4);
 }
 
+function amenityIcon(amenity) {
+  const value = String(amenity || '').toLowerCase();
+  if (value.includes('wi-fi') || value.includes('wifi') || value.includes('internet')) return 'fa-wifi';
+  if (value.includes('pool')) return 'fa-person-swimming';
+  if (value.includes('kitchen')) return 'fa-utensils';
+  if (value.includes('parking')) return 'fa-square-parking';
+  if (value.includes('air condition')) return 'fa-snowflake';
+  if (value.includes('tv') || value.includes('television')) return 'fa-tv';
+  if (value.includes('wash')) return 'fa-shirt';
+  if (value.includes('balcony')) return 'fa-building';
+  if (value.includes('bath')) return 'fa-bath';
+  if (value.includes('bed')) return 'fa-bed';
+  if (value.includes('guest')) return 'fa-users';
+  return 'fa-star';
+}
+
 function renderPublicProperties() {
   const grid = document.getElementById('accommodations-grid');
-  if (!grid || typeof propertiesData === 'undefined') return;
+  if (!grid || typeof propertiesData === 'undefined' || !propertyOverridesLoaded) return;
 
   const properties = Object.entries(propertiesData)
     .map(([id, property]) => ({ id, ...property, name: property.name || id }))
     .filter(property => property.name)
     .filter((property, index, list) => list.findIndex(item => item.name === property.name) === index);
-  if (!properties.length) return;
+  const filteredProperties = applyPropertyFilters(properties);
+  if (!filteredProperties.length) {
+    grid.innerHTML = '<div class="property-empty-state"><i class="fas fa-search"></i><p>No stays match those filters.</p><button class="btn btn-outline" type="button" id="clear-property-filters">Clear filters</button></div>';
+    document.getElementById('clear-property-filters')?.addEventListener('click', clearPropertyFilters);
+    return;
+  }
 
-  grid.innerHTML = properties.map(property => {
+  grid.innerHTML = filteredProperties.map(property => {
     const images = Array.isArray(property.images) ? property.images : [];
     const cover = images[0] || 'https://images.unsplash.com/photo-1568605114967-8130f3a36994?w=800&h=600&fit=crop';
     const features = propertyFeatures(property);
     const details = [property.type, property.location].filter(Boolean).join(' • ');
+    const isMaintenance = String(property.status || 'available').toLowerCase() === 'maintenance';
     return `
-      <article class="accommodation-card${property.name === 'Luxury Maisonette' ? ' featured' : ''}">
+      <article class="accommodation-card${property.name === 'Luxury Maisonette' ? ' featured' : ''}${isMaintenance ? ' maintenance-property' : ''}">
         <div class="card-image">
           <img src="${escapePropertyHtml(cover)}" alt="${escapePropertyHtml(property.name)}" onerror="this.style.opacity=.35">
           ${property.type ? `<div class="card-badge">${escapePropertyHtml(property.type)}</div>` : ''}
+          ${isMaintenance ? '<div class="maintenance-badge"><i class="fas fa-screwdriver-wrench"></i> Maintenance</div>' : ''}
           <button class="gallery-btn property-gallery-btn" data-property="${escapePropertyHtml(property.name)}" title="View Gallery">
             <i class="fas fa-images"></i>
           </button>
@@ -98,14 +128,14 @@ function renderPublicProperties() {
           ${details ? `<p class="property-meta">${escapePropertyHtml(details)}</p>` : ''}
           <p>${escapePropertyHtml(property.description || 'A comfortable Gonah Homes stay prepared for your coastal getaway.')}</p>
           ${property.landmarks ? `<p class="property-nearby"><i class="fas fa-location-dot"></i> Near ${escapePropertyHtml(propertyList(property.landmarks).join(', '))}</p>` : ''}
-          ${features.length ? `<div class="card-features">${features.map(feature => `<div class="feature"><i class="fas fa-check"></i><span>${escapePropertyHtml(feature)}</span></div>`).join('')}</div>` : ''}
+          ${features.length ? `<div class="card-features">${features.map(feature => `<div class="feature"><i class="fas ${amenityIcon(feature)}"></i><span>${escapePropertyHtml(feature)}</span></div>`).join('')}</div>` : ''}
           <div class="card-price-actions">
             <div class="price-tag">
               <span class="price-amount">${escapePropertyHtml(property.currency || 'KSh')} ${Number(property.price || 0).toLocaleString()}</span>
               <span class="price-period">/night</span>
             </div>
-            <button class="btn btn-primary property-book-btn" data-property="${escapePropertyHtml(property.name)}">
-              <i class="fas fa-calendar-check"></i> Book Now
+             <button class="btn ${isMaintenance ? 'btn-disabled' : 'btn-primary'} property-book-btn" data-property="${escapePropertyHtml(property.name)}" ${isMaintenance ? 'disabled' : ''}>
+               <i class="fas ${isMaintenance ? 'fa-wrench' : 'fa-calendar-check'}"></i> ${isMaintenance ? 'Unavailable' : 'Book Now'}
             </button>
           </div>
         </div>
@@ -115,7 +145,7 @@ function renderPublicProperties() {
   grid.querySelectorAll('.property-gallery-btn').forEach(button => {
     button.addEventListener('click', () => openGalleryModal(button.dataset.property));
   });
-  grid.querySelectorAll('.property-book-btn').forEach(button => {
+  grid.querySelectorAll('.property-book-btn:not([disabled])').forEach(button => {
     button.addEventListener('click', () => openBookingModal(button.dataset.property));
   });
 
@@ -137,12 +167,108 @@ function renderPublicProperties() {
     const featuredFeatures = document.getElementById('featured-property-features');
     if (featuredFeatures) {
       featuredFeatures.innerHTML = propertyFeatures(featured).map(feature =>
-        `<div class="feature"><i class="fas fa-check"></i><span>${escapePropertyHtml(feature)}</span></div>`
+        `<div class="feature"><i class="fas ${amenityIcon(feature)}"></i><span>${escapePropertyHtml(feature)}</span></div>`
       ).join('');
     }
-    if (featuredBook) featuredBook.onclick = () => openBookingModal(featured.name);
+    if (featuredBook) {
+      const featuredMaintenance = String(featured.status || 'available').toLowerCase() === 'maintenance';
+      featuredBook.disabled = featuredMaintenance;
+      featuredBook.classList.toggle('btn-disabled', featuredMaintenance);
+      featuredBook.classList.toggle('btn-primary', !featuredMaintenance);
+      featuredBook.innerHTML = `<i class="fas ${featuredMaintenance ? 'fa-wrench' : 'fa-calendar-check'}"></i> ${featuredMaintenance ? 'Unavailable' : 'Book Now'}`;
+      featuredBook.onclick = featuredMaintenance ? null : () => openBookingModal(featured.name);
+    }
     if (featuredGallery) featuredGallery.onclick = () => openGalleryModal(featured.name);
   }
+}
+
+function propertySearchText(property) {
+  return [
+    property.name, property.type, property.location, property.description,
+    property.landmarks, property.amenities, property.features
+  ].flatMap(value => Array.isArray(value) ? value : [value]).filter(Boolean).join(' ').toLowerCase();
+}
+
+function propertyBedrooms(property) {
+  const text = `${property.name || ''} ${property.description || ''} ${property.features || ''}`.toLowerCase();
+  if (/studio/.test(text)) return 0;
+  const numericMatch = text.match(/(\d+)\s*[-+]?\s*(?:bedroom|br)\b/);
+  if (numericMatch) return Number(numericMatch[1]);
+  const wordBedrooms = [
+    ['four', 4], ['three', 3], ['two', 2], ['one', 1]
+  ].find(([word]) => new RegExp(`\\b${word}\\s+bedroom`).test(text));
+  return wordBedrooms ? wordBedrooms[1] : 0;
+}
+
+function propertyGuests(property) {
+  const text = `${property.name || ''} ${property.description || ''} ${property.features || ''}`.toLowerCase();
+  const matches = [...text.matchAll(/(\d+)\s*(?:\+|to|-)?\s*guests?/g)].map(match => Number(match[1]));
+  if (matches.length) return Math.max(...matches);
+  const bedrooms = propertyBedrooms(property);
+  return bedrooms ? bedrooms * 2 : 2;
+}
+
+function propertyHasAmenity(property, key) {
+  const text = propertySearchText(property);
+  const aliases = {
+    beach: ['beach', 'beach access', 'beachfront', 'ocean access', 'coastal'],
+    pool: ['pool', 'swimming'],
+    wifi: ['wifi', 'wi-fi', 'internet'],
+    air: ['air conditioning', 'aircondition', 'a/c', 'ac']
+  };
+  return aliases[key].some(alias => text.includes(alias)) || property[key] === true || property[`${key}Access`] === true;
+}
+
+function getPropertyFilters() {
+  return {
+    search: document.getElementById('property-search')?.value.trim().toLowerCase() || '',
+    location: document.getElementById('property-location-filter')?.value || '',
+    maxPrice: Number(document.getElementById('property-price-filter')?.value || 0),
+    bedrooms: Number(document.getElementById('property-bedroom-filter')?.value || -1),
+    guests: Number(document.getElementById('property-guests-filter')?.value || 0),
+    beach: document.getElementById('filter-beach')?.checked || false,
+    pool: document.getElementById('filter-pool')?.checked || false,
+    wifi: document.getElementById('filter-wifi')?.checked || false,
+    air: document.getElementById('filter-air')?.checked || false
+  };
+}
+
+function applyPropertyFilters(properties) {
+  const filters = getPropertyFilters();
+  return properties.filter(property => {
+    const text = propertySearchText(property);
+    const location = String(property.location || '').toLowerCase();
+    return (!filters.search || text.includes(filters.search))
+      && (!filters.location || location === filters.location.toLowerCase())
+      && (!filters.maxPrice || Number(property.price || 0) <= filters.maxPrice)
+      && (filters.bedrooms < 0 || propertyBedrooms(property) >= filters.bedrooms)
+      && (!filters.guests || propertyGuests(property) >= filters.guests)
+      && (!filters.beach || propertyHasAmenity(property, 'beach'))
+      && (!filters.pool || propertyHasAmenity(property, 'pool'))
+      && (!filters.wifi || propertyHasAmenity(property, 'wifi'))
+      && (!filters.air || propertyHasAmenity(property, 'air'));
+  });
+}
+
+function clearPropertyFilters() {
+  document.getElementById('property-filters-form')?.reset();
+  renderPublicProperties();
+}
+
+function initializePropertyFilters() {
+  const form = document.getElementById('property-filters-form');
+  if (!form) return;
+  const locationSelect = document.getElementById('property-location-filter');
+  const locations = [...new Set(Object.values(propertiesData || {}).map(property => property.location).filter(Boolean))].sort();
+  locations.forEach(location => {
+    const option = document.createElement('option');
+    option.value = location;
+    option.textContent = location;
+    locationSelect?.appendChild(option);
+  });
+  form.addEventListener('input', renderPublicProperties);
+  form.addEventListener('change', renderPublicProperties);
+  form.addEventListener('reset', () => setTimeout(renderPublicProperties));
 }
 
 // Utility Functions
@@ -439,7 +565,11 @@ function renderTestimonials(reviews) {
     for (let i = 0; i < seed.length; i++) { hash = seed.charCodeAt(i) + ((hash << 5) - hash); hash = hash & hash; }
     const palette = ['7B2D00','8B1A1A','6A0F49','0D47A1','1B5E20','006064','4A148C','E65100','37474F','880E4F'];
     const bg = palette[Math.abs(hash) % palette.length];
-    const userAvatar = `https://ui-avatars.com/api/?name=${encodeURIComponent(userName)}&size=100&background=${bg}&color=fff&rounded=true&bold=true`;
+    const userAvatar = review.avatarUrl || (
+      window.buildRealAvatar
+        ? window.buildRealAvatar(userName, userEmail, 100)
+        : ''
+    );
 
     html += `
       <div class="testimonial-card">
@@ -504,7 +634,7 @@ function activateReviewForm(reviewer) {
 // Auto-verify if guest is already logged in
 (function checkLoggedInGuest() {
   try {
-    const saved = JSON.parse(localStorage.getItem('booking_code_user') || 'null');
+    const saved = JSON.parse(sessionStorage.getItem('booking_code_user') || 'null');
     if (saved && saved.email && saved.code) {
       activateReviewForm({ email: saved.email, code: saved.code, name: saved.name });
     }
@@ -557,14 +687,9 @@ if (submissionForm) {
     submitBtn.textContent = "Submitting...";
 
     try {
-      if (!firebase.auth().currentUser) {
-        await firebase.auth().signInAnonymously();
-      }
       let imageUrl = null;
       if (imageFile) {
-        const storageRef = firebase.storage().ref(`reviews/${Date.now()}_${imageFile.name}`);
-        await storageRef.put(imageFile);
-        imageUrl = await storageRef.getDownloadURL();
+        imageUrl = await compressReviewPhoto(imageFile);
       }
 
       await db.collection('reviews').add({
@@ -575,7 +700,8 @@ if (submissionForm) {
         review: text,
         imageUrl: imageUrl,
         timestamp: firebase.firestore.FieldValue.serverTimestamp(),
-        approved: false
+        approved: true,
+        avatarUrl: window.buildRealAvatar ? window.buildRealAvatar(verifiedReviewer.name, verifiedReviewer.email, 100) : null
       });
 
       alert("Review submitted for moderation! Thank you.");
@@ -588,6 +714,43 @@ if (submissionForm) {
       submitBtn.disabled = false;
       submitBtn.textContent = "Submit Review";
     }
+  });
+}
+
+function compressReviewPhoto(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = event => {
+      const image = new Image();
+      image.onload = () => {
+        let width = image.width;
+        let height = image.height;
+        const maxDimension = 600;
+        if (width > maxDimension || height > maxDimension) {
+          if (width > height) {
+            height = Math.round(height * maxDimension / width);
+            width = maxDimension;
+          } else {
+            width = Math.round(width * maxDimension / height);
+            height = maxDimension;
+          }
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        canvas.getContext('2d').drawImage(image, 0, 0, width, height);
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.72);
+        if (dataUrl.length > 700000) {
+          reject(new Error('Photo is too large after compression. Please choose a smaller image.'));
+        } else {
+          resolve(dataUrl);
+        }
+      };
+      image.onerror = () => reject(new Error('Could not read the review photo.'));
+      image.src = event.target.result;
+    };
+    reader.onerror = () => reject(new Error('Could not read the review photo.'));
+    reader.readAsDataURL(file);
   });
 }
 
@@ -750,7 +913,7 @@ function initSlideshow() {
 
 function openAdminModal() {
   if (localStorage.getItem('admin_logged_in') === 'true') {
-    window.open('backend/dashboard.html', '_blank');
+    window.open('dashboard.html', '_blank');
     return;
   }
   const modal = document.getElementById('admin-login-modal');
@@ -774,7 +937,7 @@ function handleAdminLogin(e) {
   firebase.auth().signInWithEmailAndPassword(username, password)
     .then(() => {
       closeAdminModal();
-      window.open('backend/dashboard.html', '_blank');
+      window.open('dashboard.html', '_blank');
     })
     .catch(() => {
       errorDiv.textContent = 'Invalid credentials. Please check your email and password.';
@@ -806,6 +969,7 @@ window.scrollToSection = scrollToSection;
 window.currentSlide = (i) => { slideIndex = i-1; showSlide(slideIndex); };
 
 document.addEventListener('DOMContentLoaded', () => {
+  initializePropertyFilters();
   renderPublicProperties();
   initMobileNav();
   initFormHandlers();
@@ -831,6 +995,10 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     });
   }
+
+  console.log('Gonah Homes initialized!');
+});
+
 
   console.log('Gonah Homes initialized!');
 });
