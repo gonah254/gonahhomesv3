@@ -8,7 +8,7 @@ async function switchTab(tabName) {
 
 async function loadBookings() {
     // Determine which identifier to use (email for booking code users, uid for Firebase Auth users)
-    const bookingUser = JSON.parse(localStorage.getItem('booking_code_user') || 'null');
+    const bookingUser = JSON.parse(sessionStorage.getItem('booking_code_user') || 'null');
     const user = auth.currentUser;
     
     let query;
@@ -108,7 +108,7 @@ document.getElementById('service-request-form').addEventListener('submit', async
     const type = document.getElementById('request-type').value;
     const details = document.getElementById('request-details').value;
     
-    const bookingUser = JSON.parse(localStorage.getItem('booking_code_user') || 'null');
+    const bookingUser = JSON.parse(sessionStorage.getItem('booking_code_user') || 'null');
     const user = auth.currentUser;
     
     const email = bookingUser ? bookingUser.email : (user ? user.email : 'unknown');
@@ -130,7 +130,7 @@ document.getElementById('upload-id-btn').addEventListener('click', async () => {
     const file = document.getElementById('id-upload').files[0];
     if (!file) return;
 
-    const bookingUser = JSON.parse(localStorage.getItem('booking_code_user') || 'null');
+    const bookingUser = JSON.parse(sessionStorage.getItem('booking_code_user') || 'null');
     const user = auth.currentUser;
     
     const id = bookingUser ? 'booking_' + bookingUser.code : (user ? user.uid : 'unknown');
@@ -151,6 +151,7 @@ auth.onAuthStateChanged(user => {
     loadBookings();
 });
 // Initial load for booking code users
-if (localStorage.getItem('booking_code_user')) {
+if (sessionStorage.getItem('booking_code_user')) {
     loadBookings();
 }
+
