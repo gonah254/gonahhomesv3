@@ -999,6 +999,3 @@ document.addEventListener('DOMContentLoaded', () => {
   console.log('Gonah Homes initialized!');
 });
 
-
-  console.log('Gonah Homes initialized!');
-});
