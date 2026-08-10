@@ -79,3 +79,4 @@ const propertiesData = {
     features: ['Duplex', 'Garden', '4 Bedrooms', 'Premium Amenities']
   }
 };
+
