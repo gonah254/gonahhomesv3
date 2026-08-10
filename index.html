@@ -5,7 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, max-age=0">
   <title>Gonah Homes - Premium Coastal Accommodations in Mombasa</title>
-  <link rel="stylesheet" href="styles.css?v=3">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="styles (3).css?v=3">
   <link rel="stylesheet" href="customer-dashboard.css?v=3">
   <!-- Font Awesome for icons -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
@@ -187,6 +188,61 @@
         <h2>Our Accommodations</h2>
         <p>Find the perfect space for your coastal getaway</p>
       </div>
+      <form id="property-filters-form" class="property-filters" aria-label="Search and filter accommodations">
+        <div class="property-search-field">
+          <label for="property-search"><i class="fas fa-search"></i> Search</label>
+          <input type="search" id="property-search" placeholder="Search by property, area, or feature">
+        </div>
+        <div>
+          <label for="property-location-filter">Location</label>
+          <select id="property-location-filter">
+            <option value="">Any location</option>
+            <option value="Nyali">Nyali</option>
+            <option value="Bamburi">Bamburi</option>
+            <option value="Mtwapa">Mtwapa</option>
+            <option value="Shanzu">Shanzu</option>
+            <option value="Tudor">Tudor</option>
+            <option value="Mombasa CBD">Mombasa CBD</option>
+            <option value="Old Town">Old Town</option>
+            <option value="Likoni">Likoni</option>
+            <option value="Diani">Diani</option>
+            <option value="Kilifi">Kilifi</option>
+          </select>
+        </div>
+        <div>
+          <label for="property-price-filter">Max price / night</label>
+          <input type="number" id="property-price-filter" min="0" step="500" placeholder="Any price">
+        </div>
+        <div>
+          <label for="property-bedroom-filter">Bedrooms</label>
+          <select id="property-bedroom-filter">
+            <option value="-1">Any bedrooms</option>
+            <option value="0">Studio</option>
+            <option value="1">1+ bedroom</option>
+            <option value="2">2+ bedrooms</option>
+            <option value="3">3+ bedrooms</option>
+            <option value="4">4+ bedrooms</option>
+          </select>
+        </div>
+        <div>
+          <label for="property-guests-filter">Guests</label>
+          <select id="property-guests-filter">
+            <option value="0">Any guests</option>
+            <option value="2">2+ guests</option>
+            <option value="4">4+ guests</option>
+            <option value="6">6+ guests</option>
+            <option value="8">8+ guests</option>
+          </select>
+        </div>
+        <fieldset class="property-amenity-filters">
+          <legend>Amenities</legend>
+          <label><input type="checkbox" id="filter-beach"> <i class="fas fa-umbrella-beach"></i> Beach access</label>
+          <label><input type="checkbox" id="filter-pool"> <i class="fas fa-person-swimming"></i> Swimming pool</label>
+          <label><input type="checkbox" id="filter-wifi"> <i class="fas fa-wifi"></i> Wi-Fi</label>
+          <label><input type="checkbox" id="filter-air"> <i class="fas fa-snowflake"></i> Air conditioning</label>
+        </fieldset>
+        <button type="reset" class="btn btn-outline property-filter-clear">Clear</button>
+      </form>
       <div id="accommodations-grid" class="accommodations-grid">
         <div class="accommodation-card">
           <div class="card-image">
@@ -452,7 +508,7 @@
           </div>
           <h3>Policies</h3>
           <p>Check our booking and cancellation policies</p>
-          <a href="policies.html" class="btn btn-outline">View Policies</a>
+          <a href="policies (1).html" class="btn btn-outline">View Policies</a>
         </div>
         <div class="quick-link-card">
           <div class="quick-link-icon">
@@ -468,7 +524,7 @@
           </div>
           <h3>Blog</h3>
           <p>Travel tips and coastal experiences</p>
-          <a href="blog.html" class="btn btn-outline">Read Blog</a>
+          <a href="blog (1).html" class="btn btn-outline">Read Blog</a>
         </div>
       </div>
     </div>
@@ -498,7 +554,7 @@
             </div>
             <div class="contact-details">
               <h4>Email</h4>
-              <a href="mailto:gonahhomes0@gmail.com">gonahhomes0@gmail.com</a>
+              <a href="mailto:info@gonahhomes.com">info@gonahhomes.com</a>
             </div>
           </div>
           <div class="contact-item">
@@ -546,19 +602,22 @@
           <h4>Quick Links</h4>
           <ul>
             <li><a href="#accommodations">Accommodations</a></li>
-            <li><a href="policies.html">Policies</a></li>
+            <li><a href="policies (1).html">Policies</a></li>
             <li><a href="local_recommendations.html">Local Guide</a></li>
-            <li><a href="blog.html">Blog</a></li>
+            <li><a href="blog (1).html">Blog</a></li>
           </ul>
         </div>
         <div class="footer-section">
           <h4>Company</h4>
           <ul>
-            <li><a href="backend/dashboard.html" onclick="openAdminModal(); return false;">Gonah Nexus</a></li>
+            <li><a href="dashboard.html" onclick="openAdminModal(); return false;">Gonah Nexus</a></li>
           </ul>
         </div>
+        <div class="footer-section">
+          <h4>Contact</h4>
+          <ul>
             <li><i class="fas fa-phone"></i> +254 799 466 723</li>
-            <li><i class="fas fa-envelope"></i> gonahhomes0@gmail.com</li>
+            <li><i class="fas fa-envelope"></i> <a href="mailto:info@gonahhomes.com">info@gonahhomes.com</a></li>
             <li><i class="fas fa-map-marker-alt"></i> Mombasa, Kenya</li>
           </ul>
         </div>
@@ -585,7 +644,7 @@
             <label for="admin-username">
               <i class="fas fa-user"></i> Username/Email
             </label>
-            <input type="email" id="admin-username" required placeholder="gonahhomes0@gmail.com">
+            <input type="email" id="admin-username" required placeholder="admin@gonahhomes.com">
           </div>
           <div class="form-group">
             <label for="admin-password">
@@ -760,13 +819,14 @@
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
+  <script src="avatar.js"></script>
 
   <!-- Flatpickr JS -->
   <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
   
   <!-- Properties Data -->
-  <script src="properties-data.js?v=3"></script>
-  <script src="script.js?v=3"></script>
+  <script src="properties-data (1).js?v=3"></script>
+  <script src="script (3).js?v=3"></script>
   <script src="booking-calendar.js?v=3"></script>
   <script src="notification-service.js?v=3"></script>
   <script src="https://cdn.emailjs.com/dist/email.min.js"></script>
@@ -776,4 +836,4 @@
   })();
 </script>
 </body>
-  </html>
+</html
