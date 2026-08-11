@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <title>Gonah Homes - Admin Dashboard</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
   <style>
     body, html {
       margin: 0;
@@ -249,7 +250,7 @@
   <div id="login-screen" class="login-container">
     <form class="login-form" id="admin-login-form">
       <div style="text-align: center; margin-bottom: 1em;">
-        <a href="index.html" style="color: #800000; text-decoration: none; font-size: 0.9em;">&larr; Back to Main Site</a>
+        <a href="index (6).html" style="color: #800000; text-decoration: none; font-size: 0.9em;">&larr; Back to Main Site</a>
       </div>
       <h2>Gonah Homes Admin</h2>
       <div class="form-group">
@@ -291,7 +292,7 @@
       <div class="header">
         <h1 id="section-title">Dashboard</h1>
         <div style="display: flex; gap: 1em; align-items: center;">
-          <a href="index.html" style="color: #800000; text-decoration: none; font-size: 0.9em;">&larr; Main Site</a>
+          <a href="index (6).html" style="color: #800000; text-decoration: none; font-size: 0.9em;">&larr; Main Site</a>
           <button class="logout-btn" id="logout-btn">Logout</button>
         </div>
       </div>
@@ -473,7 +474,7 @@
             </div>
             <div class="form-group">
               <label>Contact Email</label>
-              <input type="email" id="contact-email" value="gonahproperties@gmail.com">
+              <input type="email" id="contact-email" value="info@gonahhomes.com">
             </div>
             <div class="form-group">
               <label>Paybill Number</label>
@@ -556,7 +557,7 @@
 
     let currentAdmin = null;
     // Admin configuration
-    const ADMIN_EMAIL = 'gonahhomes0@gmail.com';
+    const ADMIN_EMAIL = 'admin@gonahhomes.com';
     const ADMIN_PASSWORD = 'gonahhomes@0799466723';
 
     // DOM Elements
@@ -597,7 +598,7 @@
 
       try {
         const actionCodeSettings = {
-          url: window.location.origin + '/admin.html',
+          url: window.location.origin + '/admin (1).html',
           handleCodeInApp: false
         };
         await auth.sendPasswordResetEmail(email, actionCodeSettings);
