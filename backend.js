@@ -1,4 +1,4 @@
-Backend functionality for Gonah Homes Admin System
+// Backend functionality for Gonah Homes Admin System
 // This script handles data collection, storage, and management
 
 class GonahHomesBackend {
@@ -388,4 +388,4 @@ document.addEventListener('DOMContentLoaded', function() {
     window.gonahBackend = backend;
   }
 });
-const adminEmail = "salimtuva0@gmail.com";
+const adminEmail = "admin@gonahhomes.com";
