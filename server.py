@@ -4,7 +4,7 @@ import socketserver
 from urllib.parse import urlsplit
 
 PORT = 5000
-HOME_PAGE = "index (6).html"
+HOME_PAGE = "index.html"
 
 class NoCacheHandler(http.server.SimpleHTTPRequestHandler):
     def do_GET(self):
