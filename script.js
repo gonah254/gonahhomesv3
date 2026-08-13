@@ -757,16 +757,6 @@ function compressReviewPhoto(file) {
 function initFormHandlers() {
   loadReviews();
   
-  // Setup footer admin link
-  document.querySelectorAll('a').forEach(link => {
-      if (link.href.includes('dashboard.html') || link.textContent.toLowerCase().includes('admin dashboard')) {
-          link.onclick = (e) => {
-              e.preventDefault();
-              openAdminModal();
-          };
-      }
-  });
-
   const bookingForm = document.getElementById('booking-form');
   if (bookingForm) {
     bookingForm.addEventListener('submit', (e) => {
