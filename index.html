@@ -610,7 +610,7 @@
         <div class="footer-section">
           <h4>Company</h4>
           <ul>
-            <li><a href="dashboard.html" onclick="openAdminModal(); return false;">Gonah Nexus</a></li>
+            <li>Gonah Nexus</li>
           </ul>
         </div>
         <div class="footer-section">
@@ -628,38 +628,6 @@
       </div>
     </div>
   </footer>
-
-  <!-- Admin Login Modal -->
-  <div id="admin-login-modal" class="modal-backdrop" style="display: none;">
-    <div class="modal">
-      <div class="modal-header">
-        <h3>Admin Login</h3>
-        <button class="modal-close" onclick="closeAdminModal()">
-          <i class="fas fa-times"></i>
-        </button>
-      </div>
-      <div class="modal-body">
-        <form id="admin-login-form">
-          <div class="form-group">
-            <label for="admin-username">
-              <i class="fas fa-user"></i> Username/Email
-            </label>
-            <input type="email" id="admin-username" required placeholder="admin@gonahhomes.com">
-          </div>
-          <div class="form-group">
-            <label for="admin-password">
-              <i class="fas fa-lock"></i> Password
-            </label>
-            <input type="password" id="admin-password" required>
-          </div>
-          <div id="admin-login-error" class="error-message" style="color: red; font-size: 0.9em; margin: 0.5rem 0; display: none;"></div>
-          <button type="submit" class="btn btn-primary btn-full">
-            <i class="fas fa-sign-in-alt"></i> Access Dashboard
-          </button>
-        </form>
-      </div>
-    </div>
-  </div>
 
   <!-- Booking Modal -->
   <!-- ========== BOOKING MODAL (STEP 1 → STEP 2 → STEP 3) ========== -->
@@ -832,8 +800,8 @@
   <script src="https://cdn.emailjs.com/dist/email.min.js"></script>
 <script>
   (function () {
-    emailjs.init("VgDakmh3WscKrr_wQ"); // Updated EmailJS public key
+    emailjs.init("VgDakmh3WscKrr_wQ"); // Uphtmldated EmailJS public key
   })();
 </script>
 </body>
-</html>
+</>
