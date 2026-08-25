@@ -1463,34 +1463,67 @@ function renderPropertyPhotoPreview(images) {
     </div>
   `).join('');
 }
-
 function compressPropertyImage(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
+
     reader.onload = event => {
       const image = new Image();
+
       image.onload = () => {
         let width = image.width;
         let height = image.height;
-        const maxDimension = 1200;
+
+        const maxDimension = 1400;
+
         if (width > maxDimension || height > maxDimension) {
-          if (width > height) { height = Math.round(height * maxDimension / width); width = maxDimension; }
-          else { width = Math.round(width * maxDimension / height); height = maxDimension; }
+          if (width > height) {
+            height = Math.round(height * maxDimension / width);
+            width = maxDimension;
+          } else {
+            width = Math.round(width * maxDimension / height);
+            height = maxDimension;
+          }
         }
+
         const canvas = document.createElement('canvas');
         canvas.width = width;
         canvas.height = height;
-        canvas.getContext('2d').drawImage(image, 0, 0, width, height);
-        resolve(canvas.toDataURL('image/jpeg', 0.78));
+
+        const ctx = canvas.getContext('2d', {
+          alpha: false
+        });
+
+        ctx.drawImage(image, 0, 0, width, height);
+
+        canvas.toBlob(
+          blob => {
+            if (!blob) {
+              reject(new Error('Could not compress property image.'));
+              return;
+            }
+
+            resolve(blob);
+          },
+          'image/jpeg',
+          0.78
+        );
       };
-      image.onerror = reject;
+
+      image.onerror = () => {
+        reject(new Error('Could not read property image.'));
+      };
+
       image.src = event.target.result;
     };
-    reader.onerror = reject;
+
+    reader.onerror = () => {
+      reject(new Error('Could not read selected photo.'));
+    };
+
     reader.readAsDataURL(file);
   });
 }
-
 async function uploadPropertyImages(files, propertyName) {
   if (!files.length) return [];
   if (!firebase.storage) throw new Error('Firebase Storage is not available.');
