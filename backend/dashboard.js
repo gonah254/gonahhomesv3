@@ -1577,7 +1577,7 @@ async function savePropertyDetails() {
     let uploadedImages = [];
     if (files.length) {
       button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Uploading photos...';
-      uploadedImages = await withTimeout(uploadPropertyImages(files, name), 120000);
+      uploadedImages = await uploadPropertyImages(files, name);
     }
     const suppliedImages = [...urls, ...uploadedImages].slice(0, MAX_PROPERTY_IMAGES);
     const images = suppliedImages.length
