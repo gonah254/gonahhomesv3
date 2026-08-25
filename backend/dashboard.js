@@ -1533,8 +1533,7 @@ async function uploadPropertyImages(files, propertyName) {
     const fileRef = firebase.storage().ref().child(
       `properties/${folder}/${Date.now()}-${index}.jpg`
     );
-    await fileRef.putString(dataUrl, 'data_url', { contentType: 'image/jpeg' });
-    return fileRef.getDownloadURL();
+    await fileRef.put(dataUrl, { contentType: 'image/jpeg' });
   }));
 }
 
