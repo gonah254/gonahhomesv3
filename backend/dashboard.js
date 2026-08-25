@@ -1465,23 +1465,45 @@ function renderPropertyPhotoPreview(images) {
 }
 function compressPropertyImage(file) {
   return new Promise((resolve, reject) => {
+    // Make sure a real File object was supplied
+    if (!file || !(file instanceof Blob)) {
+      reject(new Error('Invalid photo file selected.'));
+      return;
+    }
+
+    // Make sure the selected file is an image
+    if (!file.type || !file.type.startsWith('image/')) {
+      reject(new Error(`Selected file is not an image: ${file.name || 'unknown file'}`));
+      return;
+    }
+
     const reader = new FileReader();
 
-    reader.onload = event => {
+    reader.onload = function (event) {
+      if (!event.target || !event.target.result) {
+        reject(new Error('The selected photo could not be loaded.'));
+        return;
+      }
+
       const image = new Image();
 
-      image.onload = () => {
-        let width = image.width;
-        let height = image.height;
+      image.onload = function () {
+        let width = image.naturalWidth;
+        let height = image.naturalHeight;
+
+        if (!width || !height) {
+          reject(new Error('The selected photo has invalid dimensions.'));
+          return;
+        }
 
         const maxDimension = 1400;
 
         if (width > maxDimension || height > maxDimension) {
           if (width > height) {
-            height = Math.round(height * maxDimension / width);
+            height = Math.round((height * maxDimension) / width);
             width = maxDimension;
           } else {
-            width = Math.round(width * maxDimension / height);
+            width = Math.round((width * maxDimension) / height);
             height = maxDimension;
           }
         }
@@ -1490,14 +1512,17 @@ function compressPropertyImage(file) {
         canvas.width = width;
         canvas.height = height;
 
-        const ctx = canvas.getContext('2d', {
-          alpha: false
-        });
+        const ctx = canvas.getContext('2d');
+
+        if (!ctx) {
+          reject(new Error('Your browser could not create the image canvas.'));
+          return;
+        }
 
         ctx.drawImage(image, 0, 0, width, height);
 
         canvas.toBlob(
-          blob => {
+          function (blob) {
             if (!blob) {
               reject(new Error('Could not compress property image.'));
               return;
@@ -1510,18 +1535,32 @@ function compressPropertyImage(file) {
         );
       };
 
-      image.onerror = () => {
-        reject(new Error('Could not read property image.'));
+      image.onerror = function () {
+        reject(new Error(
+          `The selected photo "${file.name || 'photo'}" could not be decoded. Try selecting a JPG or PNG image.`
+        ));
       };
 
       image.src = event.target.result;
     };
 
-    reader.onerror = () => {
-      reject(new Error('Could not read selected photo.'));
+    reader.onerror = function () {
+      reject(new Error(
+        `The browser could not read "${file.name || 'selected photo'}". Please select the photo again.`
+      ));
     };
 
-    reader.readAsDataURL(file);
+    reader.onabort = function () {
+      reject(new Error('Reading the selected photo was cancelled.'));
+    };
+
+    try {
+      reader.readAsDataURL(file);
+    } catch (error) {
+      reject(new Error(
+        `Could not start reading the photo: ${error.message}`
+      ));
+    }
   });
 }
 async function uploadPropertyImages(files, propertyName) {
