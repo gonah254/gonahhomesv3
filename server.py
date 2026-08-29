@@ -72,5 +72,3 @@ with ReuseAddrTCPServer(("0.0.0.0", PORT), NoCacheHandler) as httpd:
     print(f"Server running at http://0.0.0.0:{PORT}")
     httpd.serve_forever()
 
-
-
