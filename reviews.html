@@ -3,11 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <title>Guest Reviews - Gonah Homes</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description" content="Read real guest reviews of Gonah Homes coastal serviced apartments in Mombasa, and share your own experience after your stay.">
-<link rel="canonical" href="https://gonahhomes.com/reviews.html">
-<meta name="robots" content="index, follow">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, max-age=0">
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
   <style>
@@ -16,7 +14,7 @@
       margin: 0; padding: 0;
       min-height: 100vh;
       background: linear-gradient(135deg, #1a0000 0%, #2d0000 50%, #1a0000 100%);
-      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      font-family: 'Poppins', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
       color: #1a1a1a;
     }
     .page-header {
@@ -489,9 +487,17 @@
     let _showingAll = false;
     let _carouselIndex = 0;
 
+    function reviewTimestampDate(timestamp) {
+      if (!timestamp) return null;
+      if (typeof timestamp.toDate === 'function') return timestamp.toDate();
+      const date = new Date(timestamp);
+      return Number.isNaN(date.getTime()) ? null : date;
+    }
+
     function buildReviewCard(r, index) {
       const name  = r.name || 'Anonymous';
-      const date  = r.timestamp ? new Date(r.timestamp.toDate()).toLocaleDateString('en-KE', {day:'numeric', month:'short', year:'numeric'}) : '';
+      const timestampDate = reviewTimestampDate(r.timestamp);
+      const date  = timestampDate ? timestampDate.toLocaleDateString('en-KE', {day:'numeric', month:'short', year:'numeric'}) : '';
       const stars = '★'.repeat(Number(r.rating||5)) + '☆'.repeat(5 - Number(r.rating||5));
       const avatar = r.avatarUrl || buildAvatar(name, r.email || '');
       return `
@@ -578,6 +584,7 @@
       const handler = (reviews) => {
         _allReviews = reviews;
         if (!_allReviews.length) {
+          if (_carouselTimer) { clearInterval(_carouselTimer); _carouselTimer = null; }
           document.getElementById('reviews-list').innerHTML =
             `<div class="empty-state"><i class="fas fa-star"></i><p>No reviews yet. Be the first to share your experience!</p></div>`;
           return;
@@ -590,11 +597,25 @@
         .orderBy('timestamp', 'desc')
         .onSnapshot(
           snap => handler(snap.docs.map(d => d.data())),
-          err => {
-            // Fallback if composite index missing
-            db.collection('reviews').orderBy('timestamp', 'desc').onSnapshot(
-              snap => handler(snap.docs.filter(d => d.data().approved === true).map(d => d.data()))
-            );
+          () => {
+            // Avoid a composite-index dependency: filter and sort locally.
+            db.collection('reviews')
+              .where('approved', '==', true)
+              .onSnapshot(
+                snap => {
+                  const reviews = snap.docs.map(d => d.data()).sort((a, b) => {
+                    const aTime = reviewTimestampDate(a.timestamp)?.getTime() || 0;
+                    const bTime = reviewTimestampDate(b.timestamp)?.getTime() || 0;
+                    return bTime - aTime;
+                  });
+                  handler(reviews);
+                },
+                err => {
+                  console.error('Could not load reviews:', err);
+                  document.getElementById('reviews-list').innerHTML =
+                    `<div class="empty-state"><i class="fas fa-circle-exclamation"></i><p>Reviews are temporarily unavailable. Please try again later.</p></div>`;
+                }
+              );
           }
         );
     }
