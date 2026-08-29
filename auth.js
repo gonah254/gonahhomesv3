@@ -83,7 +83,7 @@ auth.onAuthStateChanged(async (user) => {
                 e.preventDefault();
                 localStorage.removeItem('booking_code_user');
                 auth.signOut().then(() => {
-                window.location.href = 'index (6).html';
+                window.location.href = 'index.html';
                 });
             };
         });
