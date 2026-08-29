@@ -408,7 +408,7 @@ function updateGalleryDisplay() {
     currentGalleryImages.forEach((img, index) => {
       const thumb = document.createElement('div');
       thumb.className = 'gallery-thumbnail' + (index === currentGalleryIndex ? ' active' : '');
-      thumb.innerHTML = `<img src="${img}" alt="Thumbnail ${index + 1}">`;
+      thumb.innerHTML = `<img src="${img}" alt="Thumbnail ${index + 1}" loading="lazy" decoding="async">`;
       thumb.onclick = () => {
         currentGalleryIndex = index;
         updateGalleryDisplay();
