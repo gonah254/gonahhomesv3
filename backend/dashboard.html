@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Gonah Homes - Management Dashboard</title>
     <link rel="icon" href="favicon.svg" type="image/svg+xml">
-    <link rel="stylesheet" href="dashboard.css?v=4">
+    <link rel="stylesheet" href="dashboard.css?v=3">
     <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, max-age=0">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
@@ -79,7 +79,6 @@
                 </button>
             </div>
         </aside>
-        <div class="sidebar-overlay" aria-hidden="true"></div>
 
         <main class="main-content">
             <header class="content-header">
@@ -559,7 +558,17 @@
                 <div class="property-form-row">
                     <div class="form-group">
                         <label for="property-type">Type</label>
-                        <input type="text" id="property-type" required maxlength="60" placeholder="Apartment, villa, maisonette...">
+                        <select id="property-type" required>
+                            <option value="">Choose a property type...</option>
+                            <option value="studio">Studio Apartment</option>
+                            <option value="1bedroom">One Bedroom</option>
+                            <option value="2bedroom">Two Bedroom</option>
+                            <option value="3bedroom">Three Bedroom</option>
+                            <option value="4bedroom">Four Bedroom</option>
+                            <option value="maisonette">Maisonette</option>
+                            <option value="villa">Villa</option>
+                            <option value="townhouse">Townhouse</option>
+                        </select>
                     </div>
                     <div class="form-group">
                         <label for="property-price">Price per night (KSh)</label>
@@ -639,4 +648,3 @@
     <script src="dashboard.js?v=3"></script>
 </body>
 </html>
-
