@@ -96,13 +96,13 @@ class PaymentIntegration {
       });
 
       // Send notification to admin
-      await emailjs.send('service_sf7nruj', 'template_p667wcm', {
+      await emailjs.send('service_ky2kj3t', 'template_24gjzd', {
         from_name: "Payment System",
         reply_to: "system@gonahhomes.com",
         phone: phoneNumber,
         house: "Payment Notification",
         message: `Payment confirmation needed:\nAmount: KES ${amount}\nPhone: ${phoneNumber}\nBooking: ${bookingId}\n\nPlease verify payment receipt and update booking status.`,
-        admin_link: window.location.origin + "/admin.html"
+        admin_link: "https://admin.gonahhomes.com/"
       });
 
       return { success: true, message: "Payment confirmation sent. You will be contacted shortly." };
