@@ -1335,6 +1335,41 @@ function propertyTextList(value) {
   return String(value || '').split(',').map(item => item.trim()).filter(Boolean);
 }
 
+const PROPERTY_TYPE_VALUES = new Set([
+  'studio', '1bedroom', '2bedroom', '3bedroom', '4bedroom',
+  'maisonette', 'villa', 'townhouse'
+]);
+
+function normalizePropertyType(value) {
+  const raw = String(value || '').trim();
+  const key = raw.toLowerCase().replace(/[\s_-]+/g, '');
+  const aliases = {
+    studio: 'studio',
+    studioapartment: 'studio',
+    apartment: '1bedroom',
+    onebedroom: '1bedroom',
+    '1bedroom': '1bedroom',
+    twobedroom: '2bedroom',
+    '2bedroom': '2bedroom',
+    threebedroom: '3bedroom',
+    '3bedroom': '3bedroom',
+    fourbedroom: '4bedroom',
+    '4bedroom': '4bedroom',
+    maisonette: 'maisonette',
+    villa: 'villa',
+    townhouse: 'townhouse'
+  };
+  return aliases[key] || (PROPERTY_TYPE_VALUES.has(raw) ? raw : '');
+}
+
+function propertyDocumentId(name) {
+  const slug = String(name || '').trim().toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 80);
+  return slug || `property-${Date.now()}`;
+}
+
 function escapeDashboardHtml(value) {
   return String(value ?? '').replace(/[&<>"']/g, character => ({
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;'
@@ -1392,7 +1427,7 @@ async function loadProperties() {
               <p style="font-size:.78rem;color:var(--text-light);margin:0 0 .4rem;">Photos (${images.length}/${MAX_PROPERTY_IMAGES}) — first photo is the cover</p>
               ${images.length ? `<div style="display:flex;gap:.45rem;flex-wrap:wrap;">${images.map((url, index) => `
                 <div style="position:relative;">
-                  <img src="${escapeDashboardHtml(url)}" alt="Photo ${index + 1}" style="width:88px;height:64px;object-fit:cover;border-radius:7px;border:${index === 0 ? '3px solid #800000' : '1px solid #ddd'};" onerror="this.style.opacity=.25">
+                  <img src="${escapeDashboardHtml(url)}" alt="Photo ${index + 1}" loading="lazy" decoding="async" style="width:88px;height:64px;object-fit:cover;border-radius:7px;border:${index === 0 ? '3px solid #800000' : '1px solid #ddd'};" onerror="this.style.opacity=.25">
                   ${index === 0 ? '<span style="position:absolute;left:3px;bottom:3px;background:#800000;color:#fff;font-size:9px;padding:1px 4px;border-radius:3px;">COVER</span>' : ''}
                 </div>`).join('')}</div>` : '<p style="font-size:.82rem;color:#888;margin:0;">Using the default photo gallery.</p>'}
             </div>
@@ -1423,7 +1458,12 @@ function openPropertyModal(docId = '') {
     db.collection('property_settings').doc(docId).get().then(snapshot => {
       const property = snapshot.exists ? { ...fallback, ...snapshot.data() } : fallback;
       document.getElementById('property-name').value = property.name || docId;
-      document.getElementById('property-type').value = property.type || '';
+      const typeSelect = document.getElementById('property-type');
+      const normalizedType = normalizePropertyType(property.type);
+      if (property.type && !normalizedType && !Array.from(typeSelect.options).some(option => option.value === property.type)) {
+        typeSelect.insertAdjacentHTML('beforeend', `<option value="${escapeDashboardHtml(property.type)}">Legacy: ${escapeDashboardHtml(property.type)}</option>`);
+      }
+      typeSelect.value = normalizedType || property.type || '';
       document.getElementById('property-price').value = property.price ?? '';
       const locationSelect = document.getElementById('property-location');
       const location = property.location || '';
@@ -1458,7 +1498,7 @@ function renderPropertyPhotoPreview(images) {
   const values = Array.from(images || []).filter(Boolean).slice(0, MAX_PROPERTY_IMAGES);
   preview.innerHTML = values.map((image, index) => `
     <div style="position:relative;">
-      <img src="${escapeDashboardHtml(typeof image === 'string' ? image : '')}" alt="Photo preview ${index + 1}" style="width:88px;height:64px;object-fit:cover;border-radius:7px;border:${index === 0 ? '3px solid #800000' : '1px solid #ddd'};" onerror="this.style.opacity=.25">
+      <img src="${escapeDashboardHtml(typeof image === 'string' ? image : '')}" alt="Photo preview ${index + 1}" loading="lazy" decoding="async" style="width:88px;height:64px;object-fit:cover;border-radius:7px;border:${index === 0 ? '3px solid #800000' : '1px solid #ddd'};" onerror="this.style.opacity=.25">
       ${index === 0 ? '<span style="position:absolute;left:3px;bottom:3px;background:#800000;color:#fff;font-size:9px;padding:1px 4px;border-radius:3px;">COVER</span>' : ''}
     </div>
   `).join('');
@@ -1500,7 +1540,14 @@ async function uploadPropertyImages(files, propertyName) {
     const fileRef = firebase.storage().ref().child(
       `properties/${folder}/${Date.now()}-${index}.jpg`
     );
-    await fileRef.putString(dataUrl, 'data_url', { contentType: 'image/jpeg' });
+    await fileRef.putString(dataUrl, 'data_url', {
+      contentType: 'image/jpeg',
+      cacheControl: 'public,max-age=31536000,immutable',
+      customMetadata: {
+        propertyName: String(propertyName),
+        imageRole: index === 0 ? 'cover' : 'gallery'
+      }
+    });
     return fileRef.getDownloadURL();
   }));
 }
@@ -1516,7 +1563,7 @@ async function savePropertyDetails() {
   const button = document.getElementById('property-submit-btn');
   const docId = document.getElementById('property-doc-id').value.trim();
   const name = document.getElementById('property-name').value.trim();
-  const type = document.getElementById('property-type').value.trim();
+    const type = normalizePropertyType(document.getElementById('property-type').value);
   const location = document.getElementById('property-location').value.trim();
   const price = Number(document.getElementById('property-price').value);
   const selectedAmenities = Array.from(document.querySelectorAll('#property-amenities-options input[type="checkbox"]:checked')).map(input => input.value);
@@ -1539,7 +1586,7 @@ async function savePropertyDetails() {
   try {
     const existingSnapshot = docId ? await db.collection('property_settings').doc(docId).get() : null;
     const existing = existingSnapshot?.exists ? existingSnapshot.data() : {};
-    const targetId = docId || name;
+    const targetId = docId || propertyDocumentId(name);
     const existingImages = Array.isArray(existing.images) ? existing.images.filter(Boolean) : [];
     const defaultImages = Array.isArray(propertyDefaults(name).images) ? propertyDefaults(name).images.filter(Boolean) : [];
     let uploadedImages = [];
@@ -1910,4 +1957,3 @@ function filterClients() {
 }
 
 console.log('Gonah Homes Backend Dashboard initialized successfully!');
-
