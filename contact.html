@@ -127,14 +127,78 @@
       </form>
     </div>
   </div>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+  <script src="https://cdn.emailjs.com/dist/email.min.js"></script>
   <script>
-    // Simple contact form feedback (does NOT actually send email)
+    const contactFirebaseConfig = {
+      apiKey: "AIzaSyABTVp797tNu353FBVLzsOp90aIX2mNF74",
+      authDomain: "my-website-project2797.firebaseapp.com",
+      projectId: "my-website-project2797",
+      storageBucket: "my-website-project2797.firebasestorage.app",
+      messagingSenderId: "406226552922",
+      appId: "1:406226552922:web:ffdf2ccf6f77a57964b063"
+    };
+    if (!firebase.apps.length) firebase.initializeApp(contactFirebaseConfig);
+    const contactDb = firebase.firestore();
+    const EMAILJS_SERVICE_ID = 'service_ky2kj3t';
+    const EMAILJS_ADMIN_TEMPLATE_ID = 'template_24gjzd';
+    emailjs.init('VgDakmh3WscKrr_wQ');
+
     const cf = document.getElementById('contact-form');
     const cfMsg = document.getElementById('cf-message-area');
-    cf.onsubmit = function(ev) {
+    const cfButton = cf.querySelector('button[type="submit"]');
+    cf.onsubmit = async function(ev) {
       ev.preventDefault();
-      cfMsg.textContent = "Thank you for your message! We will get back to you soon.";
-      cf.reset();
+      const name = document.getElementById('cf-name').value.trim();
+      const email = document.getElementById('cf-email').value.trim();
+      const message = document.getElementById('cf-message').value.trim();
+      if (!name || !email || !message) return;
+
+      cfButton.disabled = true;
+      cfButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sending...';
+      cfMsg.textContent = '';
+      try {
+        await emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_ADMIN_TEMPLATE_ID, {
+          to_name: 'Gonah Homes Admin',
+          to_email: 'info@gonahhomes.com',
+          from_name: name,
+          from_email: email,
+          reply_to: email,
+          phone: '',
+          house: 'Contact Form',
+          guests: '',
+          checkin: '',
+          checkout: '',
+          requests: message,
+          access: '',
+          message: `New contact message from ${name} (${email}): ${message}`,
+          subject: 'New Contact Message'
+        });
+
+        // Keep the dashboard inbox in sync. Email delivery remains successful
+        // even if Firestore rules temporarily prevent an anonymous write.
+        try {
+          await contactDb.collection('messages').add({
+            name,
+            email,
+            message,
+            timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+            status: 'new'
+          });
+        } catch (dbError) {
+          console.warn('Contact email sent, but dashboard message was not saved:', dbError.message);
+        }
+
+        cfMsg.textContent = "Thank you for your message! We will get back to you soon.";
+        cf.reset();
+      } catch (error) {
+        console.error('Contact email failed:', error);
+        cfMsg.textContent = "We couldn't send your message right now. Please try again or email info@gonahhomes.com.";
+      } finally {
+        cfButton.disabled = false;
+        cfButton.innerHTML = '<i class="fas fa-paper-plane"></i> Send Message';
+      }
     }
   </script>
   <div style="text-align:center;padding:1.5rem 1rem;font-size:0.8rem;color:#888;">
