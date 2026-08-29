@@ -21,36 +21,57 @@ if (typeof emailjs !== 'undefined') {
 const db = firebase.firestore();
 const MAX_PROPERTY_IMAGES = 10;
 let propertyOverridesLoaded = false;
+const basePropertiesData = typeof propertiesData !== 'undefined'
+  ? JSON.parse(JSON.stringify(propertiesData))
+  : {};
 
 // ---- Load property photo overrides from Firestore (admin updates) ----
-// This runs early so gallery, cover photos, cards, and booking use the latest data.
+// Keep the public catalogue synchronized with management changes in realtime.
+function applyPropertyOverrides(snapshot) {
+  if (typeof propertiesData === 'undefined') return;
+
+  Object.keys(propertiesData).forEach(key => delete propertiesData[key]);
+  Object.entries(basePropertiesData).forEach(([key, value]) => {
+    propertiesData[key] = {
+      ...value,
+      images: Array.isArray(value.images) ? [...value.images] : []
+    };
+  });
+
+  snapshot.forEach(doc => {
+    const data = doc.data() || {};
+    const existing = propertiesData[doc.id] || {};
+    const propertyName = data.name || existing.name || doc.id;
+    const overrideImages = Array.isArray(data.images)
+      ? data.images.filter(image => typeof image === 'string' && image.trim())
+      : [];
+    propertiesData[doc.id] = {
+      ...existing,
+      ...data,
+      name: propertyName,
+      images: overrideImages.length
+        ? overrideImages.slice(0, MAX_PROPERTY_IMAGES)
+        : (existing.images || [])
+    };
+    propertiesData[propertyName] = propertiesData[doc.id];
+  });
+
+  propertyOverridesLoaded = true;
+  renderPublicProperties();
+}
+
 async function loadPropertyOverrides() {
   try {
-    const snap = await db.collection('property_settings').get();
-    snap.forEach(doc => {
-      const data = doc.data();
-      if (typeof propertiesData === 'undefined') return;
-      const existing = propertiesData[doc.id] || {};
-      const propertyName = data.name || existing.name || doc.id;
-      const overrideImages = Array.isArray(data.images)
-        ? data.images.filter(image => typeof image === 'string' && image.trim())
-        : [];
-      propertiesData[doc.id] = {
-        ...existing,
-        ...data,
-        name: propertyName,
-        images: overrideImages.length
-          ? overrideImages.slice(0, MAX_PROPERTY_IMAGES)
-          : (existing.images || [])
-      };
-      // Custom properties use their Firestore id as the document key, while
-      // bookings and gallery buttons use the display name.
-      propertiesData[propertyName] = propertiesData[doc.id];
-    });
-    propertyOverridesLoaded = true;
-    renderPublicProperties();
+    db.collection('property_settings').onSnapshot(
+      applyPropertyOverrides,
+      err => {
+        console.warn('Could not load property overrides:', err.message);
+        propertyOverridesLoaded = true;
+        renderPublicProperties();
+      }
+    );
   } catch (err) {
-    console.warn('Could not load property overrides:', err.message);
+    console.warn('Could not subscribe to property overrides:', err.message);
     propertyOverridesLoaded = true;
     renderPublicProperties();
   }
@@ -74,6 +95,22 @@ function propertyFeatures(property) {
   const amenities = propertyList(property.amenities);
   const fallback = propertyList(property.features);
   return (amenities.length ? amenities : fallback).slice(0, 4);
+}
+
+const PROPERTY_TYPE_LABELS = {
+  studio: 'Studio Apartment',
+  '1bedroom': 'One Bedroom',
+  '2bedroom': 'Two Bedroom',
+  '3bedroom': 'Three Bedroom',
+  '4bedroom': 'Four Bedroom',
+  maisonette: 'Maisonette',
+  villa: 'Villa',
+  townhouse: 'Townhouse'
+};
+
+function propertyTypeLabel(value) {
+  const key = String(value || '').toLowerCase().replace(/\s+/g, '');
+  return PROPERTY_TYPE_LABELS[key] || String(value || '');
 }
 
 function amenityIcon(amenity) {
@@ -111,13 +148,13 @@ function renderPublicProperties() {
     const images = Array.isArray(property.images) ? property.images : [];
     const cover = images[0] || 'https://images.unsplash.com/photo-1568605114967-8130f3a36994?w=800&h=600&fit=crop';
     const features = propertyFeatures(property);
-    const details = [property.type, property.location].filter(Boolean).join(' • ');
+    const details = [propertyTypeLabel(property.type), property.location].filter(Boolean).join(' • ');
     const isMaintenance = String(property.status || 'available').toLowerCase() === 'maintenance';
     return `
       <article class="accommodation-card${property.name === 'Luxury Maisonette' ? ' featured' : ''}${isMaintenance ? ' maintenance-property' : ''}">
         <div class="card-image">
-          <img src="${escapePropertyHtml(cover)}" alt="${escapePropertyHtml(property.name)}" onerror="this.style.opacity=.35">
-          ${property.type ? `<div class="card-badge">${escapePropertyHtml(property.type)}</div>` : ''}
+          <img src="${escapePropertyHtml(cover)}" alt="${escapePropertyHtml(property.name)}" loading="lazy" decoding="async" onerror="this.style.opacity=.35">
+          ${property.type ? `<div class="card-badge">${escapePropertyHtml(propertyTypeLabel(property.type))}</div>` : ''}
           ${isMaintenance ? '<div class="maintenance-badge"><i class="fas fa-screwdriver-wrench"></i> Maintenance</div>' : ''}
           <button class="gallery-btn property-gallery-btn" data-property="${escapePropertyHtml(property.name)}" title="View Gallery">
             <i class="fas fa-images"></i>
@@ -577,7 +614,7 @@ function renderTestimonials(reviews) {
           ${rating.split('').map(() => '<i class="fas fa-star"></i>').join('')}
         </div>
         <p class="testimonial-text">"${review.review}"</p>
-        ${review.imageUrl ? `<div class="testimonial-image" style="margin: 1rem 0;"><img src="${review.imageUrl}" style="width: 100%; border-radius: 8px; max-height: 200px; object-fit: cover;"></div>` : ''}
+        ${review.imageUrl ? `<div class="testimonial-image" style="margin: 1rem 0;"><img src="${review.imageUrl}" loading="lazy" decoding="async" style="width: 100%; border-radius: 8px; max-height: 200px; object-fit: cover;"></div>` : ''}
         <div class="testimonial-author">
           <img src="${userAvatar}" alt="${userName}" class="author-avatar">
           <div class="author-info">
@@ -901,47 +938,6 @@ function initSlideshow() {
   if (slides.length > 0) setInterval(nextSlide, 5000);
 }
 
-function openAdminModal() {
-  if (localStorage.getItem('admin_logged_in') === 'true') {
-    window.open('dashboard.html', '_blank');
-    return;
-  }
-  const modal = document.getElementById('admin-login-modal');
-  if (modal) modal.style.display = 'flex';
-}
-
-function closeAdminModal() {
-  const modal = document.getElementById('admin-login-modal');
-  if (modal) {
-    modal.style.display = 'none';
-    document.getElementById('admin-login-error').style.display = 'none';
-  }
-}
-
-function handleAdminLogin(e) {
-  e.preventDefault();
-  const username = document.getElementById('admin-username').value.trim();
-  const password = document.getElementById('admin-password').value;
-  const errorDiv = document.getElementById('admin-login-error');
-  // Authenticate via Firebase Auth (same credentials used in dashboard.html)
-  firebase.auth().signInWithEmailAndPassword(username, password)
-    .then(() => {
-      closeAdminModal();
-      window.open('dashboard.html', '_blank');
-    })
-    .catch(() => {
-      errorDiv.textContent = 'Invalid credentials. Please check your email and password.';
-      errorDiv.style.display = 'block';
-    });
-}
-
-function initAdminAccess() {
-  const adminBtn = document.getElementById('admin-access-btn');
-  if (adminBtn) adminBtn.onclick = (e) => { e.preventDefault(); openAdminModal(); };
-  const adminForm = document.getElementById('admin-login-form');
-  if (adminForm) adminForm.addEventListener('submit', handleAdminLogin);
-}
-
 function showCustomAlert(message, type = "success") {
   const alertBox = document.createElement('div');
   alertBox.classList.add('custom-alert', type);
@@ -953,8 +949,6 @@ function showCustomAlert(message, type = "success") {
 
 window.openBookingModal = openBookingModal;
 window.closeBookingModal = closeBookingModal;
-window.openAdminModal = openAdminModal;
-window.closeAdminModal = closeAdminModal;
 window.scrollToSection = scrollToSection;
 window.currentSlide = (i) => { slideIndex = i-1; showSlide(slideIndex); };
 
@@ -968,7 +962,6 @@ document.addEventListener('DOMContentLoaded', () => {
   initModalHandlers();
   initNavbarScroll();
   initSlideshow();
-  initAdminAccess();
 
   // Returning guest detection — runs when user leaves email field
   const bookingEmailField = document.getElementById('booking-email');
@@ -988,5 +981,4 @@ document.addEventListener('DOMContentLoaded', () => {
 
   console.log('Gonah Homes initialized!');
 });
-
 
