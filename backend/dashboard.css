@@ -713,12 +713,13 @@ body {
 
   .data-table {
     font-size: .78rem;
+    min-width:  900px;
   }
 
   .data-table th, .data-table td {
     padding: .65rem .45rem;
-    white-space: normal;
-    overflow-wrap: anywhere;
+    white-space: nowrap;
+    overflow-wrap: normal;
   }
 
   .notification-dropdown {
