@@ -76,18 +76,29 @@ async function loadPropertyOverrides() {
     renderPublicProperties();
   }
 }
+  function loadPropertyOverrides() {
+  try {
+    db.collection('property_settings').onSnapshot(
+      { includeMetadataChanges: true },
+      snapshot => {
+        if (snapshot.metadata.fromCache && !propertyOverridesLoaded) {
+          return;
+        }
+        applyPropertyOverrides(snapshot);
+      },
+      err => {
+        console.warn('Could not load property overrides:', err.message);
+        propertyOverridesLoaded = true;
+        renderPublicProperties();
+      }
+    );
   } catch (err) {
     console.warn('Could not subscribe to property overrides:', err.message);
     propertyOverridesLoaded = true;
     renderPublicProperties();
   }
 }
-  } catch (err) {
-    console.warn('Could not subscribe to property overrides:', err.message);
-    propertyOverridesLoaded = true;
-    renderPublicProperties();
-  }
-}
+loadPropertyOverrides();
 loadPropertyOverrides();
 let currentUser = null;
 const adminEmail = "admin@gonahhomes.com";
