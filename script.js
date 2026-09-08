@@ -60,22 +60,29 @@ function applyPropertyOverrides(snapshot) {
   renderPublicProperties();
 }
 
-async function loadPropertyOverrides() {
+function loadPropertyOverrides() {
   try {
-    // Force a fresh server fetch first so real photos are ready before the first render.
-    const serverSnapshot = await db.collection('property_settings').get({ source: 'server' });
-    applyPropertyOverrides(serverSnapshot);
+    db.collection('property_settings').onSnapshot(
+      { includeMetadataChanges: true },
+      snapshot => {
+        // Skip a snapshot that's purely from local cache while we're still
+        // waiting for the first real server response, to avoid a stale flash.
+        if (snapshot.metadata.fromCache && !propertyOverridesLoaded) {
+          return;
+        }
+        applyPropertyOverrides(snapshot);
+      },
+      err => {
+        console.warn('Could not load property overrides:', err.message);
+        propertyOverridesLoaded = true;
+        renderPublicProperties();
+      }
+    );
   } catch (err) {
-    console.warn('Could not load property overrides from server:', err.message);
+    console.warn('Could not subscribe to property overrides:', err.message);
     propertyOverridesLoaded = true;
     renderPublicProperties();
   }
-
-  // Stay subscribed for live updates after the initial load.
-  db.collection('property_settings').onSnapshot(
-    applyPropertyOverrides,
-    err => console.warn('Property overrides listener error:', err.message)
-  );
 }
   } catch (err) {
     console.warn('Could not subscribe to property overrides:', err.message);
