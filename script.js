@@ -137,7 +137,8 @@ function renderPublicProperties() {
     .map(([id, property]) => ({ id, ...property, name: property.name || id }))
     .filter(property => property.name)
     .filter((property, index, list) => list.findIndex(item => item.name === property.name) === index);
-  const filteredProperties = applyPropertyFilters(properties);
+  const filteredProperties = applyPropertyFilters(properties)
+  .sort((a, b) => propertyBedrooms(a) - propertyBedrooms(b));
   if (!filteredProperties.length) {
     grid.innerHTML = '<div class="property-empty-state"><i class="fas fa-search"></i><p>No stays match those filters.</p><button class="btn btn-outline" type="button" id="clear-property-filters">Clear filters</button></div>';
     document.getElementById('clear-property-filters')?.addEventListener('click', clearPropertyFilters);
