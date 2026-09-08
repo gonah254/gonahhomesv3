@@ -227,14 +227,23 @@ function propertySearchText(property) {
 }
 
 function propertyBedrooms(property) {
+  const typeMap = {
+    studio: 0, '1bedroom': 1, '2bedroom': 2, '3bedroom': 3, '4bedroom': 4
+  };
+  const type = String(property.type || '').toLowerCase().replace(/\s+/g, '');
+  if (type in typeMap) return typeMap[type];
+
   const text = `${property.name || ''} ${property.description || ''} ${property.features || ''}`.toLowerCase();
   if (/studio/.test(text)) return 0;
   const numericMatch = text.match(/(\d+)\s*[-+]?\s*(?:bedroom|br)\b/);
   if (numericMatch) return Number(numericMatch[1]);
   const wordBedrooms = [
-    ['four', 4], ['three', 3], ['two', 2], ['one', 1]
+    ['five', 5], ['four', 4], ['three', 3], ['two', 2], ['one', 1]
   ].find(([word]) => new RegExp(`\\b${word}\\s+bedroom`).test(text));
-  return wordBedrooms ? wordBedrooms[1] : 0;
+  if (wordBedrooms) return wordBedrooms[1];
+  // Maisonette/villa/townhouse with no explicit count — treat as 5+ so it sorts last
+  if (/maisonette|villa|townhouse/.test(text)) return 5;
+  return 0;
 }
 
 function propertyGuests(property) {
