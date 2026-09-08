@@ -60,24 +60,22 @@ function applyPropertyOverrides(snapshot) {
   renderPublicProperties();
 }
 
-function loadPropertyOverrides() {
+async function loadPropertyOverrides() {
   try {
     db.collection('property_settings').onSnapshot(
-      { includeMetadataChanges: true },
-      snapshot => {
-        // Skip a snapshot that's purely from local cache while we're still
-        // waiting for the first real server response, to avoid a stale flash.
-        if (snapshot.metadata.fromCache && !propertyOverridesLoaded) {
-          return;
-        }
-        applyPropertyOverrides(snapshot);
-      },
+      applyPropertyOverrides,
       err => {
         console.warn('Could not load property overrides:', err.message);
         propertyOverridesLoaded = true;
         renderPublicProperties();
       }
     );
+  } catch (err) {
+    console.warn('Could not subscribe to property overrides:', err.message);
+    propertyOverridesLoaded = true;
+    renderPublicProperties();
+  }
+}
   } catch (err) {
     console.warn('Could not subscribe to property overrides:', err.message);
     propertyOverridesLoaded = true;
