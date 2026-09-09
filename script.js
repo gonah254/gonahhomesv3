@@ -18,45 +18,60 @@ if (typeof emailjs !== 'undefined') {
   emailjs.init("VgDakmh3WscKrr_wQ");
 }
 
+const EMAILJS_SERVICE_ID = 'service_ky2kj3t';
+const EMAILJS_PUBLIC_KEY = 'VgDakmh3WscKrr_wQ';
+const EMAILJS_ADMIN_TEMPLATE = 'template_24gjzd3';
+const EMAILJS_CLIENT_TEMPLATE = 'template_6duvs5n';
+const NOTIFICATION_EMAILS = {
+  info: 'info@gonahhomes.com',
+  bookings: 'bookings@gonahhomes.com',
+  admin: 'admin@gonahhomes.com'
+};
+
+function sendEmailJs(templateId, parameters) {
+  if (typeof emailjs === 'undefined' || typeof emailjs.send !== 'function') {
+    return Promise.reject(new Error('EmailJS SDK is not loaded.'));
+  }
+  return emailjs.send(EMAILJS_SERVICE_ID, templateId, parameters);
+}
+
+function sendAdminNotification(recipient, data) {
+  return sendEmailJs(EMAILJS_ADMIN_TEMPLATE, {
+    to_name: 'Gonah Homes',
+    to_email: recipient,
+    ...data
+  });
+}
+
 const db = firebase.firestore();
 const MAX_PROPERTY_IMAGES = 10;
 let propertyOverridesLoaded = false;
-const basePropertiesData = typeof propertiesData !== 'undefined'
-  ? JSON.parse(JSON.stringify(propertiesData))
-  : {};
+let propertyCatalogStatus = 'loading';
+const propertiesData = {};
+let heroSlideTimer = null;
 
-// ---- Load property photo overrides from Firestore (admin updates) ----
-// Keep the public catalogue synchronized with management changes in realtime.
+// ---- Load the public property catalogue directly from Firestore ----
 function applyPropertyOverrides(snapshot) {
-  if (typeof propertiesData === 'undefined') return;
-
   Object.keys(propertiesData).forEach(key => delete propertiesData[key]);
-  Object.entries(basePropertiesData).forEach(([key, value]) => {
-    propertiesData[key] = {
-      ...value,
-      images: Array.isArray(value.images) ? [...value.images] : []
-    };
-  });
 
   snapshot.forEach(doc => {
     const data = doc.data() || {};
-    const existing = propertiesData[doc.id] || {};
-    const propertyName = data.name || existing.name || doc.id;
-    const overrideImages = Array.isArray(data.images)
+    const propertyName = data.name || doc.id;
+    const images = Array.isArray(data.images)
       ? data.images.filter(image => typeof image === 'string' && image.trim())
       : [];
     propertiesData[doc.id] = {
-      ...existing,
       ...data,
       name: propertyName,
-      images: overrideImages.length
-        ? overrideImages.slice(0, MAX_PROPERTY_IMAGES)
-        : (existing.images || [])
+      images: images.slice(0, MAX_PROPERTY_IMAGES)
     };
-    propertiesData[propertyName] = propertiesData[doc.id];
+    if (propertyName !== doc.id) propertiesData[propertyName] = propertiesData[doc.id];
   });
 
   propertyOverridesLoaded = true;
+  propertyCatalogStatus = 'ready';
+  populatePropertyLocations();
+  renderHeroSlideshow();
   renderPublicProperties();
 }
 
@@ -65,43 +80,67 @@ async function loadPropertyOverrides() {
     db.collection('property_settings').onSnapshot(
       applyPropertyOverrides,
       err => {
-        console.warn('Could not load property overrides:', err.message);
-        propertyOverridesLoaded = true;
+        console.warn('Could not load properties from Firestore:', err.message);
+        propertyCatalogStatus = 'error';
+        renderHeroSlideshow();
         renderPublicProperties();
       }
     );
   } catch (err) {
-    console.warn('Could not subscribe to property overrides:', err.message);
-    propertyOverridesLoaded = true;
+    console.warn('Could not subscribe to Firestore properties:', err.message);
+    propertyCatalogStatus = 'error';
+    renderHeroSlideshow();
     renderPublicProperties();
   }
 }
-  function loadPropertyOverrides() {
-  try {
-    db.collection('property_settings').onSnapshot(
-      { includeMetadataChanges: true },
-      snapshot => {
-        if (snapshot.metadata.fromCache && !propertyOverridesLoaded) {
-          return;
-        }
-        applyPropertyOverrides(snapshot);
-      },
-      err => {
-        console.warn('Could not load property overrides:', err.message);
-        propertyOverridesLoaded = true;
-        renderPublicProperties();
-      }
-    );
-  } catch (err) {
-    console.warn('Could not subscribe to property overrides:', err.message);
-    propertyOverridesLoaded = true;
-    renderPublicProperties();
-  }
-}
-loadPropertyOverrides();
 loadPropertyOverrides();
 let currentUser = null;
 const adminEmail = "admin@gonahhomes.com";
+
+function renderHeroSlideshow() {
+  const slideshow = document.getElementById('hero-slideshow');
+  const indicators = document.querySelector('.slideshow-indicators');
+  if (!slideshow) return;
+
+  const seenNames = new Set();
+  const covers = Object.values(propertiesData)
+    .filter(property => {
+      const name = property.name || '';
+      const cover = Array.isArray(property.images) ? property.images[0] : '';
+      if (!name || !cover || seenNames.has(name)) return false;
+      seenNames.add(name);
+      return typeof cover === 'string' && cover.trim();
+    })
+    .map(property => ({
+      name: property.name,
+      cover: property.images[0]
+    }));
+
+  if (!covers.length) {
+    stopHeroSlideshow();
+    slideshow.innerHTML = '<div class="hero-image-skeleton" aria-label="Property photos unavailable"></div>';
+    if (indicators) indicators.innerHTML = '';
+    return;
+  }
+
+  slideshow.innerHTML = covers.map((property, index) => `
+    <div class="slide${index === 0 ? ' active' : ''}">
+      <div class="hero-image-skeleton" aria-hidden="true"></div>
+      <img ${index === 0 ? `src="${escapePropertyHtml(property.cover)}" fetchpriority="high"` : `data-src="${escapePropertyHtml(property.cover)}"`} alt="${escapePropertyHtml(property.name)}" decoding="async" style="opacity:0" onload="this.style.opacity='1';this.previousElementSibling.style.display='none'" onerror="this.remove()">
+    </div>
+  `).join('');
+
+  if (indicators) {
+    indicators.innerHTML = covers.map((property, index) =>
+      `<button class="indicator${index === 0 ? ' active' : ''}" type="button" onclick="currentSlide(${index + 1})" aria-label="Show ${escapePropertyHtml(property.name)}"></button>`
+    ).join('');
+  }
+
+  slideIndex = 0;
+  preloadHeroSlideImage(0);
+  preloadHeroSlideImage(1);
+  initSlideshow();
+}
 
 function escapePropertyHtml(value) {
   return String(value ?? '').replace(/[&<>"']/g, ch => ({
@@ -154,15 +193,19 @@ function amenityIcon(amenity) {
 
 function renderPublicProperties() {
   const grid = document.getElementById('accommodations-grid');
-  if (!grid || typeof propertiesData === 'undefined' || !propertyOverridesLoaded) return;
+  if (!grid) return;
+  if (propertyCatalogStatus !== 'ready' || !propertyOverridesLoaded) {
+    grid.classList.add('is-loading');
+    return;
+  }
 
   const properties = Object.entries(propertiesData)
     .map(([id, property]) => ({ id, ...property, name: property.name || id }))
     .filter(property => property.name)
     .filter((property, index, list) => list.findIndex(item => item.name === property.name) === index);
-  const filteredProperties = applyPropertyFilters(properties)
-  .sort((a, b) => propertyBedrooms(a) - propertyBedrooms(b));
+  const filteredProperties = applyPropertyFilters(properties);
   if (!filteredProperties.length) {
+    grid.classList.remove('is-loading');
     grid.innerHTML = '<div class="property-empty-state"><i class="fas fa-search"></i><p>No stays match those filters.</p><button class="btn btn-outline" type="button" id="clear-property-filters">Clear filters</button></div>';
     document.getElementById('clear-property-filters')?.addEventListener('click', clearPropertyFilters);
     return;
@@ -170,14 +213,17 @@ function renderPublicProperties() {
 
   grid.innerHTML = filteredProperties.map(property => {
     const images = Array.isArray(property.images) ? property.images : [];
-    const cover = images[0] || 'https://images.unsplash.com/photo-1568605114967-8130f3a36994?w=800&h=600&fit=crop';
+    const cover = images[0];
+    const imageMarkup = cover
+      ? `<div class="property-image-frame"><div class="property-image-skeleton" aria-hidden="true"></div><img src="${escapePropertyHtml(cover)}" alt="${escapePropertyHtml(property.name)}" loading="lazy" decoding="async" style="opacity:0" onload="this.style.opacity='1';this.previousElementSibling.style.display='none'" onerror="this.remove()"></div>`
+      : '<div class="property-image-skeleton" aria-hidden="true"></div>';
     const features = propertyFeatures(property);
     const details = [propertyTypeLabel(property.type), property.location].filter(Boolean).join(' • ');
     const isMaintenance = String(property.status || 'available').toLowerCase() === 'maintenance';
     return `
       <article class="accommodation-card${property.name === 'Luxury Maisonette' ? ' featured' : ''}${isMaintenance ? ' maintenance-property' : ''}">
         <div class="card-image">
-          <img src="${escapePropertyHtml(cover)}" alt="${escapePropertyHtml(property.name)}" loading="lazy" decoding="async" onerror="this.style.opacity=.35">
+          ${imageMarkup}
           ${property.type ? `<div class="card-badge">${escapePropertyHtml(propertyTypeLabel(property.type))}</div>` : ''}
           ${isMaintenance ? '<div class="maintenance-badge"><i class="fas fa-screwdriver-wrench"></i> Maintenance</div>' : ''}
           <button class="gallery-btn property-gallery-btn" data-property="${escapePropertyHtml(property.name)}" title="View Gallery">
@@ -202,6 +248,7 @@ function renderPublicProperties() {
         </div>
       </article>`;
   }).join('');
+  grid.classList.remove('is-loading');
 
   grid.querySelectorAll('.property-gallery-btn').forEach(button => {
     button.addEventListener('click', () => openGalleryModal(button.dataset.property));
@@ -219,8 +266,26 @@ function renderPublicProperties() {
   const featuredGallery = document.getElementById('featured-gallery-btn');
   if (featured) {
     if (featuredImage) {
-      featuredImage.src = featured.images?.[0] || 'https://images.unsplash.com/photo-1571624436279-b272aff752b5?w=800&h=600&fit=crop';
-      featuredImage.alt = featured.name;
+      const featuredCover = featured.images?.[0];
+      const featuredSkeleton = document.getElementById('featured-property-image-skeleton');
+      if (featuredCover) {
+        featuredImage.onload = () => {
+          featuredImage.style.opacity = '1';
+          if (featuredSkeleton) featuredSkeleton.style.display = 'none';
+        };
+        featuredImage.src = featuredCover;
+        featuredImage.alt = featured.name;
+        featuredImage.style.display = '';
+        featuredImage.style.opacity = '0';
+        featuredImage.onerror = () => {
+          featuredImage.style.display = 'none';
+          if (featuredSkeleton) featuredSkeleton.style.display = 'block';
+        };
+      } else {
+        featuredImage.removeAttribute('src');
+        featuredImage.style.display = 'none';
+        if (featuredSkeleton) featuredSkeleton.style.display = 'block';
+      }
     }
     if (featuredName) featuredName.textContent = featured.name;
     if (featuredDescription) featuredDescription.textContent = featured.description || '';
@@ -251,23 +316,14 @@ function propertySearchText(property) {
 }
 
 function propertyBedrooms(property) {
-  const typeMap = {
-    studio: 0, '1bedroom': 1, '2bedroom': 2, '3bedroom': 3, '4bedroom': 4
-  };
-  const type = String(property.type || '').toLowerCase().replace(/\s+/g, '');
-  if (type in typeMap) return typeMap[type];
-
   const text = `${property.name || ''} ${property.description || ''} ${property.features || ''}`.toLowerCase();
   if (/studio/.test(text)) return 0;
   const numericMatch = text.match(/(\d+)\s*[-+]?\s*(?:bedroom|br)\b/);
   if (numericMatch) return Number(numericMatch[1]);
   const wordBedrooms = [
-    ['five', 5], ['four', 4], ['three', 3], ['two', 2], ['one', 1]
+    ['four', 4], ['three', 3], ['two', 2], ['one', 1]
   ].find(([word]) => new RegExp(`\\b${word}\\s+bedroom`).test(text));
-  if (wordBedrooms) return wordBedrooms[1];
-  // Maisonette/villa/townhouse with no explicit count — treat as 5+ so it sorts last
-  if (/maisonette|villa|townhouse/.test(text)) return 5;
-  return 0;
+  return wordBedrooms ? wordBedrooms[1] : 0;
 }
 
 function propertyGuests(property) {
@@ -328,17 +384,61 @@ function clearPropertyFilters() {
 function initializePropertyFilters() {
   const form = document.getElementById('property-filters-form');
   if (!form) return;
-  const locationSelect = document.getElementById('property-location-filter');
-  const locations = [...new Set(Object.values(propertiesData || {}).map(property => property.location).filter(Boolean))].sort();
-  locations.forEach(location => {
-    const option = document.createElement('option');
-    option.value = location;
-    option.textContent = location;
-    locationSelect?.appendChild(option);
-  });
+  populatePropertyLocations();
   form.addEventListener('input', renderPublicProperties);
   form.addEventListener('change', renderPublicProperties);
   form.addEventListener('reset', () => setTimeout(renderPublicProperties));
+}
+
+function populatePropertyLocations() {
+  const locationSelect = document.getElementById('property-location-filter');
+  if (!locationSelect || typeof propertiesData === 'undefined') return;
+
+  const selected = locationSelect.value;
+  const existing = new Set(Array.from(locationSelect.options).map(option => option.value));
+  const locations = [...new Set(Object.values(propertiesData).map(property => property.location).filter(Boolean))].sort();
+  locations.forEach(location => {
+    if (existing.has(location)) return;
+    const option = document.createElement('option');
+    option.value = location;
+    option.textContent = location;
+    locationSelect.appendChild(option);
+    existing.add(location);
+  });
+  locationSelect.value = selected;
+}
+
+function escapePropertyHtml(value) {
+  return String(value ?? '').replace(/[&<>"']/g, ch => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;'
+  }[ch]));
+}
+
+function propertyList(value) {
+  if (Array.isArray(value)) return value.filter(Boolean).map(String);
+  return String(value || '').split(',').map(item => item.trim()).filter(Boolean);
+}
+
+function propertyFeatures(property) {
+  const amenities = propertyList(property.amenities);
+  const fallback = propertyList(property.features);
+  return (amenities.length ? amenities : fallback).slice(0, 4);
+}
+
+function amenityIcon(amenity) {
+  const value = String(amenity || '').toLowerCase();
+  if (value.includes('wi-fi') || value.includes('wifi') || value.includes('internet')) return 'fa-wifi';
+  if (value.includes('pool')) return 'fa-person-swimming';
+  if (value.includes('kitchen')) return 'fa-kitchen-set';
+  if (value.includes('parking')) return 'fa-square-parking';
+  if (value.includes('air condition')) return 'fa-snowflake';
+  if (value.includes('tv') || value.includes('television')) return 'fa-tv';
+  if (value.includes('wash')) return 'fa-shirt';
+  if (value.includes('balcony')) return 'fa-building';
+  if (value.includes('bath')) return 'fa-bath';
+  if (value.includes('bed')) return 'fa-bed';
+  if (value.includes('guest')) return 'fa-users';
+  return 'fa-star';
 }
 
 // Utility Functions
@@ -509,17 +609,37 @@ function submitBookingFinal() {
     const accountBtn = document.querySelector('#booking-confirm .btn-primary');
     if (accountBtn) accountBtn.setAttribute('onclick', `window.location.href='account.html?${params}'`);
 
-    // Send email via EmailJS
-    if (typeof emailjs !== 'undefined') {
-        emailjs.send("service_ky2kj3t", "template_6duvs5n", {
-            to_name: finalBookingData.name,
-            to_email: finalBookingData.email,
-            booking_id: bookingId,
-            property: finalBookingData.house,
-            checkin: finalBookingData.checkin,
-            checkout: finalBookingData.checkout
-        }).then(() => console.log("Email sent")).catch(err => console.error("Email failed", err));
-    }
+    // Send both the guest confirmation and the bookings-team notification
+    // from the submission flow, so they do not depend on the admin dashboard
+    // being open.
+    const emailJobs = [
+      sendEmailJs(EMAILJS_CLIENT_TEMPLATE, {
+        to_name: finalBookingData.name,
+        to_email: finalBookingData.email,
+        from_name: 'Gonah Homes',
+        subject: 'Booking Request Received',
+        booking_id: bookingId,
+        property: finalBookingData.house,
+        checkin: finalBookingData.checkin,
+        checkout: finalBookingData.checkout,
+        message: `Thank you ${finalBookingData.name} for your booking request. We received booking ${bookingId} for ${finalBookingData.house}.`
+      }),
+      sendAdminNotification(NOTIFICATION_EMAILS.bookings, {
+        from_name: finalBookingData.name,
+        from_email: finalBookingData.email,
+        phone: finalBookingData.phone,
+        house: finalBookingData.house,
+        guests: finalBookingData.guests,
+        checkin: finalBookingData.checkin,
+        checkout: finalBookingData.checkout,
+        message: `New booking request from ${finalBookingData.name} for ${finalBookingData.house}. Booking ID: ${bookingId}.`,
+        subject: 'New Booking Request'
+      })
+    ];
+    Promise.allSettled(emailJobs).then(results => {
+      results.filter(result => result.status === 'rejected')
+        .forEach(result => console.error('Booking email failed:', result.reason));
+    });
 
     db.collection("messages").add({
       name: "System",
@@ -606,18 +726,9 @@ function renderTestimonials(reviews) {
 
   if (!reviews || reviews.length === 0) {
     testimonialsGrid.innerHTML = `
-      <div class="testimonial-card">
-        <div class="testimonial-rating">
-          <i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i>
-        </div>
-        <p class="testimonial-text">"Amazing experience! The apartment was spotless, beautifully furnished, and the location was perfect. Will definitely book again!"</p>
-        <div class="testimonial-author">
-          <img src="https://images.unsplash.com/photo-1494790108755-2616b612b577?w=100&h=100&fit=crop&crop=face" alt="Sarah Johnson" class="author-avatar">
-          <div class="author-info">
-            <h4>Sarah Johnson</h4>
-            <span>Verified Guest</span>
-          </div>
-        </div>
+      <div class="testimonial-empty-state">
+        <i class="fas fa-comments"></i>
+        <p>No guest reviews yet. Be the first to share your experience.</p>
       </div>
     `;
     return;
@@ -626,7 +737,10 @@ function renderTestimonials(reviews) {
   let html = '';
   reviews.slice(0, 6).forEach(review => {
     const rating = '★'.repeat(Number(review.rating || 5));
-    const reviewDate = review.timestamp ? new Date(review.timestamp.toDate()).toLocaleDateString() : '';
+    const timestamp = review.timestamp;
+    const reviewDate = timestamp
+      ? (typeof timestamp.toDate === 'function' ? timestamp.toDate() : new Date(timestamp)).toLocaleDateString()
+      : '';
     const userName = review.name || 'Anonymous';
     const userEmail = (review.email || '').trim().toLowerCase();
     // Generate a consistent color from the email/name
@@ -885,6 +999,13 @@ function initFormHandlers() {
         timestamp: firebase.firestore.FieldValue.serverTimestamp(),
         status: 'new'
       }).then(() => {
+        sendAdminNotification(NOTIFICATION_EMAILS.info, {
+          from_name: name,
+          from_email: email,
+          requests: message,
+          message: `New contact message from ${name} (${email}): ${message}`,
+          subject: 'New Contact Message'
+        }).catch(error => console.error('Contact notification failed:', error));
         showCustomAlert("Thank you for your message!", "success");
         contactForm.reset();
       }).catch((error) => {
@@ -949,14 +1070,24 @@ function initNavbarScroll() {
 }
 
 let slideIndex = 0;
+function preloadHeroSlideImage(index) {
+  const slides = document.querySelectorAll('.slide');
+  const image = slides[index]?.querySelector('img');
+  if (!image || image.getAttribute('src') || !image.dataset.src) return;
+  image.src = image.dataset.src;
+}
+
 function showSlide(index) {
   const slides = document.querySelectorAll('.slide');
   const indicators = document.querySelectorAll('.indicator');
   if (!slides.length) return;
+  slideIndex = ((index % slides.length) + slides.length) % slides.length;
+  preloadHeroSlideImage(slideIndex);
+  preloadHeroSlideImage((slideIndex + 1) % slides.length);
   slides.forEach(slide => slide.classList.remove('active'));
   indicators.forEach(indicator => indicator.classList.remove('active'));
-  slides[index].classList.add('active');
-  indicators[index].classList.add('active');
+  slides[slideIndex].classList.add('active');
+  indicators[slideIndex]?.classList.add('active');
 }
 
 function nextSlide() {
@@ -967,8 +1098,16 @@ function nextSlide() {
 }
 
 function initSlideshow() {
+  stopHeroSlideshow();
   const slides = document.querySelectorAll('.slide');
-  if (slides.length > 0) setInterval(nextSlide, 5000);
+  if (slides.length > 1) heroSlideTimer = setInterval(nextSlide, 5000);
+}
+
+function stopHeroSlideshow() {
+  if (heroSlideTimer) {
+    clearInterval(heroSlideTimer);
+    heroSlideTimer = null;
+  }
 }
 
 function showCustomAlert(message, type = "success") {
@@ -983,7 +1122,7 @@ function showCustomAlert(message, type = "success") {
 window.openBookingModal = openBookingModal;
 window.closeBookingModal = closeBookingModal;
 window.scrollToSection = scrollToSection;
-window.currentSlide = (i) => { slideIndex = i-1; showSlide(slideIndex); };
+window.currentSlide = (i) => showSlide(i - 1);
 
 document.addEventListener('DOMContentLoaded', () => {
   initializePropertyFilters();
@@ -1003,7 +1142,6 @@ document.addEventListener('DOMContentLoaded', () => {
       const val = this.value.trim().toLowerCase();
       if (val) checkReturningGuest(val);
     });
-    // Also clear banner when field is cleared
     bookingEmailField.addEventListener('input', function() {
       if (!this.value.trim()) {
         const banner = document.getElementById('returning-guest-banner');
