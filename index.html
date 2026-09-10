@@ -6,7 +6,7 @@
   <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, max-age=0">
   <title>Gonah Homes - Premium Coastal Accommodations in Mombasa</title>
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="styles.css?v=3">
+  <link rel="stylesheet" href="styles.css?v=4">
   <link rel="stylesheet" href="customer-dashboard.css?v=3">
   <!-- Font Awesome for icons -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
@@ -26,7 +26,7 @@
         <div class="nav-menu" id="nav-menu">
           <a href="#hero" class="nav-link">Home</a>
           <a href="#accommodations" class="nav-link">Accommodations</a>
-          <a href="reviews.html" class="nav-link">Reviews</a>
+          <a href="#testimonials" class="nav-link">Reviews</a>
           <a href="#contact" class="nav-link">Contact</a>
           <a href="account.html" class="nav-link" id="nav-account">My Account</a>
           <button id="auth-btn" class="btn btn-primary btn-sm ml-1" style="display: none;">Login / Sign Up</button>
@@ -42,22 +42,8 @@
 
   <!-- Hero Section -->
   <section id="hero" class="hero">
-    <div class="hero-slideshow">
-      <div class="slide active">
-        <img src="https://images.unsplash.com/photo-1571624436279-b272aff752b5?w=1920&h=1080&fit=crop" alt="Luxury Beachfront House">
-      </div>
-      <div class="slide">
-        <img src="https://images.unsplash.com/photo-1564013799919-ab600027ffc6?w=1920&h=1080&fit=crop" alt="Modern Beach Villa">
-      </div>
-      <div class="slide">
-        <img src="https://images.unsplash.com/photo-1566073771259-6a8506099945?w=1920&h=1080&fit=crop" alt="Coastal Apartment">
-      </div>
-      <div class="slide">
-        <img src="https://images.unsplash.com/photo-1582268611958-ebfd161ef9cf?w=1920&h=1080&fit=crop" alt="Happy Clients at Beach">
-      </div>
-      <div class="slide">
-        <img src="https://images.unsplash.com/photo-1559827260-dc66d52bef19?w=1920&h=1080&fit=crop" alt="Beachfront Property">
-      </div>
+    <div class="hero-slideshow" id="hero-slideshow" aria-live="polite">
+      <div class="hero-image-skeleton" aria-label="Loading property photos"></div>
     </div>
     <div class="hero-overlay"></div>
     <div class="hero-content">
@@ -79,13 +65,7 @@
       </div>
     </div>
     <!-- Slideshow indicators -->
-    <div class="slideshow-indicators">
-      <span class="indicator active" onclick="currentSlide(1)"></span>
-      <span class="indicator" onclick="currentSlide(2)"></span>
-      <span class="indicator" onclick="currentSlide(3)"></span>
-      <span class="indicator" onclick="currentSlide(4)"></span>
-      <span class="indicator" onclick="currentSlide(5)"></span>
-    </div>
+    <div class="slideshow-indicators" aria-label="Property photo slides"></div>
   </section>
 
   <!-- Featured Stay Section -->
@@ -97,42 +77,26 @@
       </div>
       <div class="featured-card">
         <div class="featured-image">
-          <img id="featured-property-image" src="https://images.unsplash.com/photo-1571624436279-b272aff752b5?w=600&h=400&fit=crop" alt="Luxury Maisonette" />
+          <div id="featured-property-image-skeleton" class="property-image-skeleton" aria-hidden="true"></div>
+          <img id="featured-property-image" src="" alt="Luxury Maisonette" style="display:none" />
           <div class="featured-badge">Featured</div>
           <button id="featured-gallery-btn" class="gallery-btn" onclick="openGalleryModal('Luxury Maisonette')" title="View Gallery">
             <i class="fas fa-images"></i> View Gallery
           </button>
         </div>
         <div class="featured-content">
-          <h3 id="featured-property-name">Luxury Maisonette</h3>
-          <p id="featured-property-description" class="featured-description">
-            Elegant duplex maisonette with private garden, premium amenities, and stunning coastal views. 
-            Perfect for families or groups seeking the ultimate coastal experience.
-          </p>
-          <div id="featured-property-features" class="featured-features">
-            <div class="feature">
-              <i class="fas fa-bed"></i>
-              <span>4 Bedrooms</span>
-            </div>
-            <div class="feature">
-              <i class="fas fa-bath"></i>
-              <span>3 Bathrooms</span>
-            </div>
-            <div class="feature">
-              <i class="fas fa-leaf"></i>
-              <span>Private Garden</span>
-            </div>
-            <div class="feature">
-              <i class="fas fa-wifi"></i>
-              <span>Free WiFi</span>
-            </div>
+          <h3 id="featured-property-name">Loading featured stay…</h3>
+          <p id="featured-property-description" class="featured-description">Loading property details…</p>
+          <div id="featured-property-features" class="featured-features" aria-hidden="true">
+            <div class="property-skeleton-lines"><span></span><span></span></div>
+            <div class="property-skeleton-lines"><span></span><span></span></div>
           </div>
           <div class="card-price-actions">
             <div class="price-tag">
-              <span id="featured-property-price" class="price-amount">KSh 15,000</span>
+                <span id="featured-property-price" class="price-amount">Loading…</span>
               <span class="price-period">/night</span>
             </div>
-            <button id="featured-book-btn" class="btn btn-primary" onclick="openBookingModal('Luxury Maisonette')">
+            <button id="featured-book-btn" class="btn btn-disabled" disabled>
               <i class="fas fa-calendar-check"></i> Book Now
             </button>
           </div>
@@ -243,200 +207,13 @@
         </fieldset>
         <button type="reset" class="btn btn-outline property-filter-clear">Clear</button>
       </form>
-      <div id="accommodations-grid" class="accommodations-grid">
-        <div class="accommodation-card">
-          <div class="card-image">
-            <img src="https://images.unsplash.com/photo-1568605114967-8130f3a36994?w=400&h=300&fit=crop" alt="Studio Apartment" />
-            <div class="card-badge">Popular</div>
-            <button class="gallery-btn" onclick="openGalleryModal('Studio Apartment')" title="View Gallery">
-              <i class="fas fa-images"></i>
-            </button>
-          </div>
-          <div class="card-content">
-            <h3>Studio Apartment</h3>
-            <p>Cozy and modern studio perfect for singles or couples. Includes open plan living, kitchenette, WiFi, and Smart TV.</p>
-            <div class="card-features">
-              <div class="feature">
-                <i class="fas fa-user"></i>
-                <span>1-2 Guests</span>
-              </div>
-              <div class="feature">
-                <i class="fas fa-wifi"></i>
-                <span>Free WiFi</span>
-              </div>
-            </div>
-            <div class="card-price-actions">
-              <div class="price-tag">
-                <span class="price-amount">KSh 3,500</span>
-                <span class="price-period">/night</span>
-              </div>
-              <button class="btn btn-primary" onclick="openBookingModal('Studio Apartment')">
-                <i class="fas fa-calendar-check"></i> Book Now
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <div class="accommodation-card">
-          <div class="card-image">
-            <img src="https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?w=400&h=300&fit=crop" alt="One Bedroom" />
-            <button class="gallery-btn" onclick="openGalleryModal('One Bedroom Apartment')" title="View Gallery">
-              <i class="fas fa-images"></i>
-            </button>
-          </div>
-          <div class="card-content">
-            <h3>One Bedroom Apartment</h3>
-            <p>Comfortable one-bedroom apartment with separate living area, full kitchen, and dedicated workspace.</p>
-            <div class="card-features">
-              <div class="feature">
-                <i class="fas fa-users"></i>
-                <span>2-3 Guests</span>
-              </div>
-              <div class="feature">
-                <i class="fas fa-utensils"></i>
-                <span>Full Kitchen</span>
-              </div>
-            </div>
-            <div class="card-price-actions">
-              <div class="price-tag">
-                <span class="price-amount">KSh 4,500</span>
-                <span class="price-period">/night</span>
-              </div>
-              <button class="btn btn-primary" onclick="openBookingModal('One Bedroom Apartment')">
-                <i class="fas fa-calendar-check"></i> Book Now
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <div class="accommodation-card">
-          <div class="card-image">
-            <img src="https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?w=400&h=300&fit=crop" alt="Two Bedroom" />
-            <button class="gallery-btn" onclick="openGalleryModal('Two Bedroom Apartment')" title="View Gallery">
-              <i class="fas fa-images"></i>
-            </button>
-          </div>
-          <div class="card-content">
-            <h3>Two Bedroom Apartment</h3>
-            <p>Spacious two-bedroom, ideal for families or friends. Includes full kitchen, living room, and two bathrooms.</p>
-            <div class="card-features">
-              <div class="feature">
-                <i class="fas fa-users"></i>
-                <span>4-5 Guests</span>
-              </div>
-              <div class="feature">
-                <i class="fas fa-bath"></i>
-                <span>2 Bathrooms</span>
-              </div>
-            </div>
-            <div class="card-price-actions">
-              <div class="price-tag">
-                <span class="price-amount">KSh 6,000</span>
-                <span class="price-period">/night</span>
-              </div>
-              <button class="btn btn-primary" onclick="openBookingModal('Two Bedroom Apartment')">
-                <i class="fas fa-calendar-check"></i> Book Now
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <div class="accommodation-card">
-          <div class="card-image">
-            <img src="https://images.unsplash.com/photo-1586023492125-27b2c045efd7?w=400&h=300&fit=crop" alt="Three Bedroom" />
-            <button class="gallery-btn" onclick="openGalleryModal('Three Bedroom Apartment')" title="View Gallery">
-              <i class="fas fa-images"></i>
-            </button>
-          </div>
-          <div class="card-content">
-            <h3>Three Bedroom Apartment</h3>
-            <p>Large three-bedroom apartment for families or groups. Full kitchen, dining area, and spacious balcony.</p>
-            <div class="card-features">
-              <div class="feature">
-                <i class="fas fa-users"></i>
-                <span>6-7 Guests</span>
-              </div>
-              <div class="feature">
-                <i class="fas fa-balcony"></i>
-                <span>Balcony</span>
-              </div>
-            </div>
-            <div class="card-price-actions">
-              <div class="price-tag">
-                <span class="price-amount">KSh 8,000</span>
-                <span class="price-period">/night</span>
-              </div>
-              <button class="btn btn-primary" onclick="openBookingModal('Three Bedroom Apartment')">
-                <i class="fas fa-calendar-check"></i> Book Now
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <div class="accommodation-card">
-          <div class="card-image">
-            <img src="https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?w=400&h=300&fit=crop" alt="Four Bedroom" />
-            <button class="gallery-btn" onclick="openGalleryModal('Four Bedroom Apartment')" title="View Gallery">
-              <i class="fas fa-images"></i>
-            </button>
-          </div>
-          <div class="card-content">
-            <h3>Four Bedroom Apartment</h3>
-            <p>Luxurious four-bedroom for large families or groups. Multiple balconies, 3 bathrooms, premium furnishing.</p>
-            <div class="card-features">
-              <div class="feature">
-                <i class="fas fa-users"></i>
-                <span>8+ Guests</span>
-              </div>
-              <div class="feature">
-                <i class="fas fa-crown"></i>
-                <span>Premium</span>
-              </div>
-            </div>
-            <div class="card-price-actions">
-              <div class="price-tag">
-                <span class="price-amount">KSh 10,000</span>
-                <span class="price-period">/night</span>
-              </div>
-              <button class="btn btn-primary" onclick="openBookingModal('Four Bedroom Apartment')">
-                <i class="fas fa-calendar-check"></i> Book Now
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <div class="accommodation-card featured">
-          <div class="card-image">
-            <img src="https://images.unsplash.com/photo-1571624436279-b272aff752b5?w=400&h=300&fit=crop" alt="Maisonette" />
-            <div class="card-badge">Premium</div>
-            <button class="gallery-btn" onclick="openGalleryModal('Luxury Maisonette')" title="View Gallery">
-              <i class="fas fa-images"></i>
-            </button>
-          </div>
-          <div class="card-content">
-            <h3>Luxury Maisonette</h3>
-            <p>Elegant duplex maisonette with private garden and top amenities. Perfect for a premium coastal experience.</p>
-            <div class="card-features">
-              <div class="feature">
-                <i class="fas fa-home"></i>
-                <span>Duplex</span>
-              </div>
-              <div class="feature">
-                <i class="fas fa-leaf"></i>
-                <span>Garden</span>
-              </div>
-            </div>
-            <div class="card-price-actions">
-              <div class="price-tag">
-                <span class="price-amount">KSh 15,000</span>
-                <span class="price-period">/night</span>
-              </div>
-              <button class="btn btn-primary" onclick="openBookingModal('Luxury Maisonette')">
-                <i class="fas fa-calendar-check"></i> Book Now
-              </button>
-            </div>
-          </div>
-        </div>
+      <div id="accommodations-grid" class="accommodations-grid is-loading" aria-live="polite">
+        <div class="property-skeleton-card" aria-hidden="true"><div class="property-image-skeleton"></div><div class="property-skeleton-lines"><span></span><span></span><span></span></div></div>
+        <div class="property-skeleton-card" aria-hidden="true"><div class="property-image-skeleton"></div><div class="property-skeleton-lines"><span></span><span></span><span></span></div></div>
+        <div class="property-skeleton-card" aria-hidden="true"><div class="property-image-skeleton"></div><div class="property-skeleton-lines"><span></span><span></span><span></span></div></div>
+        <div class="property-skeleton-card" aria-hidden="true"><div class="property-image-skeleton"></div><div class="property-skeleton-lines"><span></span><span></span><span></span></div></div>
+        <div class="property-skeleton-card" aria-hidden="true"><div class="property-image-skeleton"></div><div class="property-skeleton-lines"><span></span><span></span><span></span></div></div>
+        <div class="property-skeleton-card" aria-hidden="true"><div class="property-image-skeleton"></div><div class="property-skeleton-lines"><span></span><span></span><span></span></div></div>
       </div>
     </div>
   </section>
@@ -448,8 +225,10 @@
         <h2>What Our Guests Say</h2>
         <p>Real experiences from our valued customers</p>
       </div>
-      <div class="testimonials-grid" id="testimonials-grid">
-        <!-- Testimonials will be loaded here -->
+      <div class="testimonials-grid" id="testimonials-grid" aria-live="polite">
+        <div class="review-skeleton-card" aria-hidden="true"><span></span><span></span><span></span></div>
+        <div class="review-skeleton-card" aria-hidden="true"><span></span><span></span><span></span></div>
+        <div class="review-skeleton-card" aria-hidden="true"><span></span><span></span><span></span></div>
       </div>
       <div class="reviews-section">
         <div class="reviews-header">
@@ -793,9 +572,8 @@
   <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
   <script src="https://cdn.emailjs.com/dist/email.min.js"></script>
   
-  <!-- Properties Data -->
-  <script src="properties-data.js?v=3"></script>
-  <script src="script.js?v=3"></script>
-  <script src="booking-calendar.js?v=3"></script>
+  <!-- Public properties are loaded directly from Firestore by script.js -->
+  <script src="script.js?v=6"></script>
+  <script src="booking-calendar.js?v=4"></script>
 </body>
 </html>
