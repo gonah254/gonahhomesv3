@@ -1,0 +1,131 @@
+/* Shared visual language for the informational pages. */
+html,
+body {
+  background: #f8f9fa !important;
+  color: #2c3e50 !important;
+  font-family: 'Poppins', 'Segoe UI', sans-serif !important;
+  overflow-x: hidden;
+}
+
+.page-header {
+  background: rgba(255, 255, 255, 0.97) !important;
+  color: #2c3e50 !important;
+  border-bottom: 1px solid #dee2e6 !important;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+}
+
+.page-header .brand,
+.back-btn,
+a.back-link,
+.meta,
+.tagline,
+.hero-strip h1,
+.policy-card h2,
+.rec-card h2,
+.rec-item-name {
+  color: #800000 !important;
+}
+
+.back-btn {
+  background: rgba(128, 0, 0, 0.08) !important;
+}
+
+.back-btn:hover,
+a.back-link:hover {
+  color: #a00000 !important;
+  background: rgba(128, 0, 0, 0.14) !important;
+}
+
+.hero-strip {
+  background: linear-gradient(180deg, #fff 0%, #f8f9fa 100%);
+}
+
+.hero-strip p,
+.rec-card h2 small,
+.policy-card h2 small,
+.footer-note,
+.distance-badge {
+  color: #6c757d !important;
+}
+
+.content-wrap,
+.container {
+  max-width: 1100px !important;
+}
+
+.glassy-section,
+.policy-card,
+.rec-card {
+  background: #fff !important;
+  color: #2c3e50 !important;
+  border: 1px solid #dee2e6 !important;
+  border-left: 4px solid #800000 !important;
+  box-shadow: 0 8px 24px rgba(44, 62, 80, 0.08) !important;
+  backdrop-filter: none !important;
+}
+
+.glassy-section h1,
+.glassy-section h2,
+.glassy-section h3 {
+  color: #800000 !important;
+}
+
+.glassy-section p,
+.glassy-section li,
+.policy-list li,
+.rec-item p {
+  color: #495057 !important;
+}
+
+.glassy-section h2,
+.policy-card h2 {
+  border-bottom-color: rgba(128, 0, 0, 0.16) !important;
+}
+
+.hero-text {
+  color: #495057 !important;
+  border-left-color: #ffd600 !important;
+}
+
+.highlight-box,
+.tip-box {
+  background: rgba(255, 214, 0, 0.1) !important;
+  color: #495057 !important;
+  border-left-color: #ffd600 !important;
+}
+
+.highlight-box strong,
+.tip-box strong {
+  color: #800000 !important;
+}
+
+.policy-icon,
+.rec-icon {
+  background: linear-gradient(135deg, #800000, #a00000) !important;
+  color: #ffd600 !important;
+}
+
+.rec-item {
+  background: #f8f9fa !important;
+  border-color: #e5e7eb !important;
+}
+
+.rec-item .badge {
+  background: rgba(128, 0, 0, 0.09) !important;
+  color: #800000 !important;
+}
+
+.footer-note a {
+  color: #800000 !important;
+}
+
+@media (max-width: 700px) {
+  .page-header {
+    padding: 0.85rem 1rem !important;
+  }
+
+  .content-wrap,
+  .container {
+    max-width: 100% !important;
+  }
+}
