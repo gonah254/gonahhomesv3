@@ -4,8 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Gonah Homes - Management Dashboard</title>
-    <link rel="icon" href="favicon.svg" type="image/svg+xml">
-    <link rel="stylesheet" href="dashboard.css?v=3">
+    <link rel="icon" href="../favicon.svg" type="image/svg+xml">
+    <link rel="stylesheet" href="dashboard.css?v=4">
     <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, max-age=0">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
@@ -221,12 +221,6 @@
                         <div class="messages-list" id="messages-list">
                             <!-- Messages will be populated here -->
                         </div>
-                        <div class="message-detail" id="message-detail">
-                            <div class="message-placeholder">
-                                <i class="fas fa-envelope"></i>
-                                <p>Select a message to view details</p>
-                            </div>
-                        </div>
                     </div>
                 </section>
 
@@ -239,12 +233,6 @@
                     <div class="messages-container">
                         <div class="messages-list" id="service-requests-list">
                             <!-- Service requests will be populated here -->
-                        </div>
-                        <div class="message-detail" id="service-request-detail">
-                            <div class="message-placeholder">
-                                <i class="fas fa-concierge-bell"></i>
-                                <p>Select a request to view details</p>
-                            </div>
                         </div>
                     </div>
                 </section>
@@ -403,6 +391,21 @@
 
             </div>
         </main>
+    </div>
+
+    <!-- Focused record details -->
+    <div id="record-detail-modal" class="modal">
+        <div class="record-detail-content">
+            <div class="record-detail-header">
+                <div>
+                    <small id="record-detail-kicker">Record details</small>
+                    <h3 id="record-detail-title">Details</h3>
+                </div>
+                <button type="button" class="close-btn" onclick="closeRecordDetail()" aria-label="Close details">&times;</button>
+            </div>
+            <div id="record-detail-body" class="record-detail-body"></div>
+            <div id="record-detail-actions" class="record-detail-actions"></div>
+        </div>
     </div>
 
     <!-- Staff Creation Modal -->
@@ -644,7 +647,6 @@
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.emailjs.com/dist/email.min.js"></script>
-    <script src="properties-data.js?v=4"></script>
-    <script src="dashboard.js?v=3"></script>
+<script src="dashboard.js?v=4"></script>
 </body>
 </html>
