@@ -6,7 +6,7 @@
     <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, max-age=0">
     <title>My Account - Gonah Homes</title>
     <link rel="icon" href="favicon.svg" type="image/svg+xml">
-    <link rel="stylesheet" href="styles.css?v=3">
+    <link rel="stylesheet" href="styles.css?v=4">
     <link rel="stylesheet" href="customer-dashboard.css?v=3">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
@@ -250,6 +250,7 @@
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
+    <script src="https://cdn.emailjs.com/dist/email.min.js"></script>
     <script src="avatar.js"></script>
 
     <!-- PDF Generation -->
@@ -269,6 +270,11 @@
         const db = firebase.firestore();
         const auth = firebase.auth();
         const storage = firebase.storage();
+        const EMAILJS_SERVICE_ID = 'service_ky2kj3t';
+        const EMAILJS_PUBLIC_KEY = 'VgDakmh3WscKrr_wQ';
+        const EMAILJS_ADMIN_TEMPLATE = 'template_24gjzd3';
+        const SUPPORT_EMAIL = 'support@gonahhomes.com';
+        emailjs.init(EMAILJS_PUBLIC_KEY);
         const GUEST_SESSION_KEY = 'booking_code_user';
         let currentGuestUser = null;
 
@@ -920,14 +926,17 @@
                     progressBar.style.width = '40%'; progressPct.textContent = '40%';
                     base64Data = await _readAsBase64(file);
                 } else {
-                    // Compress image to max 800px, quality 0.72 — typically 40-120 KB
+                    // Keep the inline Firestore payload safely below the
+                    // 1 MiB document limit.
                     progressBar.style.width = '40%'; progressPct.textContent = '40%';
-                    base64Data = await _compressImage(file, 800, 0.72);
+                    base64Data = await _compressImage(file, 700, 0.62);
+                    if (base64Data.length > 800000) {
+                        throw new Error('Image is still too large after compression. Please choose a smaller image.');
+                    }
                 }
 
                 progressBar.style.width = '75%'; progressPct.textContent = '75%';
                 progressLbl.textContent = 'Saving...';
-
                 const documentRecord = {
                     name: file.name,
                     type: file.type || (isPdf ? 'application/pdf' : 'image/jpeg'),
@@ -994,6 +1003,16 @@
                     status: 'pending',
                     timestamp: firebase.firestore.FieldValue.serverTimestamp()
                 });
+                emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_ADMIN_TEMPLATE, {
+                    to_name: 'Gonah Homes',
+                    to_email: SUPPORT_EMAIL,
+                    from_name: user.name || user.email,
+                    from_email: user.email,
+                    house: 'Guest Service Request',
+                    requests: details,
+                    message: `New ${type} request from ${user.email}: ${details}`,
+                    subject: `New Service Request: ${type}`
+                }).catch(error => console.error('Service request notification failed:', error));
                 alert('Request submitted successfully!');
                 e.target.reset();
             } catch (err) { alert('Error: ' + err.message); }
@@ -1006,3 +1025,4 @@
     </script>
 </body>
 </html>
+ 
