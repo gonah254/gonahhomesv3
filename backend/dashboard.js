@@ -35,8 +35,14 @@ const EMAIL_ADDRESSES = {
   support: 'support@gonahhomes.com'
 };
 
-// Primary admin email — fallback when staff_accounts doc is missing
-const ADMIN_EMAIL = EMAIL_ADDRESSES.admin;
+// This is the Firebase Auth account that owns staff management. It is
+// intentionally separate from admin@gonahhomes.com, which is only an
+// email-routing alias for notifications.
+const ADMIN_EMAIL = 'gonahhomes0@gmail.com';
+
+function isPrimaryAdminEmail(email) {
+  return email?.trim().toLowerCase() === ADMIN_EMAIL;
+}
 
 // Global variables
 let currentSection = 'overview';
@@ -54,6 +60,8 @@ let realtimeListenerReady = {
 let realtimeUnsubscribers = [];
 let realtimeSessionStartedAt = 0;
 const adminDocumentCache = new Map();
+const adminBookingCache = new Map();
+let activeRecordDetail = null;
 
 // ---- Admin Authentication (Firebase Auth) ----
 async function login(email, password) {
@@ -69,13 +77,13 @@ async function login(email, password) {
       const staffDoc = await db.collection('staff_accounts').doc(result.user.uid).get();
       if (staffDoc.exists) {
         role = staffDoc.data().role || 'admin';
-      } else if (result.user.email !== ADMIN_EMAIL) {
+      } else if (!isPrimaryAdminEmail(result.user.email)) {
         await firebase.auth().signOut();
         showToast('Access denied — contact the administrator.', 'error');
         return false;
       }
     } catch (_) {
-      if (result.user.email !== ADMIN_EMAIL) {
+      if (!isPrimaryAdminEmail(result.user.email)) {
         await firebase.auth().signOut();
         showToast('Access denied.', 'error');
         return false;
@@ -109,7 +117,7 @@ function checkLoginStatus() {
     if (user) {
       try {
         const staffDoc = await db.collection('staff_accounts').doc(user.uid).get();
-        if (!staffDoc.exists && user.email !== ADMIN_EMAIL) {
+        if (!staffDoc.exists && !isPrimaryAdminEmail(user.email)) {
           firebase.auth().signOut();
           return;
         }
@@ -156,7 +164,7 @@ function exportBookingsToCSV() {
 
 // Initialize Dashboard
 function applyRoleRestrictions() {
-  const isPrimaryAdmin = firebase.auth().currentUser?.email === ADMIN_EMAIL;
+  const isPrimaryAdmin = isPrimaryAdminEmail(firebase.auth().currentUser?.email);
   const staffLink = document.querySelector('[data-section="staff"]');
   if (staffLink) staffLink.style.display = isPrimaryAdmin ? '' : 'none';
 }
@@ -229,7 +237,6 @@ function setupRealTimeListeners() {
       if (!isInitialSnapshot && change.type === 'added') {
         const message = change.doc.data();
         addNotification('message', `New message from ${message.name || 'guest'}: ${(message.message || '').substring(0, 50)}...`, message);
-        sendEmailNotification('message', message);
       }
     });
     loadMessages();
@@ -244,7 +251,6 @@ function setupRealTimeListeners() {
       if (!isInitialSnapshot && change.type === 'added') {
         const review = change.doc.data();
         addNotification('review', `New ${review.rating || 5}-star review: ${(review.review || '').substring(0, 50)}...`, review);
-        sendEmailNotification('review', review);
       }
     });
     loadReviews();
@@ -411,6 +417,7 @@ async function loadBookings() {
     snapshot.docs.sort((a, b) => (b.data().timestamp?.seconds || 0) - (a.data().timestamp?.seconds || 0)).forEach(doc => {
       const booking = doc.data();
       const bookingId = booking.id || doc.id.substring(0, 8);
+      adminBookingCache.set(doc.id, booking);
       const row = document.createElement('tr');
       row.innerHTML = `
         <td style="font-family:monospace;font-size:0.82rem;">${bookingId}</td>
@@ -429,6 +436,7 @@ async function loadBookings() {
         </td>
         <td><button class="btn btn-sm btn-outline" onclick="viewUserDocs('${bookingId}')"><i class="fas fa-id-card"></i> View IDs</button></td>
         <td style="white-space:nowrap;display:flex;flex-direction:column;gap:0.3rem;padding:0.5rem;">
+          <button class="btn btn-outline btn-sm" onclick="openBookingDetails('${doc.id}')"><i class="fas fa-eye"></i> View</button>
           ${booking.status !== 'confirmed' && booking.status !== 'cancelled' && booking.status !== 'completed' ?
             `<button class="btn btn-success btn-sm" onclick="openPaymentModal('${doc.id}')"><i class="fas fa-check"></i> Confirm</button>` : ''}
           ${booking.status !== 'cancelled' && booking.status !== 'completed' ?
@@ -444,6 +452,76 @@ async function loadBookings() {
     const bookingsTable = document.getElementById('bookings-table');
     if (bookingsTable) bookingsTable.innerHTML = `<tr><td colspan="8" style="text-align:center; color:red;">Error: ${error.message}</td></tr>`;
   }
+}
+
+function detailText(value) {
+  return escapeDashboardHtml(value == null || value === '' ? '—' : String(value)).replace(/\n/g, '<br>');
+}
+
+function recordDate(value, fallback = 'Unknown') {
+  if (!value) return fallback;
+  try {
+    return value.toDate ? value.toDate().toLocaleString() : new Date(value).toLocaleString();
+  } catch (_) {
+    return fallback;
+  }
+}
+
+function openRecordDetail(kicker, title, body, actions, record) {
+  activeRecordDetail = record;
+  document.getElementById('record-detail-kicker').textContent = kicker;
+  document.getElementById('record-detail-title').textContent = title;
+  document.getElementById('record-detail-body').innerHTML = body;
+  document.getElementById('record-detail-actions').innerHTML = actions;
+  document.getElementById('record-detail-modal').classList.add('active');
+}
+
+function closeRecordDetail() {
+  document.getElementById('record-detail-modal')?.classList.remove('active');
+  activeRecordDetail = null;
+}
+
+function openBookingDetails(bookingDocId) {
+  const booking = adminBookingCache.get(bookingDocId);
+  if (!booking) {
+    showToast('Booking details are no longer available. Refresh the list.', 'warning');
+    return;
+  }
+  const bookingId = booking.id || bookingDocId;
+  const status = booking.status || 'pending';
+  const actions = [
+    '<button class="btn btn-outline" onclick="closeRecordDetail()">Back to bookings</button>',
+    `<button class="btn btn-outline" onclick="closeRecordDetail(); viewUserDocs('${escapeDashboardHtml(bookingId)}')"><i class="fas fa-id-card"></i> View IDs</button>`
+  ];
+  if (status !== 'confirmed' && status !== 'cancelled' && status !== 'completed') {
+    actions.push(`<button class="btn btn-success" onclick="closeRecordDetail(); openPaymentModal('${escapeDashboardHtml(bookingDocId)}')"><i class="fas fa-check"></i> Confirm Booking</button>`);
+  }
+  if (status !== 'cancelled' && status !== 'completed') {
+    actions.push(`<button class="btn btn-danger" onclick="closeRecordDetail(); openCancellationModal('${escapeDashboardHtml(bookingDocId)}')"><i class="fas fa-times"></i> Cancel Booking</button>`);
+  }
+  if (status === 'confirmed') {
+    actions.push(`<button class="btn btn-primary" onclick="closeRecordDetail(); updateBookingStatus('${escapeDashboardHtml(bookingDocId)}', 'completed')"><i class="fas fa-flag-checkered"></i> Mark Completed</button>`);
+  }
+  openRecordDetail(
+    'Booking details',
+    bookingId,
+    `<div class="detail-grid">
+      <div class="detail-field"><label>Guest</label><p>${detailText(booking.name)}</p></div>
+      <div class="detail-field"><label>Status</label><p><span class="status status-${escapeDashboardHtml(status)}">${escapeDashboardHtml(status.toUpperCase())}</span></p></div>
+      <div class="detail-field"><label>Email</label><p>${booking.email ? `<a href="mailto:${escapeDashboardHtml(booking.email)}">${detailText(booking.email)}</a>` : '—'}</p></div>
+      <div class="detail-field"><label>Phone</label><p>${detailText(booking.phone)}</p></div>
+      <div class="detail-field"><label>Property</label><p>${detailText(booking.house)}</p></div>
+      <div class="detail-field"><label>Guests</label><p>${detailText(booking.guests)}</p></div>
+      <div class="detail-field"><label>Check-in</label><p>${detailText(booking.checkin)}</p></div>
+      <div class="detail-field"><label>Check-out</label><p>${detailText(booking.checkout)}</p></div>
+      <div class="detail-field"><label>Created</label><p>${detailText(recordDate(booking.timestamp))}</p></div>
+      <div class="detail-field"><label>Booking ID</label><p>${detailText(bookingId)}</p></div>
+      ${booking.paymentMethod ? `<div class="detail-field"><label>Payment</label><p>${detailText(booking.paymentMethod)}${booking.transactionRef ? ` · ${detailText(booking.transactionRef)}` : ''}</p></div>` : ''}
+      ${booking.cancellationReason ? `<div class="detail-field full-width"><label>Cancellation reason</label><p>${detailText(booking.cancellationReason)}</p></div>` : ''}
+    </div>`,
+    actions.join(''),
+    { type: 'booking', id: bookingDocId, record: booking }
+  );
 }
 
 async function viewUserDocs(userId) {
@@ -607,6 +685,11 @@ async function loadMessages() {
     const messagesList = document.getElementById('messages-list');
     messagesList.innerHTML = '';
 
+    if (snapshot.empty) {
+      messagesList.innerHTML = '<div class="empty-state"><i class="fas fa-envelope-open"></i><p>No messages yet.</p></div>';
+      return;
+    }
+
     snapshot.forEach(doc => {
       const message = doc.data();
       const messageItem = document.createElement('div');
@@ -615,11 +698,11 @@ async function loadMessages() {
       
       messageItem.innerHTML = `
         <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
-          <strong>${message.name}</strong>
+          <strong>${detailText(message.name)}</strong>
           <span class="status status-${message.status || 'new'}">${(message.status || 'new').toUpperCase()}</span>
         </div>
-        <div style="color: var(--text-light); font-size: 0.9rem; margin-bottom: 0.5rem;">${message.email}</div>
-        <div style="color: var(--text-color); font-size: 0.9rem;">${message.message.substring(0, 100)}...</div>
+        <div style="color: var(--text-light); font-size: 0.9rem; margin-bottom: 0.5rem;">${detailText(message.email)}</div>
+        <div style="color: var(--text-color); font-size: 0.9rem;">${detailText((message.message || '').substring(0, 100))}${(message.message || '').length > 100 ? '…' : ''}</div>
       `;
       
       messagesList.appendChild(messageItem);
@@ -665,36 +748,40 @@ async function loadServiceRequests() {
 
 // Show service request detail
 function showServiceRequestDetail(requestId, req) {
-  const detail = document.getElementById('service-request-detail');
-  const date = req.timestamp ? new Date(req.timestamp.toDate()).toLocaleString() : 'N/A';
-  detail.innerHTML = `
-    <div style="padding: 1.5rem;">
-      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-        <h3>${req.type || 'Service Request'}</h3>
-        <span class="status status-${req.status || 'pending'}">${(req.status || 'pending').toUpperCase()}</span>
-      </div>
-      <div style="margin-bottom: 1rem;"><strong>From:</strong> ${req.userEmail || req.userId || 'Guest'}</div>
-      <div style="margin-bottom: 1rem;"><strong>Date:</strong> ${date}</div>
-      <div style="background: #f9f9f9; padding: 1rem; border-radius: 8px; margin-bottom: 1rem;">
-        <strong>Details:</strong><br>${req.details || 'No details provided.'}
-      </div>
-      <div style="display: flex; gap: 0.5rem;">
-        <button class="btn btn-sm" onclick="updateServiceRequestStatus('${requestId}', 'completed')" style="background:#2e7d32;color:#fff;border:none;border-radius:6px;padding:0.4rem 1rem;cursor:pointer;">
-          <i class="fas fa-check"></i> Mark Completed
-        </button>
-        <button class="btn btn-sm" onclick="updateServiceRequestStatus('${requestId}', 'cancelled')" style="background:#c62828;color:#fff;border:none;border-radius:6px;padding:0.4rem 1rem;cursor:pointer;">
-          <i class="fas fa-times"></i> Cancel
-        </button>
-      </div>
-    </div>
-  `;
+  const status = req.status || 'pending';
+  const actions = [
+    '<button class="btn btn-outline" onclick="closeRecordDetail()">Back to requests</button>',
+    `<button class="btn btn-danger" onclick="deleteServiceRequest('${escapeDashboardHtml(requestId)}')"><i class="fas fa-trash"></i> Delete</button>`
+  ];
+  if (status !== 'completed') {
+    actions.unshift(`<button class="btn btn-success" onclick="updateServiceRequestStatus('${escapeDashboardHtml(requestId)}', 'completed')"><i class="fas fa-check"></i> Mark Completed</button>`);
+  }
+  if (status !== 'cancelled' && status !== 'completed') {
+    actions.unshift(`<button class="btn btn-danger" onclick="updateServiceRequestStatus('${escapeDashboardHtml(requestId)}', 'cancelled')"><i class="fas fa-times"></i> Cancel</button>`);
+  }
+  openRecordDetail(
+    'Guest service request',
+    req.type || 'Service Request',
+    `<div class="detail-grid">
+      <div class="detail-field"><label>From</label><p>${detailText(req.userEmail || req.userId || 'Guest')}</p></div>
+      <div class="detail-field"><label>Status</label><p><span class="status status-${escapeDashboardHtml(status)}">${escapeDashboardHtml(status.toUpperCase())}</span></p></div>
+      <div class="detail-field"><label>Received</label><p>${detailText(recordDate(req.timestamp))}</p></div>
+      <div class="detail-field"><label>Request type</label><p>${detailText(req.type || 'General')}</p></div>
+      <div class="detail-field full-width"><label>Details</label><div class="detail-message">${detailText(req.details || 'No details provided.')}</div></div>
+    </div>`,
+    actions.join(''),
+    { type: 'service', id: requestId, record: req }
+  );
 }
 
 // Update service request status
 async function updateServiceRequestStatus(requestId, status) {
   try {
     await db.collection('service_requests').doc(requestId).update({ status, updatedAt: firebase.firestore.FieldValue.serverTimestamp() });
-    loadServiceRequests();
+    closeRecordDetail();
+    await loadServiceRequests();
+    updateStats();
+    showToast(`Request marked ${status}.`, 'success');
   } catch (err) {
     showToast('Error: ' + err.message, 'error');
   }
@@ -702,32 +789,63 @@ async function updateServiceRequestStatus(requestId, status) {
 
 // Show message detail
 function showMessageDetail(messageId, message) {
-  const messageDetail = document.getElementById('message-detail');
-  messageDetail.innerHTML = `
-    <div style="padding: 1.5rem;">
-      <div style="display: flex; justify-content: between; align-items: center; margin-bottom: 1rem;">
-        <h3>${message.name}</h3>
-        <span class="status status-${message.status || 'new'}">${(message.status || 'new').toUpperCase()}</span>
-      </div>
-      <p><strong>Email:</strong> ${message.email}</p>
-      <p><strong>Received:</strong> ${message.timestamp ? new Date(message.timestamp.toDate()).toLocaleString() : 'Unknown'}</p>
-      <hr style="margin: 1rem 0;">
-      <div style="margin-bottom: 1.5rem;">
-        <h4>Message:</h4>
-        <p>${message.message}</p>
-      </div>
-      <div>
-        <h4>Reply:</h4>
-        <textarea id="reply-text-${messageId}" rows="4" style="width: 100%; margin-bottom: 1rem; padding: 0.5rem; border: 1px solid var(--border-color); border-radius: var(--border-radius);"></textarea>
-        <button class="btn btn-primary" onclick="replyToMessage('${messageId}', '${message.email}', '${message.name}')">Send Reply</button>
-        <button class="btn btn-outline" onclick="markMessageAsRead('${messageId}')">Mark as Read</button>
-      </div>
-    </div>
-  `;
-  
-  // Mark message items as active
-  document.querySelectorAll('.message-item').forEach(item => item.classList.remove('active'));
-  event.target.closest('.message-item').classList.add('active');
+  const status = message.status || 'new';
+  const actions = [
+    '<button class="btn btn-outline" onclick="closeRecordDetail()">Back to messages</button>',
+    `<button class="btn btn-danger" onclick="deleteMessage('${escapeDashboardHtml(messageId)}')"><i class="fas fa-trash"></i> Delete</button>`
+  ];
+  if (status === 'new') {
+    actions.unshift(`<button class="btn btn-outline" onclick="markMessageAsRead('${escapeDashboardHtml(messageId)}')"><i class="fas fa-check"></i> Mark as Read</button>`);
+  }
+  actions.unshift('<button class="btn btn-primary" onclick="replyToActiveMessage()"><i class="fas fa-reply"></i> Send Reply</button>');
+  openRecordDetail(
+    'Guest message',
+    message.name || 'Message',
+    `<div class="detail-grid">
+      <div class="detail-field"><label>From</label><p>${detailText(message.name)}</p></div>
+      <div class="detail-field"><label>Status</label><p><span class="status status-${escapeDashboardHtml(status)}">${escapeDashboardHtml(status.toUpperCase())}</span></p></div>
+      <div class="detail-field"><label>Email</label><p>${message.email ? `<a href="mailto:${escapeDashboardHtml(message.email)}">${detailText(message.email)}</a>` : '—'}</p></div>
+      <div class="detail-field"><label>Received</label><p>${detailText(recordDate(message.timestamp))}</p></div>
+      <div class="detail-field full-width"><label>Message</label><div class="detail-message">${detailText(message.message)}</div></div>
+      <div class="detail-field full-width"><label>Reply</label><textarea id="reply-text-${escapeDashboardHtml(messageId)}" class="detail-reply" placeholder="Write a reply to this guest..."></textarea></div>
+    </div>`,
+    actions.join(''),
+    { type: 'message', id: messageId, record: message }
+  );
+}
+
+function replyToActiveMessage() {
+  if (!activeRecordDetail || activeRecordDetail.type !== 'message') return;
+  const message = activeRecordDetail.record;
+  replyToMessage(activeRecordDetail.id, message.email, message.name);
+}
+
+async function deleteMessage(messageId) {
+  if (!confirm('Delete this message permanently? This cannot be undone.')) return;
+  try {
+    await db.collection('messages').doc(messageId).delete();
+    closeRecordDetail();
+    await loadMessages();
+    updateStats();
+    showToast('Message deleted.', 'success');
+  } catch (error) {
+    console.error('Error deleting message:', error);
+    showToast('Error deleting message: ' + error.message, 'error');
+  }
+}
+
+async function deleteServiceRequest(requestId) {
+  if (!confirm('Delete this service request permanently? This cannot be undone.')) return;
+  try {
+    await db.collection('service_requests').doc(requestId).delete();
+    closeRecordDetail();
+    await loadServiceRequests();
+    updateStats();
+    showToast('Service request deleted.', 'success');
+  } catch (error) {
+    console.error('Error deleting service request:', error);
+    showToast('Error deleting service request: ' + error.message, 'error');
+  }
 }
 
 // Reply to message
@@ -756,6 +874,7 @@ async function replyToMessage(messageId, clientEmail, clientName) {
     });
     
     showToast('Reply sent successfully', 'success');
+    closeRecordDetail();
     loadMessages();
   } catch (error) {
     console.error('Error sending reply:', error);
@@ -771,6 +890,7 @@ async function markMessageAsRead(messageId) {
       readAt: firebase.firestore.FieldValue.serverTimestamp()
     });
     showToast('Message marked as read', 'success');
+    closeRecordDetail();
     loadMessages();
   } catch (error) {
     console.error('Error marking message as read:', error);
@@ -796,6 +916,9 @@ async function loadReviews() {
       reviewCard.className = 'review-card';
       const stars = '★'.repeat(parseInt(review.rating) || 5).padEnd(5, '☆');
       const isApproved = review.approved === true;
+      const verificationLabel = review.verificationType === 'visitor_review' || review.verifiedBooking === false
+        ? 'Visitor review'
+        : (review.verificationType === 'verified_stay' ? 'Verified stay' : 'Verified booking');
       const guestName = review.name || review.user?.name || 'Anonymous';
       const guestEmail = review.email || review.user?.email || '';
       const safeEmail = guestEmail.replace(/'/g, '');
@@ -807,6 +930,7 @@ async function loadReviews() {
             <strong>${guestName}</strong>
             ${guestEmail ? `<div style="font-size:0.8rem;color:var(--text-light);">${guestEmail}</div>` : ''}
             <div class="review-rating" style="margin-top:0.25rem;">${stars}</div>
+            <span style="display:inline-block;margin-top:0.35rem;background:${verificationLabel === 'Visitor review' ? '#fff8e1' : '#e8f5e9'};color:${verificationLabel === 'Visitor review' ? '#e65100' : '#2e7d32'};padding:2px 8px;border-radius:12px;font-size:0.72rem;font-weight:600;">${verificationLabel}</span>
           </div>
           <div style="display:flex;flex-direction:column;align-items:flex-end;gap:0.4rem;flex-shrink:0;">
             <span style="background:${isApproved ? '#e8f5e9' : '#fce4ec'};color:${isApproved ? '#2e7d32' : '#b71c1c'};padding:2px 10px;border-radius:12px;font-size:0.75rem;font-weight:600;white-space:nowrap;">
@@ -1230,8 +1354,6 @@ function closeAnnouncementModal() {
 
 // Navigation
 // ===================== STAFF ACCOUNT MANAGEMENT =====================
-const PROPERTY_NAMES = ['Studio Apartment','One Bedroom Apartment','Two Bedroom Apartment','Three Bedroom Apartment','Four Bedroom Apartment','Luxury Maisonette'];
-
 async function loadStaff() {
   const list = document.getElementById('staff-list');
   if (!list) return;
@@ -1377,7 +1499,7 @@ function escapeDashboardHtml(value) {
 }
 
 function propertyDefaults(name) {
-  return (typeof propertiesData !== 'undefined' && propertiesData[name]) || {};
+  return {};
 }
 
 async function loadProperties() {
@@ -1386,18 +1508,17 @@ async function loadProperties() {
   container.innerHTML = '<p style="color:var(--text-light);">Loading...</p>';
 
   const properties = {};
-  PROPERTY_NAMES.forEach(name => {
-    properties[name] = { ...propertyDefaults(name), name };
-  });
   try {
     const snap = await db.collection('property_settings').get();
     snap.forEach(doc => {
       const data = doc.data() || {};
       const name = data.name || doc.id;
-      properties[doc.id] = { ...propertyDefaults(name), ...data, name, docId: doc.id };
+      properties[doc.id] = { ...data, name, docId: doc.id };
     });
   } catch (error) {
     showToast('Could not load properties: ' + error.message, 'error');
+    container.innerHTML = '<p style="color:#c62828;">Properties are temporarily unavailable. Please try again.</p>';
+    return;
   }
 
   const records = Object.values(properties);
@@ -1427,9 +1548,10 @@ async function loadProperties() {
               <p style="font-size:.78rem;color:var(--text-light);margin:0 0 .4rem;">Photos (${images.length}/${MAX_PROPERTY_IMAGES}) — first photo is the cover</p>
               ${images.length ? `<div style="display:flex;gap:.45rem;flex-wrap:wrap;">${images.map((url, index) => `
                 <div style="position:relative;">
-                  <img src="${escapeDashboardHtml(url)}" alt="Photo ${index + 1}" loading="lazy" decoding="async" style="width:88px;height:64px;object-fit:cover;border-radius:7px;border:${index === 0 ? '3px solid #800000' : '1px solid #ddd'};" onerror="this.style.opacity=.25">
+                  <div class="admin-photo-skeleton" aria-hidden="true"></div>
+                  <img src="${escapeDashboardHtml(url)}" alt="Photo ${index + 1}" loading="lazy" decoding="async" style="width:88px;height:64px;object-fit:cover;border-radius:7px;border:${index === 0 ? '3px solid #800000' : '1px solid #ddd'};opacity:0;" onload="this.style.opacity='1';this.previousElementSibling.style.display='none'" onerror="this.style.display='none'">
                   ${index === 0 ? '<span style="position:absolute;left:3px;bottom:3px;background:#800000;color:#fff;font-size:9px;padding:1px 4px;border-radius:3px;">COVER</span>' : ''}
-                </div>`).join('')}</div>` : '<p style="font-size:.82rem;color:#888;margin:0;">Using the default photo gallery.</p>'}
+            </div>`).join('')}</div>` : '<p style="font-size:.82rem;color:#888;margin:0;">No photos uploaded for this property.</p>'}
             </div>
             ${features.length ? `<p style="font-size:.82rem;margin:.75rem 0 0;"><strong>Amenities:</strong> ${escapeDashboardHtml(features.join(', '))}</p>` : ''}
             ${nearby.length ? `<p style="font-size:.82rem;margin:.3rem 0 0;"><strong>Nearby:</strong> ${escapeDashboardHtml(nearby.join(', '))}</p>` : ''}
@@ -1491,19 +1613,18 @@ function openPropertyModal(docId = '') {
 function closePropertyModal() {
   document.getElementById('property-modal')?.classList.remove('active');
 }
-
 function renderPropertyPhotoPreview(images) {
   const preview = document.getElementById('property-photo-preview');
   if (!preview) return;
   const values = Array.from(images || []).filter(Boolean).slice(0, MAX_PROPERTY_IMAGES);
   preview.innerHTML = values.map((image, index) => `
     <div style="position:relative;">
-      <img src="${escapeDashboardHtml(typeof image === 'string' ? image : '')}" alt="Photo preview ${index + 1}" loading="lazy" decoding="async" style="width:88px;height:64px;object-fit:cover;border-radius:7px;border:${index === 0 ? '3px solid #800000' : '1px solid #ddd'};" onerror="this.style.opacity=.25">
+      <div class="admin-photo-skeleton" aria-hidden="true"></div>
+      <img src="${escapeDashboardHtml(typeof image === 'string' ? image : '')}" alt="Photo preview ${index + 1}" loading="lazy" decoding="async" style="width:88px;height:64px;object-fit:cover;border-radius:7px;border:${index === 0 ? '3px solid #800000' : '1px solid #ddd'};opacity:0;" onload="this.style.opacity='1';this.previousElementSibling.style.display='none'" onerror="this.style.display='none'">
       ${index === 0 ? '<span style="position:absolute;left:3px;bottom:3px;background:#800000;color:#fff;font-size:9px;padding:1px 4px;border-radius:3px;">COVER</span>' : ''}
     </div>
   `).join('');
 }
-
 function compressPropertyImage(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -1551,14 +1672,12 @@ async function uploadPropertyImages(files, propertyName) {
     return fileRef.getDownloadURL();
   }));
 }
-
 function withTimeout(promise, milliseconds) {
   return Promise.race([
     promise,
     new Promise((_, reject) => setTimeout(() => reject(new Error('Photo upload timed out.')), milliseconds))
   ]);
 }
-
 async function savePropertyDetails() {
   const button = document.getElementById('property-submit-btn');
   const docId = document.getElementById('property-doc-id').value.trim();
@@ -1588,16 +1707,13 @@ async function savePropertyDetails() {
     const existing = existingSnapshot?.exists ? existingSnapshot.data() : {};
     const targetId = docId || propertyDocumentId(name);
     const existingImages = Array.isArray(existing.images) ? existing.images.filter(Boolean) : [];
-    const defaultImages = Array.isArray(propertyDefaults(name).images) ? propertyDefaults(name).images.filter(Boolean) : [];
     let uploadedImages = [];
     if (files.length) {
       button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Uploading photos...';
       uploadedImages = await withTimeout(uploadPropertyImages(files, name), 120000);
     }
     const suppliedImages = [...urls, ...uploadedImages].slice(0, MAX_PROPERTY_IMAGES);
-    const images = suppliedImages.length
-      ? suppliedImages
-      : (existingImages.length ? existingImages : defaultImages);
+    const images = suppliedImages.length ? suppliedImages : existingImages;
     await db.collection('property_settings').doc(targetId).set({
       name, type, location, price, currency: 'KSh', perNight: true,
       amenities, landmarks, images, status,
@@ -1607,6 +1723,18 @@ async function savePropertyDetails() {
     closePropertyModal();
     showToast(`${name} saved successfully.`, 'success');
     loadProperties();
+
+    if (files.length) {
+      withTimeout(uploadPropertyImages(files, name), 20000).then(uploaded => {
+        const images = [...(urls.length ? urls : []), ...uploaded].slice(0, MAX_PROPERTY_IMAGES);
+        return db.collection('property_settings').doc(targetId).set({ images }, { merge: true });
+      }).then(() => {
+        showToast(`${name} photos uploaded successfully.`, 'success');
+        loadProperties();
+      }).catch(error => {
+        showToast(`${name} was saved, but the photo upload failed: ${error.message}`, 'warning');
+      });
+    }
   } catch (error) {
     showToast('Error saving property or uploading photos: ' + error.message, 'error');
   } finally {
@@ -1818,7 +1946,7 @@ function switchSection(sectionName) {
 
   // Lazy-load data for sections not loaded at startup
   if (sectionName === 'staff') {
-    if (firebase.auth().currentUser?.email !== ADMIN_EMAIL) {
+    if (!isPrimaryAdminEmail(firebase.auth().currentUser?.email)) {
       showToast('Only the primary admin can manage staff accounts.', 'error');
       switchSection('overview');
       return;
@@ -1854,6 +1982,11 @@ document.addEventListener('click', function(e) {
 });
 
 document.addEventListener('DOMContentLoaded', function() {
+  const recordDetailModal = document.getElementById('record-detail-modal');
+  recordDetailModal?.addEventListener('click', function(e) {
+    if (e.target === recordDetailModal) closeRecordDetail();
+  });
+
   // Login form
   document.getElementById('login-form').addEventListener('submit', async function(e) {
     e.preventDefault();
@@ -1901,8 +2034,15 @@ document.addEventListener('DOMContentLoaded', function() {
   document.getElementById('booking-search').addEventListener('input', filterBookings);
   document.getElementById('booking-status-filter').addEventListener('change', filterBookings);
   document.getElementById('message-search').addEventListener('input', filterMessages);
+  document.getElementById('service-request-search').addEventListener('input', filterServiceRequests);
   document.getElementById('rating-filter').addEventListener('change', filterReviews);
   document.getElementById('client-search').addEventListener('input', filterClients);
+});
+
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape' && document.getElementById('record-detail-modal')?.classList.contains('active')) {
+    closeRecordDetail();
+  }
 });
 
 // Filter functions
@@ -1930,6 +2070,13 @@ function filterMessages() {
   messages.forEach(message => {
     const text = message.textContent.toLowerCase();
     message.style.display = text.includes(search) ? '' : 'none';
+  });
+}
+
+function filterServiceRequests() {
+  const search = document.getElementById('service-request-search').value.toLowerCase();
+  document.querySelectorAll('#service-requests-list .message-item').forEach(item => {
+    item.style.display = item.textContent.toLowerCase().includes(search) ? '' : 'none';
   });
 }
 
