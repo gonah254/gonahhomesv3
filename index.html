@@ -236,42 +236,60 @@
           <p>Share your experience with future guests</p>
         </div>
           <div class="review-form-container">
-            <!-- Phase 1: Email & Booking Code Check -->
-            <form id="review-validation-form" class="email-form">
-              <div class="form-group">
-                <label><i class="fas fa-envelope"></i> Email Address</label>
-                <input type="email" id="review-email-input" placeholder="Enter your booking email" required>
-              </div>
-              <div class="form-group">
-                <label><i class="fas fa-key"></i> Booking Code (GNH-XXXX)</label>
-                <input type="text" id="review-code-input" placeholder="Enter your booking code" required>
-              </div>
-              <button type="submit" class="btn btn-primary btn-full">Verify & Review</button>
-            </form>
+            <!-- Google Sign-In -->
+<div id="review-alert"></div>
+<button type="button" class="btn btn-outline btn-full" id="home-google-sign-in-btn" style="margin-bottom:1rem;">
+  <i class="fab fa-google"></i> Continue with Google
+</button>
+<p id="home-google-sign-in-status" style="display:none;margin:0.5rem 0;color:#2e7d32;font-size:0.82rem;text-align:center;"></p>
+<div class="form-divider" style="display:flex;align-items:center;gap:0.7rem;margin:1rem 0;color:#999;font-size:0.78rem;">
+  <span style="flex:1;height:1px;background:#e5e5e5;"></span>or verify with booking details<span style="flex:1;height:1px;background:#e5e5e5;"></span>
+</div>
 
-            <!-- Phase 2: Actual Review Form (Hidden initially) -->
-            <form id="review-submission-form" class="review-form" style="display: none;">
-              <div id="reviewer-badge" class="mb-1" style="color: var(--primary-color); font-weight: 600;"></div>
-              <div class="form-group">
-                <label>Rate your experience</label>
-                <div class="star-rating">
-                  <input type="radio" name="rating" value="5" id="star5"><label for="star5"><i class="fas fa-star"></i></label>
-                  <input type="radio" name="rating" value="4" id="star4"><label for="star4"><i class="fas fa-star"></i></label>
-                  <input type="radio" name="rating" value="3" id="star3"><label for="star3"><i class="fas fa-star"></i></label>
-                  <input type="radio" name="rating" value="2" id="star2"><label for="star2"><i class="fas fa-star"></i></label>
-                  <input type="radio" name="rating" value="1" id="star1"><label for="star1"><i class="fas fa-star"></i></label>
-                </div>
-              </div>
-              <div class="form-group">
-                <label for="review-text">Your Review</label>
-                <textarea id="review-text-input" placeholder="Tell us about your experience..." rows="4" required></textarea>
-              </div>
-              <div class="form-group">
-                  <label for="review-image"><i class="fas fa-camera"></i> Add Photo (Optional)</label>
-                  <input type="file" id="review-image-input" accept="image/*" class="btn btn-outline btn-sm">
-              </div>
-              <button type="submit" class="btn btn-primary btn-full">Submit Review</button>
-            </form>
+<!-- Phase 1: Email & Booking Code Check -->
+<form id="review-validation-form" class="email-form">
+  <div class="form-group">
+    <label><i class="fas fa-envelope"></i> Email Address</label>
+    <input type="email" id="review-email-input" placeholder="Enter your booking email" required>
+  </div>
+  <div class="form-group">
+    <label><i class="fas fa-key"></i> Booking Code (GNH-XXXX)</label>
+    <input type="text" id="review-code-input" placeholder="Enter your booking code" required>
+  </div>
+  <button type="submit" class="btn btn-primary btn-full">Verify & Review</button>
+</form>
+
+<div class="form-divider" style="display:flex;align-items:center;gap:0.7rem;margin:1rem 0;color:#999;font-size:0.78rem;">
+  <span style="flex:1;height:1px;background:#e5e5e5;"></span>or<span style="flex:1;height:1px;background:#e5e5e5;"></span>
+</div>
+<button type="button" class="btn btn-outline btn-full" id="home-visitor-review-btn">
+  <i class="fas fa-user-check"></i> I did not book directly
+</button>
+<p style="color:#888;font-size:0.75rem;line-height:1.4;text-align:center;margin:0.55rem 0 0;">Visitor reviews are identified separately and are not marked as verified stays.</p>
+
+<!-- Phase 2: Actual Review Form (Hidden initially) -->
+<form id="review-submission-form" class="review-form" style="display: none;">
+  <div id="reviewer-badge" class="mb-1" style="color: var(--primary-color); font-weight: 600;"></div>
+  <div class="form-group">
+    <label>Rate your experience</label>
+    <div class="star-rating">
+      <input type="radio" name="rating" value="5" id="star5"><label for="star5"><i class="fas fa-star"></i></label>
+      <input type="radio" name="rating" value="4" id="star4"><label for="star4"><i class="fas fa-star"></i></label>
+      <input type="radio" name="rating" value="3" id="star3"><label for="star3"><i class="fas fa-star"></i></label>
+      <input type="radio" name="rating" value="2" id="star2"><label for="star2"><i class="fas fa-star"></i></label>
+      <input type="radio" name="rating" value="1" id="star1"><label for="star1"><i class="fas fa-star"></i></label>
+    </div>
+  </div>
+  <div class="form-group">
+    <label for="review-text">Your Review</label>
+    <textarea id="review-text-input" placeholder="Tell us about your experience..." rows="4" required></textarea>
+  </div>
+  <div class="form-group">
+      <label for="review-image"><i class="fas fa-camera"></i> Add Photo (Optional)</label>
+      <input type="file" id="review-image-input" accept="image/*" class="btn btn-outline btn-sm">
+  </div>
+  <button type="submit" class="btn btn-primary btn-full">Submit Review</button>
+</form>
           </div>
       </div>
     </div>
