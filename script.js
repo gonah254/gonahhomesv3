@@ -803,15 +803,35 @@ function loadReviews() {
 // New Review Validation Logic
 const validationForm = document.getElementById('review-validation-form');
 const submissionForm = document.getElementById('review-submission-form');
+const homeGoogleSignInBtn = document.getElementById('home-google-sign-in-btn');
+const homeGoogleSignInStatus = document.getElementById('home-google-sign-in-status');
+const homeVisitorReviewBtn = document.getElementById('home-visitor-review-btn');
+const homeVerifyEmailInput = document.getElementById('review-email-input');
 let verifiedReviewer = null;
+let homeSignedInGoogleUser = null;
+
+function showHomeReviewAlert(msg, type) {
+  const el = document.getElementById('review-alert');
+  if (!el) return;
+  el.innerHTML = `<div class="alert alert-${type}" style="padding:0.75rem 1rem;border-radius:8px;font-size:0.9rem;margin-bottom:1rem;${type === 'error' ? 'background:#fdecea;color:#b71c1c;border:1px solid #ef9a9a;' : 'background:#e8f5e9;color:#2e7d32;border:1px solid #81c784;'}">${msg}</div>`;
+  setTimeout(() => { el.innerHTML = ''; }, 5000);
+}
 
 function activateReviewForm(reviewer) {
   verifiedReviewer = reviewer;
   if (validationForm) validationForm.style.display = 'none';
+  if (homeGoogleSignInBtn) homeGoogleSignInBtn.style.display = 'none';
+  if (homeVisitorReviewBtn) homeVisitorReviewBtn.style.display = 'none';
+  document.querySelectorAll('.review-form-container .form-divider').forEach(el => el.style.display = 'none');
   if (submissionForm) {
     submissionForm.style.display = 'block';
     const badge = document.getElementById('reviewer-badge');
-    if (badge) badge.innerHTML = `<i class="fas fa-check-circle" style="color:#2e7d32;"></i> Verified: ${reviewer.name}`;
+    if (badge) {
+      const label = reviewer.verifiedBooking
+        ? (reviewer.verificationType === 'verified_stay' ? `Verified stay: ${reviewer.name}` : `Verified booking: ${reviewer.name}`)
+        : `Visitor review: ${reviewer.name}`;
+      badge.innerHTML = `<i class="fas fa-check-circle" style="color:#2e7d32;"></i> ${label}`;
+    }
   }
 }
 
@@ -820,83 +840,125 @@ function activateReviewForm(reviewer) {
   try {
     const saved = JSON.parse(sessionStorage.getItem('booking_code_user') || 'null');
     if (saved && saved.email && saved.code) {
-      activateReviewForm({ email: saved.email, code: saved.code, name: saved.name });
+      activateReviewForm({ email: saved.email, code: saved.code, name: saved.name, verifiedBooking: true, verificationType: 'verified_booking' });
     }
   } catch(e) {}
 })();
 
-if (validationForm) {
-  validationForm.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const email = document.getElementById('review-email-input').value.trim();
-    const code = document.getElementById('review-code-input').value.trim().toUpperCase();
-    const btn = validationForm.querySelector('button[type="submit"]');
-    btn.disabled = true;
-    btn.textContent = 'Verifying...';
-    
+function showHomeGoogleProfile(user) {
+  homeSignedInGoogleUser = user;
+  const email = (user.email || '').toLowerCase();
+  if (homeVerifyEmailInput) {
+    homeVerifyEmailInput.value = email;
+    homeVerifyEmailInput.readOnly = true;
+  }
+  if (homeGoogleSignInBtn) {
+    homeGoogleSignInBtn.innerHTML = `<span style="font-weight:700;">✓</span> Signed in with Google`;
+    homeGoogleSignInBtn.disabled = true;
+  }
+  if (homeGoogleSignInStatus) {
+    homeGoogleSignInStatus.textContent = `Using ${user.displayName || email}'s Google profile photo`;
+    homeGoogleSignInStatus.style.display = 'block';
+  }
+}
+
+if (homeGoogleSignInBtn) {
+  homeGoogleSignInBtn.addEventListener('click', async () => {
+    homeGoogleSignInBtn.disabled = true;
+    homeGoogleSignInBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Connecting to Google...';
     try {
-      const snapshot = await db.collection('bookings')
-        .where('email', '==', email)
-        .where('id', '==', code)
-        .get();
-        
-      if (snapshot.empty) {
-        alert("No matching booking found. Please check your email and Booking ID.");
-        return;
-      }
-      
-      const b = snapshot.docs[0].data();
-      activateReviewForm({ email, code, name: b.name });
+      const provider = new firebase.auth.GoogleAuthProvider();
+      provider.setCustomParameters({ prompt: 'select_account' });
+      const result = await firebase.auth().signInWithPopup(provider);
+      showHomeGoogleProfile(result.user);
     } catch (err) {
-      console.error("Verification error:", err);
-      alert("Error verifying booking. Please try again.");
-    } finally {
-      btn.disabled = false;
-      btn.textContent = 'Verify & Review';
+      console.error('Google sign-in failed:', err);
+      homeGoogleSignInBtn.disabled = false;
+      homeGoogleSignInBtn.innerHTML = '<i class="fab fa-google"></i> Continue with Google';
+      showHomeReviewAlert(
+        err.code === 'auth/popup-blocked'
+          ? 'Google sign-in was blocked by your browser. Please allow pop-ups and try again.'
+          : 'Google sign-in could not be completed. You can still verify with your booking email and ID.',
+        'error'
+      );
     }
   });
 }
 
-if (submissionForm) {
-  submissionForm.addEventListener('submit', async (e) => {
+firebase.auth().onAuthStateChanged(user => {
+  if (user && user.providerData.some(provider => provider.providerId === 'google.com') && homeGoogleSignInBtn) {
+    showHomeGoogleProfile(user);
+  }
+});
+
+if (homeVisitorReviewBtn) {
+  homeVisitorReviewBtn.addEventListener('click', () => {
+    if (!homeSignedInGoogleUser) {
+      showHomeReviewAlert('Please continue with Google first so we can identify your visitor review.', 'error');
+      homeGoogleSignInBtn?.focus();
+      return;
+    }
+    activateReviewForm({
+      name: homeSignedInGoogleUser.displayName || homeSignedInGoogleUser.email.split('@')[0],
+      email: homeSignedInGoogleUser.email.toLowerCase(),
+      avatarUrl: homeSignedInGoogleUser.photoURL || null,
+      uid: homeSignedInGoogleUser.uid,
+      authProvider: 'google.com',
+      verifiedBooking: false,
+      verificationType: 'visitor_review',
+      code: null
+    });
+  });
+}
+
+if (validationForm) {
+  validationForm.addEventListener('submit', async (e) => {
     e.preventDefault();
-    if (!verifiedReviewer) return;
-
-    const rating = document.querySelector('#review-submission-form input[name="rating"]:checked')?.value;
-    const text = document.getElementById('review-text-input').value.trim();
-    const imageFile = document.getElementById('review-image-input').files[0];
-
-    const submitBtn = submissionForm.querySelector('button[type="submit"]');
-    submitBtn.disabled = true;
-    submitBtn.textContent = "Submitting...";
+    const email = document.getElementById('review-email-input').value.trim().toLowerCase();
+    const code = document.getElementById('review-code-input').value.trim().toUpperCase();
+    const btn = validationForm.querySelector('button[type="submit"]');
+    btn.disabled = true;
+    btn.textContent = 'Verifying...';
 
     try {
-      let imageUrl = null;
-      if (imageFile) {
-        imageUrl = await compressReviewPhoto(imageFile);
+      if (homeSignedInGoogleUser && homeSignedInGoogleUser.email.toLowerCase() !== email) {
+        showHomeReviewAlert('Use the same email address as your Google account, or sign out and verify with the booking email.', 'error');
+        return;
+      }
+      const snapshot = await db.collection('bookings')
+        .where('email', '==', email)
+        .where('id', '==', code)
+        .get();
+
+      if (snapshot.empty) {
+        showHomeReviewAlert('No matching booking found. Please check your email and Booking ID.', 'error');
+        return;
       }
 
-      await db.collection('reviews').add({
-        name: verifiedReviewer.name,
-        email: verifiedReviewer.email,
-        bookingCode: verifiedReviewer.code,
-        rating: parseInt(rating),
-        review: text,
-        imageUrl: imageUrl,
-        timestamp: firebase.firestore.FieldValue.serverTimestamp(),
-        approved: true,
-        avatarUrl: window.buildRealAvatar ? window.buildRealAvatar(verifiedReviewer.name, verifiedReviewer.email, 100) : null
+      const b = snapshot.docs[0].data();
+      const bookingStatus = String(b.status || '').toLowerCase();
+      if (!['confirmed', 'completed'].includes(bookingStatus)) {
+        showHomeReviewAlert('This booking is not confirmed yet. Reviews become available after the booking is confirmed.', 'error');
+        return;
+      }
+      const isCompletedStay = bookingStatus === 'completed';
+      const usesGoogleProfile = homeSignedInGoogleUser && homeSignedInGoogleUser.email.toLowerCase() === email;
+      activateReviewForm({
+        email, code,
+        name: usesGoogleProfile ? (homeSignedInGoogleUser.displayName || b.name || email.split('@')[0]) : (b.name || email.split('@')[0]),
+        avatarUrl: usesGoogleProfile ? homeSignedInGoogleUser.photoURL : null,
+        uid: usesGoogleProfile ? homeSignedInGoogleUser.uid : null,
+        authProvider: usesGoogleProfile ? 'google.com' : 'booking-email',
+        verifiedBooking: true,
+        verificationType: isCompletedStay ? 'verified_stay' : 'verified_booking',
+        property: b.house || b.property || null
       });
-
-      alert("Review submitted for moderation! Thank you.");
-      submissionForm.reset();
-      submissionForm.style.display = 'none';
-      validationForm.style.display = 'block';
-    } catch (error) {
-      alert("Error: " + error.message);
+    } catch (err) {
+      console.error("Verification error:", err);
+      showHomeReviewAlert('Error verifying booking. Please try again.', 'error');
     } finally {
-      submitBtn.disabled = false;
-      submitBtn.textContent = "Submit Review";
+      btn.disabled = false;
+      btn.textContent = 'Verify & Review';
     }
   });
 }
