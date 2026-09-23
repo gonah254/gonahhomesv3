@@ -962,7 +962,64 @@ if (validationForm) {
     }
   });
 }
+if (submissionForm) {
+  submissionForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (!verifiedReviewer) return;
 
+    const rating = document.querySelector('#review-submission-form input[name="rating"]:checked')?.value;
+    if (!rating) { showHomeReviewAlert('Please select a star rating.', 'error'); return; }
+
+    const text = document.getElementById('review-text-input').value.trim();
+    const imageFile = document.getElementById('review-image-input').files[0];
+
+    const submitBtn = submissionForm.querySelector('button[type="submit"]');
+    submitBtn.disabled = true;
+    submitBtn.textContent = "Submitting...";
+
+    try {
+      let imageUrl = null;
+      if (imageFile) {
+        try {
+          imageUrl = await compressReviewPhoto(imageFile);
+        } catch (_) {
+          showHomeReviewAlert('Could not process the photo. Submitting review without image.', 'warning');
+        }
+      }
+
+      await db.collection('reviews').add({
+        name: verifiedReviewer.name,
+        email: verifiedReviewer.email,
+        bookingCode: verifiedReviewer.code || null,
+        property: verifiedReviewer.property || null,
+        uid: verifiedReviewer.uid || null,
+        authProvider: verifiedReviewer.authProvider || 'booking-email',
+        verifiedBooking: verifiedReviewer.verifiedBooking === true,
+        verificationType: verifiedReviewer.verificationType || 'verified_booking',
+        rating: parseInt(rating),
+        review: text,
+        imageUrl: imageUrl,
+        timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+        approved: true,
+        avatarUrl: verifiedReviewer.avatarUrl ||
+          (window.buildRealAvatar ? window.buildRealAvatar(verifiedReviewer.name, verifiedReviewer.email, 100) : null)
+      });
+
+      showHomeReviewAlert('Review submitted successfully! Thank you.', 'success');
+      submissionForm.reset();
+      submissionForm.style.display = 'none';
+      if (validationForm) validationForm.style.display = 'block';
+      if (homeGoogleSignInBtn) homeGoogleSignInBtn.style.display = 'flex';
+      if (homeVisitorReviewBtn) homeVisitorReviewBtn.style.display = 'block';
+      document.querySelectorAll('.review-form-container .form-divider').forEach(el => el.style.display = 'flex');
+    } catch (error) {
+      showHomeReviewAlert('Error: ' + error.message, 'error');
+    } finally {
+      submitBtn.disabled = false;
+      submitBtn.textContent = "Submit Review";
+    }
+  });
+}
 function compressReviewPhoto(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
