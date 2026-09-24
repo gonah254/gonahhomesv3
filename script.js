@@ -766,7 +766,8 @@ function renderTestimonials(reviews) {
           <img src="${userAvatar}" alt="${userName}" class="author-avatar">
           <div class="author-info">
             <h4>${userName}</h4>
-            <span>Verified Guest ${reviewDate ? '• ' + reviewDate : ''}</span>
+            <span>${review.verificationType || 'Verified Guest'} ${reviewDate ? '• ' + reviewDate : ''}</span>
+
           </div>
         </div>
       </div>
