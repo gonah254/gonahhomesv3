@@ -862,6 +862,28 @@ function showHomeGoogleProfile(user) {
   }
 }
 
+function addSwitchAccountLink() {
+  if (!homeGoogleSignInStatus || document.getElementById('home-switch-account-link')) return;
+  const link = document.createElement('a');
+  link.id = 'home-switch-account-link';
+  link.href = '#';
+  link.textContent = ' (Not you? Switch account)';
+  link.style.color = '#800000';
+  link.style.marginLeft = '4px';
+  link.onclick = async (e) => {
+    e.preventDefault();
+    await firebase.auth().signOut();
+    homeSignedInGoogleUser = null;
+    if (homeVerifyEmailInput) { homeVerifyEmailInput.value = ''; homeVerifyEmailInput.readOnly = false; }
+    if (homeGoogleSignInBtn) {
+      homeGoogleSignInBtn.disabled = false;
+      homeGoogleSignInBtn.innerHTML = '<i class="fab fa-google"></i> Continue with Google';
+    }
+    homeGoogleSignInStatus.style.display = 'none';
+    link.remove();
+  };
+  homeGoogleSignInStatus.appendChild(link);
+}
 if (homeGoogleSignInBtn) {
   homeGoogleSignInBtn.addEventListener('click', async () => {
     homeGoogleSignInBtn.disabled = true;
