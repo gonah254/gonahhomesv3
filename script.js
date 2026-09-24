@@ -986,7 +986,10 @@ if (submissionForm) {
           showHomeReviewAlert('Could not process the photo. Submitting review without image.', 'warning');
         }
       }
-
+      if (homeSignedInGoogleUser) {
+        firebase.auth().signOut().catch(() => {});
+        homeSignedInGoogleUser = null;
+      }
       await db.collection('reviews').add({
         name: verifiedReviewer.name,
         email: verifiedReviewer.email,
