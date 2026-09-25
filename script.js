@@ -825,7 +825,7 @@ function handleReviewerAuthenticated(user) {
   if (homeGoogleSignInStatus) {
     homeGoogleSignInStatus.innerHTML = `
       <div style="display:flex; align-items:center; gap:10px; margin-bottom:1rem; background:#f9f9f9; padding:0.5rem 0.75rem; border-radius:8px; border:1px solid #eee;">
-        <img src="${user.photoURL || ''}" style="width:32px; height:32px; border-radius:50%;" onerror="this.src='https://ui-avatars.com{encodeURIComponent(user.displayName || 'G')}'">
+        <img src="${user.photoURL || (window.buildRealAvatar ? window.buildRealAvatar(user.displayName || user.email, user.email, 64) : '')}" style="width:32px; height:32px; border-radius:50%;" onerror="this.style.display='none'">
         <span style="font-size:0.9rem; color:#333;">Reviewing as <strong>${user.displayName || user.email}</strong></span>
         <a href="#" id="home-switch-account-link" style="color:#800000; font-size:0.85rem; margin-left:auto; text-decoration:none; font-weight:600;">Switch Account</a>
       </div>
