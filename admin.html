@@ -382,6 +382,50 @@
     const dashboard = document.getElementById('dashboard');
     const loginForm = document.getElementById('admin-login-form');
     const loginError = document.getElementById('login-error');
+    // New Feature DOM Elements
+    const togglePassword = document.getElementById('toggle-password');
+    const passwordInput = document.getElementById('admin-password');
+    const eyeIcon = document.getElementById('eye-icon');
+    const forgotPasswordLink = document.getElementById('forgot-password-link');
+
+    // 1. Password Visibility Eye Toggle Action
+    togglePassword.addEventListener('click', () => {
+      const isPasswordType = passwordInput.getAttribute('type') === 'password';
+      passwordInput.setAttribute('type', isPasswordType ? 'text' : 'password');
+      
+      // Update eye look based on status
+      if (isPasswordType) {
+        eyeIcon.classList.remove('fa-eye');
+        eyeIcon.classList.add('fa-eye-slash');
+      } else {
+        eyeIcon.classList.remove('fa-eye-slash');
+        eyeIcon.classList.add('fa-eye');
+      }
+    });
+
+    // 2. Firebase Password Reset Functionality
+    forgotPasswordLink.addEventListener('click', async (e) => {
+      e.preventDefault();
+      loginError.textContent = ''; // clear messages
+      loginError.style.color = '#dc3545'; // default error red
+
+      const email = document.getElementById('admin-email').value;
+
+      if (!email) {
+        loginError.style.color = '#ff8c00'; // warning orange
+        loginError.textContent = '⚠️ Please type your admin email address first.';
+        return;
+      }
+
+      try {
+        await auth.sendPasswordResetEmail(email);
+        loginError.style.color = '#28a745'; // success green
+        loginError.textContent = '✅ Secure password reset link sent to your inbox!';
+      } catch (error) {
+        console.error('Reset link error:', error);
+        loginError.textContent = `❌ ${error.message}`;
+      }
+    });
 
     // Login Handler
     loginForm.addEventListener('submit', async (e) => {
