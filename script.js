@@ -49,6 +49,8 @@ let propertyOverridesLoaded = false;
 let propertyCatalogStatus = 'loading';
 const propertiesData = {};
 let heroSlideTimer = null;
+const PROPERTY_CACHE_KEY = 'gh_properties_v1';
+let lastPropertiesJson = '';
 
 // ---- Load the public property catalogue directly from Firestore ----
 function applyPropertyOverrides(snapshot) {
@@ -68,6 +70,14 @@ function applyPropertyOverrides(snapshot) {
     if (propertyName !== doc.id) propertiesData[propertyName] = propertiesData[doc.id];
   });
 
+  let freshJson = '';
+  try { freshJson = JSON.stringify(propertiesData); } catch (e) { freshJson = ''; }
+  const unchanged = propertyOverridesLoaded && freshJson !== '' && freshJson === lastPropertiesJson;
+  lastPropertiesJson = freshJson;
+  if (freshJson) {
+    try { localStorage.setItem(PROPERTY_CACHE_KEY, freshJson); } catch (e) { /* storage blocked or full */ }
+  }
+  if (unchanged) return;
   propertyOverridesLoaded = true;
   propertyCatalogStatus = 'ready';
   populatePropertyLocations();
@@ -1227,3 +1237,29 @@ window.addEventListener('load', () => {
     }, delay);
   });
 });
+
+// Show the last known property list instantly; live data replaces it when it arrives
+function restoreCachedProperties() {
+  if (propertyOverridesLoaded) return;
+  try {
+    const saved = localStorage.getItem(PROPERTY_CACHE_KEY);
+    if (!saved) return;
+    const parsed = JSON.parse(saved);
+    if (!parsed || typeof parsed !== 'object' || !Object.keys(parsed).length) return;
+    Object.keys(propertiesData).forEach(key => delete propertiesData[key]);
+    Object.assign(propertiesData, parsed);
+    lastPropertiesJson = saved;
+    propertyOverridesLoaded = true;
+    propertyCatalogStatus = 'ready';
+    populatePropertyLocations();
+    renderHeroSlideshow();
+    renderPublicProperties();
+  } catch (e) {
+    console.warn('Could not use cached properties:', e.message);
+  }
+}
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', restoreCachedProperties);
+} else {
+  setTimeout(restoreCachedProperties, 0);
+}
