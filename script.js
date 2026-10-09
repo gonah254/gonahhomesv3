@@ -215,7 +215,7 @@ function renderPublicProperties() {
     const images = Array.isArray(property.images) ? property.images : [];
     const cover = images[0];
     const imageMarkup = cover
-      ? `<div class="property-image-frame"><div class="property-image-skeleton" aria-hidden="true"></div><img src="${escapePropertyHtml(cover)}" alt="${escapePropertyHtml(property.name)}" loading="lazy" decoding="async" style="opacity:0" onload="this.style.opacity='1';this.previousElementSibling.style.display='none'" onerror="this.remove()"></div>`
+      ? `<div class="property-image-frame"><div class="property-image-skeleton" aria-hidden="true"></div><img src="${escapePropertyHtml(cover)}" alt="${escapePropertyHtml(property.name)}" decoding="async" style="opacity:0" onload="this.style.opacity='1';this.previousElementSibling.style.display='none'" onerror="this.remove()"></div>`
       : '<div class="property-image-skeleton" aria-hidden="true"></div>';
     const features = propertyFeatures(property);
     const details = [propertyTypeLabel(property.type), property.location].filter(Boolean).join(' • ');
@@ -1218,3 +1218,12 @@ document.addEventListener('DOMContentLoaded', () => {
   console.log('Gonah Homes initialized!');
 });
 
+
+// Preload all hero slideshow photos in the background after the page loads
+window.addEventListener('load', () => {
+  [1500, 4000].forEach((delay) => {
+    setTimeout(() => {
+      document.querySelectorAll('.slide').forEach((_, i) => preloadHeroSlideImage(i));
+    }, delay);
+  });
+});
