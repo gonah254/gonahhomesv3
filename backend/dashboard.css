@@ -1001,3 +1001,39 @@ body {
   padding: 0;
   flex: 0 0 auto;
 }
+
+/* Phone fixes: analytics cards stack, review buttons wrap */
+@media (max-width: 768px) {
+  .analytics-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .review-header {
+    flex-wrap: wrap;
+    gap: 0.75rem;
+  }
+
+  .review-actions {
+    flex-wrap: wrap;
+    width: 100%;
+  }
+}
+
+/* Phone fix: let the bookings table scroll sideways instead of squeezing columns */
+@media (max-width: 768px) {
+  .table-container {
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .data-table {
+    table-layout: auto;
+    min-width: 900px;
+  }
+
+  .data-table th,
+  .data-table td {
+    overflow-wrap: break-word;
+    word-break: normal;
+    vertical-align: top;
+  }
+}
