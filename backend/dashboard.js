@@ -2104,3 +2104,132 @@ function filterClients() {
 }
 
 console.log('Gonah Homes Backend Dashboard initialized successfully!');
+
+// ---- Analytics & Reports (fills the four report cards) ----
+const ANALYTICS_PRICES = {
+  'Studio Apartment': 3500, 'One Bedroom Apartment': 4500,
+  'Two Bedroom Apartment': 6000, 'Three Bedroom Apartment': 8000,
+  'Four Bedroom Apartment': 10000, 'Luxury Maisonette': 15000
+};
+const analyticsCharts = {};
+
+function analyticsEsc(value) {
+  return String(value == null ? '' : value).replace(/[&<>"']/g, ch => (
+    { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]
+  ));
+}
+
+function analyticsNights(b) {
+  const nights = Math.round((new Date(b.checkout) - new Date(b.checkin)) / 86400000);
+  return nights > 0 ? nights : 0;
+}
+
+function analyticsEstimate(b) {
+  return analyticsNights(b) * (ANALYTICS_PRICES[b.house] || 5000);
+}
+
+function analyticsInRange(b, start, end) {
+  if (!start && !end) return true;
+  const d = new Date(b.checkin);
+  if (isNaN(d)) return false;
+  if (start && d < new Date(start)) return false;
+  if (end && d > new Date(end + 'T23:59:59')) return false;
+  return true;
+}
+
+function renderTopProperties(list) {
+  const el = document.getElementById('top-properties');
+  if (!el) return;
+  const map = {};
+  list.forEach(b => {
+    const key = b.house || 'Unknown';
+    map[key] = map[key] || { count: 0, revenue: 0 };
+    map[key].count++;
+    map[key].revenue += analyticsEstimate(b);
+  });
+  const rows = Object.entries(map).sort((a, b) => b[1].count - a[1].count).slice(0, 5);
+  el.innerHTML = rows.length ? rows.map(([name, v], i) =>
+    '<div style="display:flex;justify-content:space-between;gap:0.5rem;padding:0.5rem 0;border-bottom:1px solid var(--border-color);">' +
+    '<span>' + (i + 1) + '. ' + analyticsEsc(name) + '</span>' +
+    '<span style="text-align:right;"><strong>' + v.count + '</strong> booking' + (v.count === 1 ? '' : 's') +
+    '<br><small>Est. KSh ' + v.revenue.toLocaleString() + '</small></span></div>'
+  ).join('') : '<p style="color:var(--text-light);">No bookings in this period.</p>';
+}
+
+function renderFrequentClients(list) {
+  const el = document.getElementById('frequent-clients');
+  if (!el) return;
+  const map = {};
+  list.forEach(b => {
+    const key = ((b.email || b.phone || '') + '').trim().toLowerCase();
+    if (!key) return;
+    map[key] = map[key] || { name: b.name || 'Guest', count: 0 };
+    map[key].count++;
+  });
+  const rows = Object.values(map).filter(v => v.count > 1).sort((a, b) => b.count - a.count).slice(0, 5);
+  el.innerHTML = rows.length ? rows.map(v =>
+    '<div style="display:flex;justify-content:space-between;padding:0.5rem 0;border-bottom:1px solid var(--border-color);">' +
+    '<span>' + analyticsEsc(v.name) + '</span><strong>' + v.count + ' bookings</strong></div>'
+  ).join('') : '<p style="color:var(--text-light);">No repeat guests in this period.</p>';
+}
+
+function drawAnalyticsChart(key, canvasId, config) {
+  const canvas = document.getElementById(canvasId);
+  if (!canvas || typeof Chart === 'undefined') return;
+  if (analyticsCharts[key]) analyticsCharts[key].destroy();
+  analyticsCharts[key] = new Chart(canvas, config);
+}
+
+async function updateAnalytics() {
+  try {
+    const start = (document.getElementById('start-date') || {}).value || '';
+    const end = (document.getElementById('end-date') || {}).value || '';
+    const snapshot = await db.collection('bookings').get();
+    const list = [];
+    snapshot.forEach(doc => {
+      const b = doc.data() || {};
+      if (b.status === 'cancelled') return;
+      if (analyticsInRange(b, start, end)) list.push(b);
+    });
+
+    renderTopProperties(list);
+    renderFrequentClients(list);
+
+    const months = {};
+    const revenue = {};
+    list.forEach(b => {
+      const d = new Date(b.checkin);
+      if (!isNaN(d)) {
+        const m = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+        months[m] = (months[m] || 0) + 1;
+      }
+      const name = b.house || 'Unknown';
+      revenue[name] = (revenue[name] || 0) + analyticsEstimate(b);
+    });
+    const monthKeys = Object.keys(months).sort().slice(-12);
+
+    drawAnalyticsChart('monthly', 'monthlyChart', {
+      type: 'bar',
+      data: { labels: monthKeys, datasets: [{ label: 'Bookings', data: monthKeys.map(k => months[k]), backgroundColor: '#800000' }] },
+      options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { precision: 0 } } } }
+    });
+
+    drawAnalyticsChart('revenue', 'revenueChart', {
+      type: 'doughnut',
+      data: { labels: Object.keys(revenue), datasets: [{ data: Object.values(revenue) }] },
+      options: { responsive: true, plugins: { legend: { position: 'bottom' }, title: { display: true, text: 'Estimated revenue (KSh)' } } }
+    });
+  } catch (error) {
+    console.error('Error updating analytics:', error);
+  }
+}
+window.updateAnalytics = updateAnalytics;
+
+(function hookAnalyticsNav() {
+  const attach = () => {
+    const link = document.querySelector('[data-section="analytics"]');
+    if (link) link.addEventListener('click', () => setTimeout(updateAnalytics, 250));
+  };
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', attach);
+  else attach();
+})();

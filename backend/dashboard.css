@@ -1037,3 +1037,21 @@ body {
     vertical-align: top;
   }
 }
+
+/* Phone fix: review buttons wrap inside the card (markup uses inline styles) */
+@media (max-width: 768px) {
+  .review-card .review-header {
+    flex-wrap: wrap !important;
+    gap: 0.75rem;
+  }
+
+  .review-card .review-header > div[style*="flex-shrink:0"] {
+    flex-shrink: 1 !important;
+    width: 100%;
+    align-items: flex-start !important;
+  }
+
+  .review-card .review-header > div[style*="flex-shrink:0"] > div {
+    justify-content: flex-start !important;
+  }
+}
