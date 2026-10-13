@@ -50,7 +50,68 @@ let propertyCatalogStatus = 'loading';
 const propertiesData = {};
 let heroSlideTimer = null;
 const PROPERTY_CACHE_KEY = 'gh_properties_v1';
+const BOOKING_HANDOFF_KEY = 'gh_property_booking_handoff_v1';
 let lastPropertiesJson = '';
+
+function cachePropertyRecord(propertyId, propertyData) {
+  const propertyName = propertyData.name || propertyId;
+  const images = Array.isArray(propertyData.images)
+    ? propertyData.images.filter(image => typeof image === 'string' && image.trim())
+    : [];
+  const property = {
+    ...propertyData,
+    name: propertyName,
+    images: images.slice(0, MAX_PROPERTY_IMAGES)
+  };
+  propertiesData[propertyId] = property;
+  if (propertyName !== propertyId) propertiesData[propertyName] = property;
+  return property;
+}
+
+function readPropertyBookingHandoff() {
+  try {
+    const requestedId = new URLSearchParams(window.location.search).get('book');
+    const saved = sessionStorage.getItem(BOOKING_HANDOFF_KEY);
+    sessionStorage.removeItem(BOOKING_HANDOFF_KEY);
+    if (!requestedId || !saved) return null;
+
+    const handoff = JSON.parse(saved);
+    const createdAt = Number(handoff.createdAt);
+    if (
+      handoff.id !== requestedId ||
+      !handoff.property ||
+      typeof handoff.property !== 'object' ||
+      !handoff.property.name ||
+      !createdAt ||
+      Date.now() - createdAt > 10 * 60 * 1000
+    ) return null;
+
+    return {
+      id: requestedId,
+      property: cachePropertyRecord(requestedId, handoff.property)
+    };
+  } catch (error) {
+    return null;
+  }
+}
+
+const propertyBookingHandoff = readPropertyBookingHandoff();
+
+function clearBookingIntentFromUrl() {
+  const cleanUrl = new URL(window.location.href);
+  cleanUrl.searchParams.delete('book');
+  window.history.replaceState({}, '', cleanUrl.pathname + cleanUrl.search + cleanUrl.hash);
+}
+
+function openRequestedBookingFromData() {
+  const requestedPropertyId = new URLSearchParams(window.location.search).get('book');
+  const requestedProperty = requestedPropertyId ? propertiesData[requestedPropertyId] : null;
+  if (!requestedProperty) return false;
+
+  openBookingModal(requestedProperty.name || requestedPropertyId);
+  clearBookingIntentFromUrl();
+  return true;
+}
 
 // ---- Load the public property catalogue directly from Firestore ----
 function applyPropertyOverrides(snapshot) {
@@ -58,16 +119,7 @@ function applyPropertyOverrides(snapshot) {
 
   snapshot.forEach(doc => {
     const data = doc.data() || {};
-    const propertyName = data.name || doc.id;
-    const images = Array.isArray(data.images)
-      ? data.images.filter(image => typeof image === 'string' && image.trim())
-      : [];
-    propertiesData[doc.id] = {
-      ...data,
-      name: propertyName,
-      images: images.slice(0, MAX_PROPERTY_IMAGES)
-    };
-    if (propertyName !== doc.id) propertiesData[propertyName] = propertiesData[doc.id];
+    cachePropertyRecord(doc.id, data);
   });
 
   let freshJson = '';
@@ -83,16 +135,7 @@ function applyPropertyOverrides(snapshot) {
   populatePropertyLocations();
   renderHeroSlideshow();
   renderPublicProperties();
-  const requestedPropertyId = new URLSearchParams(window.location.search).get('book');
-  const requestedProperty = requestedPropertyId ? propertiesData[requestedPropertyId] : null;
-  if (requestedProperty) {
-    window.setTimeout(() => {
-      openBookingModal(requestedProperty.name || requestedPropertyId);
-      const cleanUrl = new URL(window.location.href);
-      cleanUrl.searchParams.delete('book');
-      window.history.replaceState({}, '', cleanUrl.pathname + cleanUrl.search + cleanUrl.hash);
-    }, 0);
-  }
+  openRequestedBookingFromData();
 }
 
 async function loadPropertyOverrides() {
@@ -112,6 +155,10 @@ async function loadPropertyOverrides() {
     renderHeroSlideshow();
     renderPublicProperties();
   }
+}
+if (propertyBookingHandoff) {
+  openBookingModal(propertyBookingHandoff.property.name);
+  clearBookingIntentFromUrl();
 }
 loadPropertyOverrides();
 let currentUser = null;
@@ -610,6 +657,10 @@ function openBookingModal(house) {
 
     if (typeof initializeFlatpickr === 'function') {
       initializeFlatpickr(house);
+    } else if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', () => {
+        if (typeof initializeFlatpickr === 'function') initializeFlatpickr(house);
+      }, { once: true });
     }
   }
 }
@@ -1353,12 +1404,16 @@ function restoreCachedProperties() {
     if (!parsed || typeof parsed !== 'object' || !Object.keys(parsed).length) return;
     Object.keys(propertiesData).forEach(key => delete propertiesData[key]);
     Object.assign(propertiesData, parsed);
+    if (propertyBookingHandoff) {
+      cachePropertyRecord(propertyBookingHandoff.id, propertyBookingHandoff.property);
+    }
     lastPropertiesJson = saved;
     propertyOverridesLoaded = true;
     propertyCatalogStatus = 'ready';
     populatePropertyLocations();
     renderHeroSlideshow();
     renderPublicProperties();
+    openRequestedBookingFromData();
   } catch (e) {
     console.warn('Could not use cached properties:', e.message);
   }

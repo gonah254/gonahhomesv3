@@ -284,6 +284,24 @@
 
   function openBookingOnMainSite() {
     if (!propertyRecord) return;
+    try {
+      sessionStorage.setItem('gh_property_booking_handoff_v1', JSON.stringify({
+        id: propertyId,
+        createdAt: Date.now(),
+        property: {
+          name: propertyRecord.name || 'Gonah Homes Stay',
+          description: propertyRecord.description || '',
+          type: propertyRecord.type || '',
+          location: propertyRecord.location || '',
+          price: Number(propertyRecord.price || 0),
+          currency: propertyRecord.currency || 'KSh',
+          occupancy: inferOccupancy(propertyRecord),
+          status: propertyRecord.status || 'available'
+        }
+      }));
+    } catch (error) {
+      console.warn('Could not save the quick booking handoff:', error);
+    }
     const url = new URL('index.html', window.location.href);
     url.searchParams.set('book', propertyId);
     url.hash = 'accommodations';
