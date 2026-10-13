@@ -3,4 +3,5 @@
 - [Account payment gate](payment-gate.md) — Documents tab and service-request tab are locked until a booking has status === 'confirmed'; tracked via hasConfirmed flag in loadBookings().
 - [Property photo overrides](property-photo-overrides.md) — Admin dashboard saves to `property_settings` Firestore collection. `script.js` now loads these overrides at init into `propertiesData` so gallery/booking reflects updated photos site-wide.
 - [Color unification convention](color-convention.md) — All satellite pages (blog, contact, policies, local_recommendations, reviews) use `linear-gradient(135deg, #1a0000, #2d0000, #1a0000)` background with Poppins font, gold headings (#FFD600), glassy cards with `rgba(255,255,255,0.06)` + gold border.
+- [Gonah Homes authenticity](gonah-homes-authenticity.md) — The product should compete with major brands while staying unique, easy to use, and above all authentic.
 - [Mobile sidebar pattern](mobile-sidebar.md) — Dashboard needs `.menu-toggle` button (hidden on desktop, visible mobile), `.sidebar.active` CSS left transition, `toggleSidebar()` JS, auto-close on nav click + click-outside.

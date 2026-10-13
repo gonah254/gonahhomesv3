@@ -1457,6 +1457,24 @@ function propertyTextList(value) {
   return String(value || '').split(',').map(item => item.trim()).filter(Boolean);
 }
 
+function propertyMultilineList(value) {
+  if (Array.isArray(value)) return value.filter(Boolean).map(String);
+  return String(value || '').split(/\r?\n/).map(item => item.trim()).filter(Boolean);
+}
+
+function defaultOccupancyForType(type) {
+  return ({
+    studio: 2,
+    '1bedroom': 2,
+    '2bedroom': 4,
+    '3bedroom': 6,
+    '4bedroom': 8,
+    maisonette: 6,
+    villa: 6,
+    townhouse: 6
+  })[type] || 2;
+}
+
 const PROPERTY_TYPE_VALUES = new Set([
   'studio', '1bedroom', '2bedroom', '3bedroom', '4bedroom',
   'maisonette', 'villa', 'townhouse'
@@ -1529,6 +1547,7 @@ async function loadProperties() {
         const docId = property.docId || property.name;
         const features = propertyTextList(property.amenities || property.features);
         const nearby = propertyTextList(property.landmarks);
+        const houseRules = propertyMultilineList(property.houseRules);
         const propertyStatus = String(property.status || 'available').toLowerCase();
         return `
           <article class="card" style="padding:1.25rem 1.5rem;">
@@ -1542,7 +1561,10 @@ async function loadProperties() {
                   ${property.price !== undefined ? ` • KSh ${Number(property.price || 0).toLocaleString()}/night` : ''}
                 </p>
               </div>
-              <button class="btn btn-outline btn-sm edit-property-btn" data-doc-id="${escapeDashboardHtml(docId)}"><i class="fas fa-pen"></i> Edit Details</button>
+              <div style="display:flex;gap:.45rem;flex-wrap:wrap;">
+                <a class="btn btn-outline btn-sm" href="../property.html?id=${encodeURIComponent(docId)}" target="_blank" rel="noopener"><i class="fas fa-arrow-up-right-from-square"></i> Public page</a>
+                <button class="btn btn-outline btn-sm edit-property-btn" data-doc-id="${escapeDashboardHtml(docId)}"><i class="fas fa-pen"></i> Edit Details</button>
+              </div>
             </div>
             <div style="margin-top:1rem;">
               <p style="font-size:.78rem;color:var(--text-light);margin:0 0 .4rem;">Photos (${images.length}/${MAX_PROPERTY_IMAGES}) — first photo is the cover</p>
@@ -1555,6 +1577,9 @@ async function loadProperties() {
             </div>
             ${features.length ? `<p style="font-size:.82rem;margin:.75rem 0 0;"><strong>Amenities:</strong> ${escapeDashboardHtml(features.join(', '))}</p>` : ''}
             ${nearby.length ? `<p style="font-size:.82rem;margin:.3rem 0 0;"><strong>Nearby:</strong> ${escapeDashboardHtml(nearby.join(', '))}</p>` : ''}
+            ${property.description ? `<p style="font-size:.82rem;margin:.3rem 0 0;"><strong>Description:</strong> ${escapeDashboardHtml(property.description)}</p>` : ''}
+            <p style="font-size:.82rem;margin:.3rem 0 0;"><strong>Max guests:</strong> ${Number(property.occupancy || defaultOccupancyForType(normalizePropertyType(property.type)))}</p>
+            ${houseRules.length ? `<p style="font-size:.82rem;margin:.3rem 0 0;"><strong>House rules:</strong> ${escapeDashboardHtml(houseRules.join(' · '))}</p>` : ''}
           </article>`;
       }).join('')}
     </div>`;
@@ -1580,6 +1605,7 @@ function openPropertyModal(docId = '') {
     db.collection('property_settings').doc(docId).get().then(snapshot => {
       const property = snapshot.exists ? { ...fallback, ...snapshot.data() } : fallback;
       document.getElementById('property-name').value = property.name || docId;
+      document.getElementById('property-description').value = property.description || '';
       const typeSelect = document.getElementById('property-type');
       const normalizedType = normalizePropertyType(property.type);
       if (property.type && !normalizedType && !Array.from(typeSelect.options).some(option => option.value === property.type)) {
@@ -1593,7 +1619,10 @@ function openPropertyModal(docId = '') {
         locationSelect.insertAdjacentHTML('beforeend', `<option value="${escapeDashboardHtml(location)}">${escapeDashboardHtml(location)}</option>`);
       }
       locationSelect.value = location;
+      document.getElementById('property-location-details').value = property.locationDetails || '';
+      document.getElementById('property-map-url').value = property.mapUrl || '';
       document.getElementById('property-status').value = property.status || 'available';
+      document.getElementById('property-occupancy').value = Number(property.occupancy) || defaultOccupancyForType(normalizedType);
       const savedAmenities = propertyTextList(property.amenities || property.features);
       document.querySelectorAll('#property-amenities-options input[type="checkbox"]').forEach(input => {
         input.checked = savedAmenities.some(amenity => amenity.toLowerCase() === input.value.toLowerCase());
@@ -1603,9 +1632,14 @@ function openPropertyModal(docId = '') {
       document.getElementById('property-amenities-custom').value = savedAmenities
         .filter(amenity => !presetAmenities.includes(amenity.toLowerCase())).join(', ');
       document.getElementById('property-landmarks').value = propertyTextList(property.landmarks).join(', ');
+      document.getElementById('property-house-rules').value = propertyMultilineList(property.houseRules).join('\n');
+      document.getElementById('property-pricing-notes').value = property.pricingNotes || '';
+      document.getElementById('property-booking-instructions').value = property.bookingInstructions || '';
        document.getElementById('property-photo-urls').value = Array.isArray(property.images) ? property.images.slice(0, MAX_PROPERTY_IMAGES).join('\n') : '';
        renderPropertyPhotoPreview(property.images || []);
     }).catch(error => showToast('Could not load property: ' + error.message, 'error'));
+  } else {
+    document.getElementById('property-occupancy').value = '';
   }
   document.getElementById('property-modal').classList.add('active');
 }
@@ -1682,6 +1716,7 @@ async function savePropertyDetails() {
   const button = document.getElementById('property-submit-btn');
   const docId = document.getElementById('property-doc-id').value.trim();
   const name = document.getElementById('property-name').value.trim();
+  const description = document.getElementById('property-description').value.trim();
     const type = normalizePropertyType(document.getElementById('property-type').value);
   const location = document.getElementById('property-location').value.trim();
   const price = Number(document.getElementById('property-price').value);
@@ -1689,12 +1724,22 @@ async function savePropertyDetails() {
   const customAmenities = propertyTextList(document.getElementById('property-amenities-custom').value);
   const amenities = [...new Set([...selectedAmenities, ...customAmenities])];
   const landmarks = propertyTextList(document.getElementById('property-landmarks').value);
+  const occupancy = Number(document.getElementById('property-occupancy').value);
+  const locationDetails = document.getElementById('property-location-details').value.trim();
+  const mapUrl = document.getElementById('property-map-url').value.trim();
+  const houseRules = propertyMultilineList(document.getElementById('property-house-rules').value);
+  const pricingNotes = document.getElementById('property-pricing-notes').value.trim();
+  const bookingInstructions = document.getElementById('property-booking-instructions').value.trim();
   const status = document.getElementById('property-status').value || 'available';
   const urls = document.getElementById('property-photo-urls').value.split(/\n+/).map(url => url.trim()).filter(url => /^https?:\/\/\S+$/i.test(url));
   const files = Array.from(document.getElementById('property-photo-files').files || []);
 
-  if (!name || !type || !location || !Number.isFinite(price) || price < 0) {
-    showToast('Please complete the property name, type, location, and price.', 'error');
+  if (!name || !type || !location || !Number.isFinite(price) || price < 0 || !Number.isInteger(occupancy) || occupancy < 1 || occupancy > 50) {
+    showToast('Please complete the property name, type, location, price, and maximum occupancy (1–50).', 'error');
+    return;
+  }
+  if (mapUrl && !/^https?:\/\/\S+$/i.test(mapUrl)) {
+    showToast('Please enter a valid https:// map link.', 'error');
     return;
   }
   if (urls.length + files.length > MAX_PROPERTY_IMAGES) {
@@ -1715,8 +1760,9 @@ async function savePropertyDetails() {
     const suppliedImages = [...urls, ...uploadedImages].slice(0, MAX_PROPERTY_IMAGES);
     const images = suppliedImages.length ? suppliedImages : existingImages;
     await db.collection('property_settings').doc(targetId).set({
-      name, type, location, price, currency: 'KSh', perNight: true,
-      amenities, landmarks, images, status,
+      name, description, type, location, price, currency: 'KSh', perNight: true,
+      locationDetails, mapUrl, occupancy,
+      amenities, landmarks, houseRules, pricingNotes, bookingInstructions, images, status,
       updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
       updatedBy: firebase.auth().currentUser?.email || ADMIN_EMAIL
     }, { merge: true });

@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#800000">
+  <meta name="description" content="Explore a Gonah Homes coastal stay, including its gallery, location, amenities, house rules, pricing and booking details.">
+  <title>Property Details | Gonah Homes</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+  <link rel="stylesheet" href="styles.css?v=5">
+  <link rel="stylesheet" href="property-page.css?v=1">
+</head>
+<body class="property-detail-page">
+  <header class="main-header">
+    <nav class="navbar" aria-label="Main navigation">
+      <div class="nav-container">
+        <a href="index.html" class="nav-logo" aria-label="Gonah Homes home"><h2>Gonah Homes</h2></a>
+        <div class="nav-menu" id="nav-menu">
+          <a href="index.html#hero" class="nav-link">Home</a>
+          <a href="index.html#accommodations" class="nav-link">Accommodations</a>
+          <a href="reviews.html" class="nav-link">Reviews</a>
+          <a href="contact.html" class="nav-link">Contact</a>
+          <a href="account.html" class="nav-link">My Account</a>
+        </div>
+        <button class="hamburger" id="hamburger" type="button" aria-label="Open navigation menu" aria-expanded="false" aria-controls="nav-menu">
+          <span class="bar"></span><span class="bar"></span><span class="bar"></span>
+        </button>
+      </div>
+    </nav>
+  </header>
+
+  <main class="property-detail-main">
+    <div class="property-detail-wrap">
+      <nav class="property-breadcrumb" aria-label="Breadcrumb">
+        <a href="index.html#accommodations">Accommodations</a>
+        <i class="fas fa-chevron-right" aria-hidden="true"></i>
+        <span id="property-breadcrumb-name">Property details</span>
+      </nav>
+
+      <div id="property-page-state" class="property-page-state" aria-live="polite">
+        <div class="property-loading-bar"></div>
+        <p>Loading property details…</p>
+      </div>
+
+      <article id="property-detail-content" hidden>
+        <header class="property-heading">
+          <div>
+            <p id="property-eyebrow" class="property-eyebrow"></p>
+            <h1 id="property-title"></h1>
+            <p class="property-location-line">
+              <i class="fas fa-location-dot" aria-hidden="true"></i>
+              <span id="property-location"></span>
+              <a id="property-map-link" href="#" target="_blank" rel="noopener" hidden>
+                View map <i class="fas fa-arrow-up-right-from-square" aria-hidden="true"></i>
+              </a>
+            </p>
+          </div>
+          <div id="property-availability" class="property-availability"></div>
+        </header>
+
+        <section class="property-gallery" aria-label="Property photo gallery">
+          <div class="property-gallery-main">
+            <img id="property-main-image" alt="" fetchpriority="high">
+            <div id="property-image-empty" class="property-image-empty" hidden>
+              <i class="fas fa-image" aria-hidden="true"></i>
+              <span>Photos for this stay are coming soon</span>
+            </div>
+            <button type="button" id="property-gallery-prev" class="property-gallery-arrow previous" aria-label="Previous photo">
+              <i class="fas fa-chevron-left" aria-hidden="true"></i>
+            </button>
+            <button type="button" id="property-gallery-next" class="property-gallery-arrow next" aria-label="Next photo">
+              <i class="fas fa-chevron-right" aria-hidden="true"></i>
+            </button>
+            <span id="property-gallery-count" class="property-gallery-count"></span>
+          </div>
+          <div id="property-thumbnails" class="property-thumbnails" aria-label="Choose a photo"></div>
+        </section>
+
+        <div class="property-detail-grid">
+          <div class="property-detail-content">
+            <section class="property-summary">
+              <div class="property-facts">
+                <span><i class="fas fa-users" aria-hidden="true"></i> Up to <strong id="property-occupancy"></strong> guests</span>
+                <span id="property-bedroom-fact"><i class="fas fa-bed" aria-hidden="true"></i> <strong id="property-bedroom-count"></strong></span>
+                <span id="property-type-fact"><i class="fas fa-house" aria-hidden="true"></i> <strong id="property-type"></strong></span>
+              </div>
+              <p id="property-description" class="property-description"></p>
+            </section>
+
+            <section class="property-section">
+              <h2><i class="fas fa-star" aria-hidden="true"></i> Amenities</h2>
+              <div id="property-amenities" class="property-amenities"></div>
+            </section>
+
+            <section id="property-nearby-section" class="property-section" hidden>
+              <h2><i class="fas fa-map-location-dot" aria-hidden="true"></i> Nearby places</h2>
+              <div id="property-nearby" class="property-nearby-list"></div>
+            </section>
+
+            <section id="property-rules-section" class="property-section" hidden>
+              <h2><i class="fas fa-clipboard-list" aria-hidden="true"></i> House rules</h2>
+              <ul id="property-rules" class="property-rules"></ul>
+            </section>
+
+            <section class="property-section property-booking-guide">
+              <h2><i class="fas fa-circle-info" aria-hidden="true"></i> Booking instructions</h2>
+              <p id="property-booking-instructions"></p>
+            </section>
+          </div>
+
+          <aside class="property-booking-card" aria-label="Pricing and booking">
+            <p class="property-price-label">From</p>
+            <p class="property-price"><span id="property-currency"></span> <strong id="property-price"></strong><small> / night</small></p>
+            <p id="property-pricing-notes" class="property-pricing-notes" hidden></p>
+            <button type="button" id="property-book-button" class="btn btn-primary property-book-button">
+              <i class="fas fa-calendar-check" aria-hidden="true"></i> Book this stay
+            </button>
+            <div class="property-card-divider"><span>or ask us directly</span></div>
+            <form id="property-whatsapp-form" class="property-whatsapp-form">
+              <label for="property-checkin">Check-in</label>
+              <input id="property-checkin" type="date" required>
+              <label for="property-checkout">Check-out</label>
+              <input id="property-checkout" type="date" required>
+              <label for="property-guests">Guests</label>
+              <select id="property-guests" required></select>
+              <button type="submit" class="btn property-whatsapp-button">
+                <i class="fab fa-whatsapp" aria-hidden="true"></i> Ask about dates on WhatsApp
+              </button>
+              <small>We’ll include a unique enquiry reference. Sending a message does not confirm a booking.</small>
+            </form>
+          </aside>
+        </div>
+      </article>
+    </div>
+  </main>
+
+  <footer class="property-footer">
+    <p>Gonah Homes · Mombasa, Kenya</p>
+    <a href="index.html#accommodations">Explore all stays</a>
+  </footer>
+
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+  <script src="property-page.js?v=1"></script>
+</body>
+</html>

@@ -558,6 +558,10 @@
                     <label for="property-name">Property name</label>
                     <input type="text" id="property-name" required maxlength="100" placeholder="e.g. Beach View Apartment">
                 </div>
+                <div class="form-group">
+                    <label for="property-description">Guest-facing description</label>
+                    <textarea id="property-description" rows="4" maxlength="1200" placeholder="Describe the stay accurately, including what makes this property special."></textarea>
+                </div>
                 <div class="property-form-row">
                     <div class="form-group">
                         <label for="property-type">Type</label>
@@ -596,6 +600,14 @@
                     </select>
                 </div>
                 <div class="form-group">
+                    <label for="property-location-details">Location details <span style="font-weight:400;color:#888;">(estate, area, or directions)</span></label>
+                    <input type="text" id="property-location-details" maxlength="240" placeholder="e.g. Links Road, near City Mall">
+                </div>
+                <div class="form-group">
+                    <label for="property-map-url">Map link <span style="font-weight:400;color:#888;">(optional Google Maps URL)</span></label>
+                    <input type="url" id="property-map-url" maxlength="500" placeholder="https://maps.google.com/...">
+                </div>
+                <div class="form-group">
                     <label for="property-status">Availability status</label>
                     <select id="property-status">
                         <option value="available">Available for booking</option>
@@ -619,8 +631,24 @@
                     <input type="text" id="property-amenities-custom" maxlength="300" placeholder="Other amenities, separated by commas">
                 </div>
                 <div class="form-group">
-                    <label for="property-landmarks">Nearest landmarks or recreational centres</label>
+                    <label for="property-occupancy">Maximum occupancy</label>
+                    <input type="number" id="property-occupancy" min="1" max="50" step="1" required placeholder="e.g. 4">
+                </div>
+                <div class="form-group">
+                    <label for="property-landmarks">Nearby landmarks and recreational centres</label>
                     <textarea id="property-landmarks" rows="3" maxlength="500" placeholder="Nyali Beach, City Mall, Haller Park (separate with commas)"></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="property-house-rules">House rules <span style="font-weight:400;color:#888;">(one per line)</span></label>
+                    <textarea id="property-house-rules" rows="4" maxlength="1200" placeholder="Check-in from 2:00 PM&#10;No smoking indoors&#10;Please respect quiet hours"></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="property-pricing-notes">Pricing details <span style="font-weight:400;color:#888;">(optional)</span></label>
+                    <textarea id="property-pricing-notes" rows="3" maxlength="600" placeholder="Add any clear notes about seasonal rates, deposits, or extra charges."></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="property-booking-instructions">Booking instructions <span style="font-weight:400;color:#888;">(shown on this property page)</span></label>
+                    <textarea id="property-booking-instructions" rows="4" maxlength="1000" placeholder="Send a booking request, then follow the M-Pesa payment instructions. Your stay is confirmed after our team verifies payment."></textarea>
                 </div>
                 <div class="form-group">
                     <label for="property-photo-urls">Photo URLs <span style="font-weight:400;color:#888;">(one per line, up to 10)</span></label>
@@ -647,6 +675,6 @@
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.emailjs.com/dist/email.min.js"></script>
-<script src="dashboard.js?v=4"></script>
+<script src="dashboard.js?v=5"></script>
 </body>
 </html>

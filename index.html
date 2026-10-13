@@ -8,7 +8,7 @@
   <meta property="og:image" content="https://gonahhomes.com/whatsapp-preview.jpg">
   <meta property="og:description" content="Book premium short-stay apartments and vacation homes in Mombasa and the Coast region. Experience comfort, luxury and unforgettable coastal stays.">
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="styles.css?v=4">
+  <link rel="stylesheet" href="styles.css?v=5">
   <link rel="stylesheet" href="customer-dashboard.css?v=3">
   <!-- Font Awesome for icons -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
@@ -559,6 +559,39 @@
     </div>
   </div>
 
+  <!-- WhatsApp property inquiry -->
+  <div id="whatsapp-inquiry-modal" class="modal-backdrop" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="whatsapp-inquiry-title" onclick="if(event.target===this)closeWhatsAppInquiry()">
+    <div class="modal glassy-modal" style="max-width:460px;">
+      <div class="modal-header">
+        <h3 id="whatsapp-inquiry-title"><i class="fab fa-whatsapp"></i> Ask about this stay</h3>
+        <button class="modal-close" type="button" aria-label="Close" onclick="closeWhatsAppInquiry()"><i class="fas fa-times"></i></button>
+      </div>
+      <div class="modal-body">
+        <p style="margin:0 0 1rem;color:#555;">Share your dates and guest count so our team can help with <strong id="whatsapp-property-name">this property</strong>.</p>
+        <form id="whatsapp-inquiry-form" onsubmit="sendWhatsAppInquiry(event)">
+          <div class="form-row">
+            <div class="form-group">
+              <label for="whatsapp-checkin">Check-in</label>
+              <input type="date" id="whatsapp-checkin" required>
+            </div>
+            <div class="form-group">
+              <label for="whatsapp-checkout">Check-out</label>
+              <input type="date" id="whatsapp-checkout" required>
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="whatsapp-guests">Guests</label>
+            <select id="whatsapp-guests" required></select>
+          </div>
+          <p style="font-size:.78rem;line-height:1.45;color:#777;">We’ll include a unique enquiry reference. This message is not a confirmed booking.</p>
+          <button type="submit" class="btn btn-primary btn-full" style="background:#168b51;">
+            <i class="fab fa-whatsapp"></i> Continue to WhatsApp
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+
   <!-- Firebase SDK -->
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
@@ -571,7 +604,7 @@
   <script src="https://cdn.emailjs.com/dist/email.min.js"></script>
   
   <!-- Public properties are loaded directly from Firestore by script.js -->
-  <script src="script.js?v=6"></script>
+  <script src="script.js?v=7"></script>
   <script src="booking-calendar.js?v=4"></script>
 </body>
 </html>

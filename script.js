@@ -83,6 +83,16 @@ function applyPropertyOverrides(snapshot) {
   populatePropertyLocations();
   renderHeroSlideshow();
   renderPublicProperties();
+  const requestedPropertyId = new URLSearchParams(window.location.search).get('book');
+  const requestedProperty = requestedPropertyId ? propertiesData[requestedPropertyId] : null;
+  if (requestedProperty) {
+    window.setTimeout(() => {
+      openBookingModal(requestedProperty.name || requestedPropertyId);
+      const cleanUrl = new URL(window.location.href);
+      cleanUrl.searchParams.delete('book');
+      window.history.replaceState({}, '', cleanUrl.pathname + cleanUrl.search + cleanUrl.hash);
+    }, 0);
+  }
 }
 
 async function loadPropertyOverrides() {
@@ -255,6 +265,14 @@ function renderPublicProperties() {
                <i class="fas ${isMaintenance ? 'fa-wrench' : 'fa-calendar-check'}"></i> ${isMaintenance ? 'Unavailable' : 'Book Now'}
             </button>
           </div>
+          <div class="property-card-links">
+            <a class="property-details-link" href="property.html?id=${encodeURIComponent(property.id || property.name)}">
+              <i class="fas fa-circle-info"></i> View property details
+            </a>
+            <button type="button" class="property-whatsapp-btn" data-property-id="${escapePropertyHtml(property.id || property.name)}">
+              <i class="fab fa-whatsapp"></i> WhatsApp
+            </button>
+          </div>
         </div>
       </article>`;
   }).join('');
@@ -265,6 +283,9 @@ function renderPublicProperties() {
   });
   grid.querySelectorAll('.property-book-btn:not([disabled])').forEach(button => {
     button.addEventListener('click', () => openBookingModal(button.dataset.property));
+  });
+  grid.querySelectorAll('.property-whatsapp-btn').forEach(button => {
+    button.addEventListener('click', () => openWhatsAppInquiry(button.dataset.propertyId));
   });
 
   const featured = properties.find(property => property.name === 'Luxury Maisonette') || properties[0];
@@ -429,6 +450,74 @@ function propertyList(value) {
   return String(value || '').split(',').map(item => item.trim()).filter(Boolean);
 }
 
+let whatsappInquiryProperty = null;
+
+function openWhatsAppInquiry(propertyId) {
+  const property = propertiesData[propertyId];
+  const modal = document.getElementById('whatsapp-inquiry-modal');
+  if (!property || !modal) return;
+  whatsappInquiryProperty = { id: propertyId, ...property };
+  document.getElementById('whatsapp-property-name').textContent = property.name || 'Selected property';
+
+  const guestCount = document.getElementById('whatsapp-guests');
+  const occupancy = Math.max(1, Math.min(50, Number(property.occupancy) || propertyGuests(property)));
+  guestCount.innerHTML = Array.from({ length: occupancy }, (_, index) =>
+    `<option value="${index + 1}">${index + 1} ${index === 0 ? 'guest' : 'guests'}</option>`
+  ).join('');
+
+  const today = new Date();
+  const localToday = new Date(today.getTime() - today.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+  const checkin = document.getElementById('whatsapp-checkin');
+  const checkout = document.getElementById('whatsapp-checkout');
+  checkin.min = localToday;
+  checkout.min = localToday;
+  checkin.value = '';
+  checkout.value = '';
+  guestCount.value = '2';
+  checkin.onchange = () => { checkout.min = checkin.value || localToday; };
+
+  modal.classList.add('active');
+  modal.setAttribute('aria-hidden', 'false');
+  document.getElementById('whatsapp-checkin').focus();
+}
+
+function closeWhatsAppInquiry() {
+  const modal = document.getElementById('whatsapp-inquiry-modal');
+  if (modal) {
+    modal.classList.remove('active');
+    modal.setAttribute('aria-hidden', 'true');
+  }
+}
+
+function sendWhatsAppInquiry(event) {
+  event.preventDefault();
+  if (!whatsappInquiryProperty) return;
+
+  const checkin = document.getElementById('whatsapp-checkin').value;
+  const checkout = document.getElementById('whatsapp-checkout').value;
+  const guests = document.getElementById('whatsapp-guests').value;
+  if (!checkin || !checkout || checkout <= checkin) {
+    alert('Please select a valid check-in and check-out date.');
+    return;
+  }
+
+  const ref = `GNH-WA-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
+  const propertyUrl = new URL(`property.html?id=${encodeURIComponent(whatsappInquiryProperty.id)}`, window.location.href).href;
+  const message = [
+    'Hi Gonah Homes, I would like to enquire about a stay.',
+    `Property: ${whatsappInquiryProperty.name || 'Selected property'}`,
+    `Check-in: ${checkin}`,
+    `Check-out: ${checkout}`,
+    `Guests: ${guests}`,
+    `Booking enquiry reference: ${ref}`,
+    'This is an enquiry only; my booking is not confirmed yet.',
+    `Property details: ${propertyUrl}`
+  ].join('\n');
+  const url = `https://wa.me/254799466723?text=${encodeURIComponent(message)}`;
+  closeWhatsAppInquiry();
+  window.open(url, '_blank', 'noopener,noreferrer');
+}
+
 function propertyFeatures(property) {
   const amenities = propertyList(property.amenities);
   const fallback = propertyList(property.features);
@@ -500,16 +589,24 @@ function initMobileNav() {
 function openBookingModal(house) {
   const modal = document.getElementById('booking-modal-bg');
   const form = document.getElementById('booking-form');
+  const bookingStep = document.getElementById('booking-confirmation');
   const confirmDiv = document.getElementById('booking-confirm');
   const summaryDiv = document.getElementById('booking-summary');
 
   if (modal && form && confirmDiv) {
+    form.reset();
     modal.classList.add('active');
     document.getElementById('booking-house').value = house;
+    const guestsInput = document.getElementById('booking-guests');
+    const selectedProperty = propertiesData[house];
+    if (guestsInput && selectedProperty) {
+      const occupancy = Number(selectedProperty.occupancy) || propertyGuests(selectedProperty);
+      guestsInput.max = String(occupancy);
+    }
     form.style.display = 'block';
+    if (bookingStep) bookingStep.style.display = 'none';
     confirmDiv.style.display = 'none';
     if (summaryDiv) summaryDiv.style.display = 'none';
-    form.reset();
 
     if (typeof initializeFlatpickr === 'function') {
       initializeFlatpickr(house);
@@ -593,6 +690,14 @@ function submitBookingFinal() {
   const checkin = document.getElementById("booking-checkin").value;
   const checkout = document.getElementById("booking-checkout").value;
   const house = document.getElementById("booking-house").value;
+  const bookingProperty = propertiesData[house];
+  const maxGuests = bookingProperty
+    ? (Number(bookingProperty.occupancy) || propertyGuests(bookingProperty))
+    : 0;
+  if (maxGuests && Number(guests) > maxGuests) {
+    alert(`This property accommodates up to ${maxGuests} guests.`);
+    return;
+  }
   
   // Get calculated total from the hidden summary fields
   const totalText = document.getElementById('summary-total').textContent || '';
