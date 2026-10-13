@@ -2057,7 +2057,7 @@ function filterBookings() {
     const rowStatus = statusSpan ? statusSpan.textContent.toLowerCase() : '';
     
     const matchesSearch = text.includes(search);
-    const matchesStatus = !status || rowStatus.includes(status);
+    const matchesStatus = !status || status === 'archived' || rowStatus.includes(status);
     
     row.style.display = matchesSearch && matchesStatus ? '' : 'none';
   });
@@ -2233,3 +2233,168 @@ window.updateAnalytics = updateAnalytics;
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', attach);
   else attach();
 })();
+
+// ---- Booking archive (bulk archive / restore, nothing is deleted) ----
+function bookingLocalDate(value) {
+  if (!value) return null;
+  let d;
+  if (typeof value.toDate === 'function') d = value.toDate();
+  else {
+    const m = String(value).match(/^(\d{4})-(\d{2})-(\d{2})/);
+    d = m ? new Date(+m[1], +m[2] - 1, +m[3]) : new Date(value);
+  }
+  return isNaN(d) ? null : d;
+}
+
+function bookingArchiveBlockReason(b) {
+  const ci = bookingLocalDate(b.checkin);
+  const co = bookingLocalDate(b.checkout);
+  if (!ci || !co) return 'Dates unreadable';
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  if (ci <= today && today <= co) return 'Stay in progress';
+  const status = String(b.status || 'pending').toLowerCase();
+  if (ci > today && status !== 'cancelled') return 'Upcoming booking';
+  return '';
+}
+
+function bookingViewIsArchived() {
+  const f = document.getElementById('booking-status-filter');
+  return !!f && f.value === 'archived';
+}
+
+function ensureBookingArchiveUi() {
+  const filter = document.getElementById('booking-status-filter');
+  if (filter && !filter.querySelector('option[value="archived"]')) {
+    const opt = document.createElement('option');
+    opt.value = 'archived';
+    opt.textContent = 'Archived bookings';
+    filter.appendChild(opt);
+  }
+  if (filter && !filter.dataset.archiveHooked) {
+    filter.dataset.archiveHooked = '1';
+    filter.addEventListener('change', () => { loadBookings(); });
+  }
+  const container = document.querySelector('#bookings-section .table-container');
+  if (container && !document.getElementById('bk-toolbar')) {
+    const bar = document.createElement('div');
+    bar.id = 'bk-toolbar';
+    bar.style.cssText = 'display:flex;gap:0.6rem;align-items:center;flex-wrap:wrap;margin:0.75rem 0 0.25rem;';
+    bar.innerHTML = '<button id="bk-action-btn" class="btn btn-outline btn-sm" type="button" disabled>Archive selected</button>' +
+      '<span id="bk-count" style="font-size:0.85rem;color:var(--text-light);"></span>' +
+      '<small style="flex-basis:100%;color:var(--text-light);">Running and upcoming bookings cannot be archived. Archived bookings are hidden, not deleted: pick "Archived bookings" in the status filter to restore them.</small>';
+    container.parentNode.insertBefore(bar, container);
+    document.getElementById('bk-action-btn').addEventListener('click', runBookingArchiveAction);
+  }
+  const headRow = document.querySelector('#bookings-section thead tr');
+  if (headRow && !headRow.querySelector('.bk-select-th')) {
+    const th = document.createElement('th');
+    th.className = 'bk-select-th';
+    th.style.width = '2.5rem';
+    const all = document.createElement('input');
+    all.type = 'checkbox';
+    all.id = 'bk-select-all';
+    all.title = 'Select all';
+    all.style.cssText = 'width:1.1rem;height:1.1rem;';
+    all.addEventListener('change', () => {
+      document.querySelectorAll('#bookings-table tr').forEach(row => {
+        const cb = row.querySelector('.bk-select');
+        if (cb && !cb.disabled && row.style.display !== 'none') cb.checked = all.checked;
+      });
+      updateBookingSelectionCount();
+    });
+    th.appendChild(all);
+    headRow.insertBefore(th, headRow.firstChild);
+  }
+}
+
+function updateBookingSelectionCount() {
+  const btn = document.getElementById('bk-action-btn');
+  const label = document.getElementById('bk-count');
+  if (!btn) return;
+  const n = document.querySelectorAll('#bookings-table .bk-select:checked').length;
+  btn.textContent = bookingViewIsArchived() ? 'Restore selected' : 'Archive selected';
+  btn.disabled = n === 0;
+  if (label) label.textContent = n ? n + ' selected' : '';
+}
+
+function decorateBookingRows() {
+  const tbody = document.getElementById('bookings-table');
+  if (!tbody) return;
+  ensureBookingArchiveUi();
+  const archivedView = bookingViewIsArchived();
+  const all = document.getElementById('bk-select-all');
+  if (all) all.checked = false;
+  let shown = 0;
+  Array.from(tbody.querySelectorAll('tr')).forEach(row => {
+    const m = row.innerHTML.match(/openBookingDetails\('([^']+)'\)/);
+    if (!m) return;
+    const id = m[1];
+    const b = adminBookingCache.get(id) || {};
+    if (!!b.archived !== archivedView) { row.remove(); return; }
+    shown++;
+    if (!row.querySelector('.bk-select-cell')) {
+      const td = document.createElement('td');
+      td.className = 'bk-select-cell';
+      const cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.className = 'bk-select';
+      cb.value = id;
+      cb.style.cssText = 'width:1.1rem;height:1.1rem;';
+      const reason = archivedView ? '' : bookingArchiveBlockReason(b);
+      if (reason) { cb.disabled = true; td.title = reason; }
+      cb.addEventListener('change', updateBookingSelectionCount);
+      td.appendChild(cb);
+      row.insertBefore(td, row.firstChild);
+    }
+  });
+  if (!shown) {
+    tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;">' + (archivedView ? 'No archived bookings.' : 'No bookings to show.') + '</td></tr>';
+  }
+  updateBookingSelectionCount();
+  if (typeof filterBookings === 'function') filterBookings();
+}
+
+async function runBookingArchiveAction() {
+  const archivedView = bookingViewIsArchived();
+  const ids = Array.from(document.querySelectorAll('#bookings-table .bk-select:checked')).map(cb => cb.value);
+  if (!ids.length) return;
+  const allowed = [];
+  let skipped = 0;
+  ids.forEach(id => {
+    const b = adminBookingCache.get(id) || {};
+    if (!archivedView && bookingArchiveBlockReason(b)) skipped++;
+    else allowed.push(id);
+  });
+  if (!allowed.length) { alert('None of the selected bookings can be archived right now.'); return; }
+  const verb = archivedView ? 'Restore' : 'Archive';
+  let msg = verb + ' ' + allowed.length + ' booking' + (allowed.length === 1 ? '' : 's') + '?';
+  if (!archivedView) msg += '\n\nThey will be hidden from this list, not deleted. You can restore them from the "Archived bookings" view.';
+  if (skipped) msg += '\n\n' + skipped + ' selected booking(s) cannot be archived and will be skipped.';
+  if (!confirm(msg)) return;
+  const btn = document.getElementById('bk-action-btn');
+  if (btn) btn.disabled = true;
+  try {
+    for (let i = 0; i < allowed.length; i += 400) {
+      const batch = db.batch();
+      allowed.slice(i, i + 400).forEach(id => {
+        const ref = db.collection('bookings').doc(id);
+        batch.update(ref, archivedView
+          ? { archived: false, archivedAt: firebase.firestore.FieldValue.delete() }
+          : { archived: true, archivedAt: firebase.firestore.FieldValue.serverTimestamp() });
+      });
+      await batch.commit();
+    }
+    await loadBookings();
+  } catch (error) {
+    console.error('Archive action failed:', error);
+    alert('Could not update bookings: ' + error.message);
+  }
+  updateBookingSelectionCount();
+}
+
+const loadBookingsOriginal = loadBookings;
+loadBookings = async function () {
+  await loadBookingsOriginal.apply(this, arguments);
+  try { decorateBookingRows(); } catch (e) { console.warn('Booking archive UI failed:', e.message); }
+};
