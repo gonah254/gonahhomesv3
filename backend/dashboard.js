@@ -2398,3 +2398,49 @@ loadBookings = async function () {
   await loadBookingsOriginal.apply(this, arguments);
   try { decorateBookingRows(); } catch (e) { console.warn('Booking archive UI failed:', e.message); }
 };
+
+// ---- Display status: expired / awaiting completion (display only, data unchanged) ----
+function bookingDisplayStatus(b) {
+  const status = String(b.status || 'pending').toLowerCase();
+  const ci = bookingLocalDate(b.checkin);
+  const co = bookingLocalDate(b.checkout);
+  if (!ci || !co) return null;
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  if (status === 'pending' && ci < today) {
+    return { text: 'EXPIRED', cls: 'status-expired', tip: 'Check-in date passed without confirmation' };
+  }
+  if (status === 'confirmed' && co < today) {
+    return { text: 'AWAITING COMPLETION', cls: 'status-awaiting', tip: 'Check-out date has passed; mark as completed' };
+  }
+  return null;
+}
+
+function applyDisplayStatuses() {
+  const filter = document.getElementById('booking-status-filter');
+  if (filter && !filter.querySelector('option[value="expired"]')) {
+    const opt = document.createElement('option');
+    opt.value = 'expired';
+    opt.textContent = 'Expired';
+    filter.insertBefore(opt, filter.querySelector('option[value="archived"]') || null);
+  }
+  document.querySelectorAll('#bookings-table tr').forEach(row => {
+    const m = row.innerHTML.match(/openBookingDetails\('([^']+)'\)/);
+    const span = row.querySelector('.status');
+    if (!m || !span) return;
+    const b = adminBookingCache.get(m[1]);
+    if (!b) return;
+    const d = bookingDisplayStatus(b);
+    if (!d) return;
+    span.textContent = d.text;
+    span.className = 'status ' + d.cls;
+    span.title = d.tip;
+  });
+  if (typeof filterBookings === 'function') filterBookings();
+}
+
+const loadBookingsStatusStep = loadBookings;
+loadBookings = async function () {
+  await loadBookingsStatusStep.apply(this, arguments);
+  try { applyDisplayStatuses(); } catch (e) { console.warn('Display statuses failed:', e.message); }
+};
