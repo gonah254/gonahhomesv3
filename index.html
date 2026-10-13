@@ -4,11 +4,17 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, max-age=0">
+  <script>
+    if (new URLSearchParams(window.location.search).has('book')) {
+      document.documentElement.classList.add('booking-entry');
+    }
+  </script>
   <title>Gonah Homes - Premium Coastal Accommodations in Mombasa</title>
   <meta property="og:image" content="https://gonahhomes.com/whatsapp-preview.jpg">
   <meta property="og:description" content="Book premium short-stay apartments and vacation homes in Mombasa and the Coast region. Experience comfort, luxury and unforgettable coastal stays.">
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="styles.css?v=5">
+  <link rel="preconnect" href="https://firebasestorage.googleapis.com" crossorigin>
+  <link rel="stylesheet" href="styles.css?v=6">
   <link rel="stylesheet" href="customer-dashboard.css?v=3">
   <!-- Font Awesome for icons -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
@@ -17,10 +23,16 @@
   <!-- Flatpickr CSS -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
 <script>
-(function(){try{var s=localStorage.getItem('gh_properties_v1');if(!s)return;var p=JSON.parse(s);var k=Object.keys(p);for(var i=0;i<k.length;i++){var o=p[k[i]];var c=o&&Array.isArray(o.images)?o.images[0]:'';if(o&&o.name&&typeof c==='string'&&c.trim()){var l=document.createElement('link');l.rel='preload';l.as='image';l.href=c;l.setAttribute('fetchpriority','high');document.head.appendChild(l);break;}}}catch(e){}})();
+(function(){try{if(new URLSearchParams(window.location.search).has('book'))return;var s=localStorage.getItem('gh_properties_v1');if(!s)return;var p=JSON.parse(s);var k=Object.keys(p);for(var i=0;i<k.length;i++){var o=p[k[i]];var c=o&&Array.isArray(o.images)?o.images[0]:'';if(o&&o.name&&typeof c==='string'&&c.trim()){var l=document.createElement('link');l.rel='preload';l.as='image';l.href=c;l.setAttribute('fetchpriority','high');document.head.appendChild(l);break;}}}catch(e){}})();
 </script>
 </head>
 <body>
+  <div id="booking-entry-loader" class="booking-entry-loader" role="status" aria-live="polite">
+    <span class="booking-entry-spinner" aria-hidden="true"></span>
+    <strong>Gonah Homes</strong>
+    <span>Opening your booking form…</span>
+  </div>
+
   <!-- Navigation Header -->
   <header class="main-header">
     <nav class="navbar">
@@ -593,18 +605,18 @@
   </div>
 
   <!-- Firebase SDK -->
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
-  <script src="avatar.js"></script>
+  <script defer src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script defer src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+  <script defer src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+  <script defer src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
+  <script defer src="avatar.js"></script>
 
   <!-- Flatpickr JS -->
-  <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
-  <script src="https://cdn.emailjs.com/dist/email.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+  <script defer src="https://cdn.emailjs.com/dist/email.min.js"></script>
   
   <!-- Public properties are loaded directly from Firestore by script.js -->
-  <script src="script.js?v=8"></script>
-  <script src="booking-calendar.js?v=4"></script>
+  <script defer src="script.js?v=9"></script>
+  <script defer src="booking-calendar.js?v=4"></script>
 </body>
 </html>

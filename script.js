@@ -103,6 +103,23 @@ function clearBookingIntentFromUrl() {
   window.history.replaceState({}, '', cleanUrl.pathname + cleanUrl.search + cleanUrl.hash);
 }
 
+function bookingEntryIsActive() {
+  return document.documentElement.classList.contains('booking-entry');
+}
+
+function bookingEntryHasOpenedForm() {
+  return document.documentElement.classList.contains('booking-ready');
+}
+
+function exitBookingEntryMode() {
+  if (!bookingEntryIsActive()) return;
+  document.documentElement.classList.remove('booking-entry', 'booking-ready');
+  document.getElementById('booking-entry-loader')?.remove();
+  populatePropertyLocations();
+  renderHeroSlideshow();
+  renderPublicProperties();
+}
+
 function openRequestedBookingFromData() {
   const requestedPropertyId = new URLSearchParams(window.location.search).get('book');
   const requestedProperty = requestedPropertyId ? propertiesData[requestedPropertyId] : null;
@@ -129,13 +146,24 @@ function applyPropertyOverrides(snapshot) {
   if (freshJson) {
     try { localStorage.setItem(PROPERTY_CACHE_KEY, freshJson); } catch (e) { /* storage blocked or full */ }
   }
-  if (unchanged) return;
+  if (unchanged) {
+    const opened = openRequestedBookingFromData();
+    if (!opened && bookingEntryIsActive() && !bookingEntryHasOpenedForm() && !propertyBookingHandoff) {
+      exitBookingEntryMode();
+    }
+    return;
+  }
   propertyOverridesLoaded = true;
   propertyCatalogStatus = 'ready';
-  populatePropertyLocations();
-  renderHeroSlideshow();
-  renderPublicProperties();
-  openRequestedBookingFromData();
+  if (!bookingEntryIsActive()) {
+    populatePropertyLocations();
+    renderHeroSlideshow();
+    renderPublicProperties();
+  }
+  const opened = openRequestedBookingFromData();
+  if (!opened && bookingEntryIsActive() && !bookingEntryHasOpenedForm() && !propertyBookingHandoff) {
+    exitBookingEntryMode();
+  }
 }
 
 async function loadPropertyOverrides() {
@@ -145,15 +173,23 @@ async function loadPropertyOverrides() {
       err => {
         console.warn('Could not load properties from Firestore:', err.message);
         propertyCatalogStatus = 'error';
-        renderHeroSlideshow();
-        renderPublicProperties();
+        if (bookingEntryIsActive() && !bookingEntryHasOpenedForm() && !propertyBookingHandoff) {
+          exitBookingEntryMode();
+        } else if (!bookingEntryIsActive()) {
+          renderHeroSlideshow();
+          renderPublicProperties();
+        }
       }
     );
   } catch (err) {
     console.warn('Could not subscribe to Firestore properties:', err.message);
     propertyCatalogStatus = 'error';
-    renderHeroSlideshow();
-    renderPublicProperties();
+    if (bookingEntryIsActive() && !bookingEntryHasOpenedForm() && !propertyBookingHandoff) {
+      exitBookingEntryMode();
+    } else if (!bookingEntryIsActive()) {
+      renderHeroSlideshow();
+      renderPublicProperties();
+    }
   }
 }
 if (propertyBookingHandoff) {
@@ -278,11 +314,12 @@ function renderPublicProperties() {
     return;
   }
 
-  grid.innerHTML = filteredProperties.map(property => {
+  grid.innerHTML = filteredProperties.map((property, index) => {
     const images = Array.isArray(property.images) ? property.images : [];
     const cover = images[0];
+    const eagerImage = index < 2;
     const imageMarkup = cover
-      ? `<div class="property-image-frame"><div class="property-image-skeleton" aria-hidden="true"></div><img src="${escapePropertyHtml(cover)}" alt="${escapePropertyHtml(property.name)}" decoding="async" style="opacity:0" onload="this.style.opacity='1';this.previousElementSibling.style.display='none'" onerror="this.remove()"></div>`
+      ? `<div class="property-image-frame"><div class="property-image-skeleton" aria-hidden="true"></div><img src="${escapePropertyHtml(cover)}" alt="${escapePropertyHtml(property.name)}" loading="${eagerImage ? 'eager' : 'lazy'}" fetchpriority="${index === 0 ? 'high' : 'low'}" decoding="async" style="opacity:0" onload="this.style.opacity='1';this.previousElementSibling.style.display='none'" onerror="this.remove()"></div>`
       : '<div class="property-image-skeleton" aria-hidden="true"></div>';
     const features = propertyFeatures(property);
     const details = [propertyTypeLabel(property.type), property.location].filter(Boolean).join(' • ');
@@ -642,6 +679,7 @@ function openBookingModal(house) {
 
   if (modal && form && confirmDiv) {
     form.reset();
+    if (bookingEntryIsActive()) document.documentElement.classList.add('booking-ready');
     modal.classList.add('active');
     document.getElementById('booking-house').value = house;
     const guestsInput = document.getElementById('booking-guests');
@@ -657,7 +695,7 @@ function openBookingModal(house) {
 
     if (typeof initializeFlatpickr === 'function') {
       initializeFlatpickr(house);
-    } else if (document.readyState === 'loading') {
+    } else if (document.readyState !== 'complete') {
       document.addEventListener('DOMContentLoaded', () => {
         if (typeof initializeFlatpickr === 'function') initializeFlatpickr(house);
       }, { once: true });
@@ -670,6 +708,7 @@ function closeBookingModal() {
   if (modal) {
     modal.classList.remove('active');
   }
+  exitBookingEntryMode();
 }
 
 function openBookingConfirmation() {
@@ -1357,7 +1396,7 @@ window.currentSlide = (i) => showSlide(i - 1);
 
 document.addEventListener('DOMContentLoaded', () => {
   initializePropertyFilters();
-  renderPublicProperties();
+  if (!bookingEntryIsActive()) renderPublicProperties();
   initMobileNav();
   initFormHandlers();
   initSmoothScrolling();
@@ -1410,9 +1449,11 @@ function restoreCachedProperties() {
     lastPropertiesJson = saved;
     propertyOverridesLoaded = true;
     propertyCatalogStatus = 'ready';
-    populatePropertyLocations();
-    renderHeroSlideshow();
-    renderPublicProperties();
+    if (!bookingEntryIsActive()) {
+      populatePropertyLocations();
+      renderHeroSlideshow();
+      renderPublicProperties();
+    }
     openRequestedBookingFromData();
   } catch (e) {
     console.warn('Could not use cached properties:', e.message);

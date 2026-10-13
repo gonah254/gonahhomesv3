@@ -114,6 +114,9 @@
       image.hidden = true;
       empty.hidden = false;
     };
+    image.loading = 'eager';
+    image.decoding = 'async';
+    image.fetchPriority = 'high';
     image.src = galleryImages[galleryIndex];
     image.alt = `${propertyRecord.name || 'Property'} photo ${galleryIndex + 1}`;
     document.getElementById('property-gallery-count').textContent = `${galleryIndex + 1} / ${galleryImages.length}`;
@@ -151,7 +154,7 @@
     document.getElementById('property-gallery-count').hidden = galleryImages.length < 2;
     thumbnails.innerHTML = galleryImages.map((src, index) => `
       <button type="button" class="property-thumbnail${index === 0 ? ' active' : ''}" data-index="${index}" aria-label="Show photo ${index + 1}" aria-current="${index === 0 ? 'true' : 'false'}">
-        <img src="${escapeHtml(src)}" alt="" loading="lazy">
+        <img src="${escapeHtml(src)}" alt="" loading="lazy" decoding="async" fetchpriority="low">
       </button>
     `).join('');
     thumbnails.hidden = galleryImages.length < 2;

@@ -1644,6 +1644,54 @@ section {
   margin-top: 0.9rem;
 }
 
+/* Prevent the homepage from flashing before a requested booking form opens. */
+.booking-entry-loader {
+  display: none;
+}
+
+html.booking-entry body > :not(#booking-entry-loader):not(#booking-modal-bg) {
+  display: none !important;
+}
+
+html.booking-entry:not(.booking-ready) #booking-entry-loader {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.85rem;
+  background: #fffaf0;
+  color: #650000;
+  font-size: 0.95rem;
+}
+
+html.booking-entry:not(.booking-ready) #booking-entry-loader strong {
+  font-size: 1.5rem;
+}
+
+.booking-entry-spinner {
+  width: 34px;
+  height: 34px;
+  border: 3px solid rgba(101, 0, 0, 0.16);
+  border-top-color: #800000;
+  border-radius: 50%;
+  animation: bookingEntrySpin 0.75s linear infinite;
+}
+
+@keyframes bookingEntrySpin {
+  to { transform: rotate(360deg); }
+}
+
+html.booking-entry.booking-ready #booking-entry-loader {
+  display: none !important;
+}
+
+html.booking-entry #booking-modal-bg.active {
+  display: flex !important;
+}
+
 .property-details-link,
 .property-whatsapp-btn {
   display: inline-flex;
