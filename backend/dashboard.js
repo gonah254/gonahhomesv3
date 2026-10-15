@@ -1225,11 +1225,6 @@ async function loadAnalyticsData() {
       'Four Bedroom Apartment': 0,
       'Luxury Maisonette': 0
     };
-    const prices = {
-      'Studio Apartment': 3500, 'One Bedroom Apartment': 4500,
-      'Two Bedroom Apartment': 6000, 'Three Bedroom Apartment': 8000,
-      'Four Bedroom Apartment': 10000, 'Luxury Maisonette': 15000
-    };
     let totalRevenue = 0;
 
     snapshot.forEach(doc => {
@@ -1237,10 +1232,11 @@ async function loadAnalyticsData() {
       if (b.status === 'cancelled') return;
       if (b.timestamp) monthCounts[new Date(b.timestamp.toDate()).getMonth()]++;
       if (b.house && propMap.hasOwnProperty(b.house)) propMap[b.house]++;
-      if (b.checkin && b.checkout && b.house) {
-        const nights = Math.round((new Date(b.checkout) - new Date(b.checkin)) / 86400000);
-        if (nights > 0) totalRevenue += nights * (prices[b.house] || 5000);
-      }
+      const paid = Number(b.amountPaid);
+      const bookedTotal = Number(b.total);
+      totalRevenue += Number.isFinite(paid) && paid > 0
+        ? paid
+        : (Number.isFinite(bookedTotal) && bookedTotal > 0 ? bookedTotal : 0);
     });
 
     if (charts.bookingsChart) {
@@ -1520,6 +1516,83 @@ function propertyDefaults(name) {
   return {};
 }
 
+function updateSeasonalRateEmptyState() {
+  const list = document.getElementById('seasonal-rates-list');
+  const empty = document.getElementById('seasonal-rates-empty');
+  if (list && empty) empty.hidden = list.querySelectorAll('.seasonal-rate-row').length > 0;
+}
+
+function renderSeasonalRateRows(rates = []) {
+  const list = document.getElementById('seasonal-rates-list');
+  const error = document.getElementById('seasonal-rates-error');
+  if (!list) return;
+  if (error) error.textContent = '';
+  const safeRates = window.GonahPricing
+    ? window.GonahPricing.normalizeSeasonalRates(rates)
+    : [];
+  list.innerHTML = safeRates.map(rate => `
+    <div class="seasonal-rate-row">
+      <label>Season name
+        <input type="text" data-seasonal-name maxlength="60" value="${escapeDashboardHtml(rate.name)}" placeholder="e.g. Festive season">
+      </label>
+      <label>Start date
+        <input type="date" data-seasonal-start value="${escapeDashboardHtml(rate.startDate)}">
+      </label>
+      <label>End date
+        <input type="date" data-seasonal-end value="${escapeDashboardHtml(rate.endDate)}">
+      </label>
+      <label>Rate per night (KSh)
+        <input type="number" data-seasonal-price min="0" step="1" value="${escapeDashboardHtml(rate.price)}" placeholder="e.g. 9000">
+      </label>
+      <button type="button" class="seasonal-rate-remove" aria-label="Remove seasonal rate" onclick="this.closest('.seasonal-rate-row').remove(); updateSeasonalRateEmptyState();">
+        <i class="fas fa-trash" aria-hidden="true"></i>
+      </button>
+    </div>
+  `).join('');
+  updateSeasonalRateEmptyState();
+}
+
+function addSeasonalRateRow() {
+  const list = document.getElementById('seasonal-rates-list');
+  if (!list) return;
+  const maximum = window.GonahPricing?.MAX_SEASONAL_RATES || 20;
+  if (list.querySelectorAll('.seasonal-rate-row').length >= maximum) {
+    showToast(`A property can have at most ${maximum} seasonal date ranges.`, 'error');
+    return;
+  }
+  const row = document.createElement('div');
+  row.className = 'seasonal-rate-row';
+  row.innerHTML = `
+    <label>Season name
+      <input type="text" data-seasonal-name maxlength="60" placeholder="e.g. Festive season">
+    </label>
+    <label>Start date
+      <input type="date" data-seasonal-start>
+    </label>
+    <label>End date
+      <input type="date" data-seasonal-end>
+    </label>
+    <label>Rate per night (KSh)
+      <input type="number" data-seasonal-price min="0" step="1" placeholder="e.g. 9000">
+    </label>
+    <button type="button" class="seasonal-rate-remove" aria-label="Remove seasonal rate" onclick="this.closest('.seasonal-rate-row').remove(); updateSeasonalRateEmptyState();">
+      <i class="fas fa-trash" aria-hidden="true"></i>
+    </button>
+  `;
+  list.appendChild(row);
+  document.getElementById('seasonal-rates-error').textContent = '';
+  updateSeasonalRateEmptyState();
+}
+
+function readSeasonalRateRows() {
+  return Array.from(document.querySelectorAll('#seasonal-rates-list .seasonal-rate-row')).map(row => ({
+    name: row.querySelector('[data-seasonal-name]')?.value || '',
+    startDate: row.querySelector('[data-seasonal-start]')?.value || '',
+    endDate: row.querySelector('[data-seasonal-end]')?.value || '',
+    price: row.querySelector('[data-seasonal-price]')?.value || ''
+  }));
+}
+
 async function loadProperties() {
   const container = document.getElementById('properties-list');
   if (!container) return;
@@ -1545,6 +1618,9 @@ async function loadProperties() {
       ${records.map(property => {
         const images = Array.isArray(property.images) ? property.images.slice(0, MAX_PROPERTY_IMAGES) : [];
         const docId = property.docId || property.name;
+        const seasonalRateCount = window.GonahPricing
+          ? window.GonahPricing.normalizeSeasonalRates(property.seasonalRates).length
+          : 0;
         const features = propertyTextList(property.amenities || property.features);
         const nearby = propertyTextList(property.landmarks);
         const houseRules = propertyMultilineList(property.houseRules);
@@ -1559,6 +1635,7 @@ async function loadProperties() {
                 <p style="font-size:.84rem;color:var(--text-light);margin:0;">
                   ${escapeDashboardHtml(property.type || 'Property')} ${property.location ? ` • ${escapeDashboardHtml(property.location)}` : ''}
                   ${property.price !== undefined ? ` • KSh ${Number(property.price || 0).toLocaleString()}/night` : ''}
+                  ${seasonalRateCount ? ` • ${seasonalRateCount} seasonal rate${seasonalRateCount === 1 ? '' : 's'}` : ''}
                 </p>
               </div>
               <div style="display:flex;gap:.45rem;flex-wrap:wrap;">
@@ -1595,6 +1672,7 @@ function openPropertyModal(docId = '') {
   form.reset();
   const photoPreview = document.getElementById('property-photo-preview');
   if (photoPreview) photoPreview.innerHTML = '';
+  renderSeasonalRateRows([]);
   document.getElementById('property-doc-id').value = docId;
   document.getElementById('property-modal-title').innerHTML = docId
     ? '<i class="fas fa-pen"></i> Edit Property'
@@ -1634,6 +1712,7 @@ function openPropertyModal(docId = '') {
       document.getElementById('property-landmarks').value = propertyTextList(property.landmarks).join(', ');
       document.getElementById('property-house-rules').value = propertyMultilineList(property.houseRules).join('\n');
       document.getElementById('property-pricing-notes').value = property.pricingNotes || '';
+      renderSeasonalRateRows(property.seasonalRates || []);
       document.getElementById('property-booking-instructions').value = property.bookingInstructions || '';
        document.getElementById('property-photo-urls').value = Array.isArray(property.images) ? property.images.slice(0, MAX_PROPERTY_IMAGES).join('\n') : '';
        renderPropertyPhotoPreview(property.images || []);
@@ -1720,6 +1799,17 @@ async function savePropertyDetails() {
     const type = normalizePropertyType(document.getElementById('property-type').value);
   const location = document.getElementById('property-location').value.trim();
   const price = Number(document.getElementById('property-price').value);
+  if (!window.GonahPricing) {
+    showToast('Pricing tools could not load. Refresh the dashboard and try again.', 'error');
+    return;
+  }
+  const seasonalRateValidation = window.GonahPricing.validateSeasonalRates(readSeasonalRateRows());
+  const seasonalError = document.getElementById('seasonal-rates-error');
+  if (seasonalError) seasonalError.textContent = seasonalRateValidation.errors.join(' ');
+  if (!seasonalRateValidation.valid) {
+    showToast(seasonalRateValidation.errors[0], 'error');
+    return;
+  }
   const selectedAmenities = Array.from(document.querySelectorAll('#property-amenities-options input[type="checkbox"]:checked')).map(input => input.value);
   const customAmenities = propertyTextList(document.getElementById('property-amenities-custom').value);
   const amenities = [...new Set([...selectedAmenities, ...customAmenities])];
@@ -1762,7 +1852,7 @@ async function savePropertyDetails() {
     await db.collection('property_settings').doc(targetId).set({
       name, description, type, location, price, currency: 'KSh', perNight: true,
       locationDetails, mapUrl, occupancy,
-      amenities, landmarks, houseRules, pricingNotes, bookingInstructions, images, status,
+      amenities, landmarks, houseRules, pricingNotes, seasonalRates: seasonalRateValidation.rates, bookingInstructions, images, status,
       updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
       updatedBy: firebase.auth().currentUser?.email || ADMIN_EMAIL
     }, { merge: true });
@@ -1794,47 +1884,91 @@ document.getElementById('property-photo-files')?.addEventListener('change', even
 });
 
 // ===================== PAYMENT & CANCELLATION MODALS =====================
-const PROPERTY_PRICES = {
-  'Studio Apartment': 3500,
-  'One Bedroom Apartment': 4500,
-  'Two Bedroom Apartment': 6000,
-  'Three Bedroom Apartment': 8000,
-  'Four Bedroom Apartment': 10000,
-  'Luxury Maisonette': 15000
-};
-
 let _pendingPaymentId = null;
 let _pendingCancelId = null;
 let _pendingBooking = null;
 let _pendingExpectedTotal = 0;
 let _pendingNights = 0;
+let _pendingPricingBreakdown = [];
+
+function bookingNights(checkin, checkout) {
+  if (window.GonahPricing) {
+    const start = window.GonahPricing.toDateKey(checkin);
+    const end = window.GonahPricing.toDateKey(checkout);
+    if (start && end && end > start) {
+      return (Date.parse(`${end}T00:00:00Z`) - Date.parse(`${start}T00:00:00Z`)) / 86400000;
+    }
+  }
+  const nights = Math.round((new Date(checkout) - new Date(checkin)) / 86400000);
+  return nights > 0 ? nights : 0;
+}
+
+async function getPropertyPricingForBooking(booking) {
+  if (booking.pricingSnapshot) {
+    return {
+      price: Number(booking.pricingSnapshot.basePrice),
+      currency: booking.pricingSnapshot.currency || booking.currency || 'KSh',
+      seasonalRates: booking.pricingSnapshot.seasonalRates || []
+    };
+  }
+  const byName = await db.collection('property_settings')
+    .where('name', '==', booking.house)
+    .limit(1)
+    .get();
+  if (!byName.empty) return byName.docs[0].data();
+  const byId = await db.collection('property_settings').doc(propertyDocumentId(booking.house)).get();
+  return byId.exists ? byId.data() : null;
+}
+
+function bookingPricingBreakdownHtml(lines) {
+  if (!Array.isArray(lines) || !lines.length) return '';
+  return `<div style="margin-top:.35rem;color:#666;font-size:.82rem;">${lines.map(line => {
+    const range = line.startDate && line.endDate
+      ? ` (${escapeDashboardHtml(window.GonahPricing?.formatDate(line.startDate) || line.startDate)} – ${escapeDashboardHtml(window.GonahPricing?.formatDate(line.endDate) || line.endDate)})`
+      : '';
+    return `<div>${escapeDashboardHtml(line.label || 'Nightly rate')}: ${Number(line.nights || 0)} night${Number(line.nights) === 1 ? '' : 's'} × ${escapeDashboardHtml(line.currency || 'KSh')} ${Number(line.pricePerNight || 0).toLocaleString('en-KE')} = ${escapeDashboardHtml(line.currency || 'KSh')} ${Number(line.total || 0).toLocaleString('en-KE')}${range}</div>`;
+  }).join('')}</div>`;
+}
 
 async function openPaymentModal(bookingId) {
   _pendingPaymentId = bookingId;
   _pendingExpectedTotal = 0;
   _pendingNights = 0;
+  _pendingPricingBreakdown = [];
   try {
     const snap = await db.collection('bookings').doc(bookingId).get();
     _pendingBooking = snap.data();
-    const b = _pendingBooking;
+    const b = _pendingBooking || {};
+    const nights = Number(b.nights) || bookingNights(b.checkin, b.checkout);
+    const hasSavedTotal = b.total !== undefined && b.total !== null && b.total !== ''
+      && Number.isFinite(Number(b.total));
+    let expectedTotal = hasSavedTotal ? Number(b.total) : 0;
+    let breakdown = Array.isArray(b.pricingBreakdown) ? b.pricingBreakdown : [];
+    const currency = b.currency || b.pricingSnapshot?.currency || 'KSh';
 
-    // Calculate expected total
-    const cin  = new Date(b.checkin);
-    const cout = new Date(b.checkout);
-    const nights = Math.max(1, Math.round((cout - cin) / 86400000));
-    const pricePerNight = PROPERTY_PRICES[b.house] || 0;
-    const expectedTotal = nights * pricePerNight;
+    if (!hasSavedTotal && window.GonahPricing) {
+      const pricingProperty = await getPropertyPricingForBooking(b);
+      if (pricingProperty) {
+        const quote = window.GonahPricing.calculateStay(pricingProperty, b.checkin, b.checkout);
+        if (quote.valid) {
+          expectedTotal = quote.total;
+          breakdown = quote.breakdown;
+        }
+      }
+    }
     _pendingExpectedTotal = expectedTotal;
     _pendingNights = nights;
+    _pendingPricingBreakdown = breakdown;
 
     document.getElementById('payment-modal-info').innerHTML =
-      `<strong>${b.house || 'N/A'}</strong> &bull; ${b.name || ''}<br>
-       <span style="color:#666;">${b.checkin || ''} → ${b.checkout || ''} &bull; ${nights} night${nights!==1?'s':''} &bull; ${b.email || ''}</span><br>
-       ${expectedTotal > 0 ? `<strong style="color:#800000;">Expected Total: KSh ${expectedTotal.toLocaleString()}</strong>
-       <span style="color:#888;font-size:0.82rem;"> (${nights} night${nights!==1?'s':''} × KSh ${pricePerNight.toLocaleString()}/night)</span>` : ''}`;
+      `<strong>${escapeDashboardHtml(b.house || 'N/A')}</strong> &bull; ${escapeDashboardHtml(b.name || '')}<br>
+       <span style="color:#666;">${escapeDashboardHtml(b.checkin || '')} → ${escapeDashboardHtml(b.checkout || '')} &bull; ${nights} night${nights !== 1 ? 's' : ''} &bull; ${escapeDashboardHtml(b.email || '')}</span><br>
+       ${expectedTotal >= 0 && (hasSavedTotal || expectedTotal > 0) ? `<strong style="color:#800000;">Expected Total: ${escapeDashboardHtml(currency)} ${expectedTotal.toLocaleString('en-KE')}</strong>${bookingPricingBreakdownHtml(breakdown)}` : '<strong style="color:#9c1c1c;">No saved quote is available. Verify the rate before confirming payment.</strong>'}`;
 
     // Auto-fill amount with expected total
-    if (expectedTotal > 0) document.getElementById('payment-amount').value = expectedTotal;
+    if (expectedTotal >= 0 && (hasSavedTotal || expectedTotal > 0)) {
+      document.getElementById('payment-amount').value = expectedTotal;
+    }
   } catch(_) {}
   document.getElementById('payment-form').reset();
   if (_pendingExpectedTotal > 0) document.getElementById('payment-amount').value = _pendingExpectedTotal;
@@ -2152,11 +2286,6 @@ function filterClients() {
 console.log('Gonah Homes Backend Dashboard initialized successfully!');
 
 // ---- Analytics & Reports (fills the four report cards) ----
-const ANALYTICS_PRICES = {
-  'Studio Apartment': 3500, 'One Bedroom Apartment': 4500,
-  'Two Bedroom Apartment': 6000, 'Three Bedroom Apartment': 8000,
-  'Four Bedroom Apartment': 10000, 'Luxury Maisonette': 15000
-};
 const analyticsCharts = {};
 
 function analyticsEsc(value) {
@@ -2171,7 +2300,10 @@ function analyticsNights(b) {
 }
 
 function analyticsEstimate(b) {
-  return analyticsNights(b) * (ANALYTICS_PRICES[b.house] || 5000);
+  const paid = Number(b.amountPaid);
+  if (Number.isFinite(paid) && paid > 0) return paid;
+  const total = Number(b.total);
+  return Number.isFinite(total) && total > 0 ? total : 0;
 }
 
 function analyticsInRange(b, start, end) {

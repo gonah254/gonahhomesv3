@@ -31,16 +31,46 @@ const STATUS_LABELS = {
     'cancelled': '⛔ Cancelled'
 };
 
-const PROPERTY_PRICES = {
-    'Studio Apartment': 3500,
-    'One Bedroom Apartment': 4500,
-    'Two Bedroom Apartment': 6000,
-    'Three Bedroom Apartment': 8000,
-    'Four Bedroom Apartment': 10000,
-    'Luxury Maisonette': 15000
-};
-
 const ADMIN_EMAIL = 'gonahhomes0@gmail.com';
+
+function workflowBookingNights(booking) {
+    const nights = Number(booking?.nights);
+    if (Number.isInteger(nights) && nights > 0) return nights;
+    const start = window.GonahPricing?.toDateKey(booking?.checkin);
+    const end = window.GonahPricing?.toDateKey(booking?.checkout);
+    if (!start || !end || end <= start) return 0;
+    return (Date.parse(`${end}T00:00:00Z`) - Date.parse(`${start}T00:00:00Z`)) / 86400000;
+}
+
+function workflowBookingTotal(booking) {
+    if (booking?.total === undefined || booking.total === null || booking.total === '') return null;
+    const total = Number(booking.total);
+    return Number.isFinite(total) && total >= 0 ? total : null;
+}
+
+function escapeWorkflowHtml(value) {
+    return String(value ?? '').replace(/[&<>"']/g, character => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;'
+    }[character]));
+}
+
+function workflowBreakdownHtml(booking) {
+    if (!Array.isArray(booking?.pricingBreakdown) || !booking.pricingBreakdown.length) return '';
+    return `<div style="margin-top:.35rem;color:#666;font-size:.83rem;">${booking.pricingBreakdown.map(line => {
+        const currency = escapeWorkflowHtml(line.currency || booking.currency || 'KSh');
+        const dates = line.startDate && line.endDate
+            ? ` (${escapeWorkflowHtml(window.GonahPricing?.formatDate(line.startDate) || line.startDate)} – ${escapeWorkflowHtml(window.GonahPricing?.formatDate(line.endDate) || line.endDate)})`
+            : '';
+        return `<div>${escapeWorkflowHtml(line.label || 'Nightly rate')}: ${Number(line.nights || 0)} × ${currency} ${Number(line.pricePerNight || 0).toLocaleString('en-KE')} = ${currency} ${Number(line.total || 0).toLocaleString('en-KE')}${dates}</div>`;
+    }).join('')}</div>`;
+}
+
+function workflowBreakdownText(booking) {
+    if (!Array.isArray(booking?.pricingBreakdown)) return '';
+    return booking.pricingBreakdown.map(line =>
+        `${line.label || 'Nightly rate'}: ${line.nights} night${Number(line.nights) === 1 ? '' : 's'} × ${line.currency || booking.currency || 'KSh'} ${Number(line.pricePerNight || 0).toLocaleString('en-KE')} = ${line.currency || booking.currency || 'KSh'} ${Number(line.total || 0).toLocaleString('en-KE')}`
+    ).join('\n');
+}
 
 /**
  * Load pending bookings for admin review
@@ -85,11 +115,8 @@ async function loadPendingBookings() {
  * Create a booking card for display
  */
 function createBookingCard(bookingId, booking, status) {
-    const checkinDate = new Date(booking.checkin);
-    const checkoutDate = new Date(booking.checkout);
-    const nights = Math.round((checkoutDate - checkinDate) / 86400000);
-    const pricePerNight = PROPERTY_PRICES[booking.house] || 0;
-    const expectedTotal = nights * pricePerNight;
+    const nights = workflowBookingNights(booking);
+    const expectedTotal = workflowBookingTotal(booking);
 
     const statusColor = STATUS_COLORS[booking.status] || '#999';
     const statusLabel = STATUS_LABELS[booking.status] || booking.status;
@@ -118,9 +145,9 @@ function createBookingCard(bookingId, booking, status) {
                     <strong>Guests:</strong> ${booking.guests || 'N/A'}
                 </p>
                 <p style="margin: 0; font-size: 0.9rem; color: #666;">
-                    <strong>Expected Total:</strong> <span style="color: #800000; font-weight: 600;">KSh ${expectedTotal.toLocaleString()}</span> 
-                    <span style="color: #999; font-size: 0.85rem;">(${nights} × KSh ${pricePerNight.toLocaleString()})</span>
+                    <strong>Expected Total:</strong> <span style="color: #800000; font-weight: 600;">${expectedTotal === null ? 'No saved quote' : `${escapeWorkflowHtml(booking.currency || 'KSh')} ${expectedTotal.toLocaleString('en-KE')}`}</span>
                 </p>
+                ${workflowBreakdownHtml(booking)}
             </div>
 
             ${booking.requests ? `
@@ -182,16 +209,18 @@ async function approveBooking(bookingId) {
         // Send approval email to guest
         if (booking.email) {
             try {
-                const nights = Math.round((new Date(booking.checkout) - new Date(booking.checkin)) / 86400000);
-                const price = PROPERTY_PRICES[booking.house] || 0;
-                const total = nights * price;
+                const total = workflowBookingTotal(booking);
+                const breakdown = workflowBreakdownText(booking);
+                const amountText = total === null
+                    ? 'Please contact Gonah Homes to confirm your payment amount.'
+                    : `${booking.currency || 'KSh'} ${total.toLocaleString('en-KE')}`;
 
                 await emailjs.send('service_ky2kj3t', 'template_6duvs5n', {
                     to_name: booking.name,
                     to_email: booking.email,
                     from_name: 'Gonah Homes',
                     subject: 'Booking Approved - Payment Required',
-                    message: `Great news! Your booking for ${booking.house} has been APPROVED!\n\n📅 Check-in: ${booking.checkin}\n📅 Check-out: ${booking.checkout}\n👥 Guests: ${booking.guests}\n\n💰 Amount to Pay: KSh ${total.toLocaleString()}\n(${nights} night${nights !== 1 ? 's' : ''} × KSh ${price.toLocaleString()}/night)\n\nPlease complete your payment to confirm the booking.\n\nThank you!`
+                    message: `Great news! Your booking for ${booking.house} has been APPROVED!\n\n📅 Check-in: ${booking.checkin}\n📅 Check-out: ${booking.checkout}\n👥 Guests: ${booking.guests}\n\n💰 Amount to Pay: ${amountText}${breakdown ? `\n\nPrice breakdown:\n${breakdown}` : ''}\n\nPlease complete your payment to confirm the booking.\n\nThank you!`
                 });
             } catch (emailErr) {
                 console.warn('Could not send approval email:', emailErr.message);
@@ -267,9 +296,8 @@ async function openPaymentConfirmModal(bookingId) {
         }
 
         const booking = doc.data();
-        const nights = Math.round((new Date(booking.checkout) - new Date(booking.checkin)) / 86400000);
-        const price = PROPERTY_PRICES[booking.house] || 0;
-        const total = nights * price;
+        const nights = workflowBookingNights(booking);
+        const total = workflowBookingTotal(booking);
 
         // Store booking ID in modal for submission
         const modal = document.getElementById('payment-modal');
@@ -277,9 +305,11 @@ async function openPaymentConfirmModal(bookingId) {
             document.getElementById('current-booking-id').value = bookingId;
             document.getElementById('payment-modal-info').innerHTML = `
                 <strong>${booking.name}</strong> - ${booking.house}<br>
-                ${booking.checkin} to ${booking.checkout} (${nights} nights)<br>
-                Expected Amount: <strong>KSh ${total.toLocaleString()}</strong>
+                ${escapeWorkflowHtml(booking.checkin)} to ${escapeWorkflowHtml(booking.checkout)} (${nights} nights)<br>
+                Expected Amount: <strong>${total === null ? 'No saved quote' : `${escapeWorkflowHtml(booking.currency || 'KSh')} ${total.toLocaleString('en-KE')}`}</strong>
+                ${workflowBreakdownHtml(booking)}
             `;
+            if (total !== null) document.getElementById('payment-amount').value = total;
             modal.classList.add('active');
         }
     } catch (error) {
@@ -305,7 +335,16 @@ async function submitBookingPaymentConfirmation() {
 
     try {
         const bookingDoc = await db.collection('bookings').doc(bookingId).get();
-        const booking = bookingDoc.data();
+        if (!bookingDoc.exists) {
+            showToast('Booking not found', 'error');
+            return;
+        }
+        const booking = bookingDoc.data() || {};
+        const expectedTotal = workflowBookingTotal(booking);
+        if (expectedTotal !== null && Number(amount) !== expectedTotal) {
+            showToast(`Amount must match the saved booking total of ${booking.currency || 'KSh'} ${expectedTotal.toLocaleString('en-KE')}.`, 'error');
+            return;
+        }
 
         const updateData = {
             status: 'confirmed',
@@ -356,11 +395,8 @@ async function viewBookingDetails(bookingId) {
         }
 
         const booking = doc.data();
-        const checkinDate = new Date(booking.checkin);
-        const checkoutDate = new Date(booking.checkout);
-        const nights = Math.round((checkoutDate - checkinDate) / 86400000);
-        const price = PROPERTY_PRICES[booking.house] || 0;
-        const total = nights * price;
+        const nights = workflowBookingNights(booking);
+        const total = workflowBookingTotal(booking);
 
         const detailsHtml = `
             <div style="padding: 2rem; background: white;">
@@ -386,9 +422,9 @@ async function viewBookingDetails(bookingId) {
                 <div style="background: #f9f9f9; padding: 1.5rem; border-radius: 8px; margin: 2rem 0;">
                     <h4 style="margin-top: 0; color: #333;">💰 Price Breakdown</h4>
                     <p><strong>Nights:</strong> ${nights}</p>
-                    <p><strong>Price per Night:</strong> KSh ${price.toLocaleString()}</p>
+                    ${workflowBreakdownHtml(booking)}
                     <p style="border-top: 1px solid #ddd; padding-top: 1rem; margin-top: 1rem;">
-                        <strong style="font-size: 1.2rem; color: #800000;">Total: KSh ${total.toLocaleString()}</strong>
+                        <strong style="font-size: 1.2rem; color: #800000;">Total: ${total === null ? 'No saved quote' : `${escapeWorkflowHtml(booking.currency || 'KSh')} ${total.toLocaleString('en-KE')}`}</strong>
                     </p>
                 </div>
 

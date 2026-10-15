@@ -326,35 +326,48 @@ function updateBookingSummary() {
   const checkinDate = checkinPicker?.selectedDates[0] ? startOfDayLocal(checkinPicker.selectedDates[0]) : null;
   const checkoutDateRaw = checkoutPicker?.selectedDates[0] ? startOfDayLocal(checkoutPicker.selectedDates[0]) : null;
   const summaryDiv = document.getElementById('booking-summary');
+  const preview = document.getElementById('booking-rate-preview');
 
   if (!summaryDiv) return;
 
-  if (checkinDate && checkoutDateRaw && currentHouse && typeof propertiesData !== 'undefined' && propertiesData[currentHouse]) {
-    const checkoutDate = checkoutDateRaw;
-    // compute nights: difference in days
-    const msPerDay = 1000 * 60 * 60 * 24;
-    const nights = Math.round((checkoutDate - checkinDate) / msPerDay);
-    const property = propertiesData[currentHouse];
-    const pricePerNight = Number(property.price || 0);
-    const total = nights * pricePerNight;
-
-    // Format strings safely
-    const fmt = d => flatpickr.formatDate(d, 'D, M d, Y');
-
-    document.getElementById('summary-house').textContent = currentHouse;
-    document.getElementById('summary-checkin').textContent = fmt(checkinDate);
-    document.getElementById('summary-checkout').textContent = fmt(checkoutDate) + ' at 10:00 AM';
-    document.getElementById('summary-nights').textContent = `${nights} night${nights !== 1 ? 's' : ''}`;
-    const currency = property.currency || '';
-    // localized number formatting (fallback)
-    const formattedTotal = typeof Intl !== 'undefined'
-      ? new Intl.NumberFormat(undefined).format(total)
-      : total.toLocaleString();
-    document.getElementById('summary-total').textContent = `${currency} ${formattedTotal}`;
-
-    summaryDiv.style.display = 'block';
-  } else {
+  if (!checkinDate || !checkoutDateRaw || !currentHouse || typeof propertiesData === 'undefined' || !propertiesData[currentHouse]) {
     summaryDiv.style.display = 'none';
+    if (preview) preview.textContent = 'Choose your dates to see the full stay price.';
+    return;
+  }
+
+  if (!window.GonahPricing) {
+    summaryDiv.style.display = 'none';
+    if (preview) preview.textContent = 'Pricing is temporarily unavailable. Please try again.';
+    return;
+  }
+
+  const property = propertiesData[currentHouse];
+  const quote = window.GonahPricing.calculateStay(property, checkinDate, checkoutDateRaw);
+  if (!quote.valid) {
+    summaryDiv.style.display = 'none';
+    if (preview) preview.textContent = quote.error;
+    return;
+  }
+
+  const fmt = date => flatpickr.formatDate(date, 'D, M d, Y');
+  const money = amount => Number(amount).toLocaleString('en-KE', { maximumFractionDigits: 0 });
+  const dateRange = line => line.startDate === line.endDate
+    ? window.GonahPricing.formatDate(line.startDate)
+    : `${window.GonahPricing.formatDate(line.startDate)} – ${window.GonahPricing.formatDate(line.endDate)}`;
+  const breakdownLines = quote.breakdown.map(line =>
+    `${line.label}: ${line.nights} night${line.nights === 1 ? '' : 's'} × ${line.currency} ${money(line.pricePerNight)} = ${line.currency} ${money(line.total)} (${dateRange(line)})`
+  );
+
+  document.getElementById('summary-house').textContent = currentHouse;
+  document.getElementById('summary-checkin').textContent = fmt(checkinDate);
+  document.getElementById('summary-checkout').textContent = fmt(checkoutDateRaw) + ' at 10:00 AM';
+  document.getElementById('summary-nights').textContent = `${quote.nights} night${quote.nights !== 1 ? 's' : ''}`;
+  document.getElementById('summary-total').textContent = `${quote.currency} ${money(quote.total)}`;
+  document.getElementById('summary-rate-breakdown').textContent = breakdownLines.join(' | ');
+  summaryDiv.style.display = 'block';
+  if (preview) {
+    preview.textContent = `Estimated total for ${quote.nights} night${quote.nights !== 1 ? 's' : ''}: ${quote.currency} ${money(quote.total)}\n${breakdownLines.join('\n')}`;
   }
 }
 

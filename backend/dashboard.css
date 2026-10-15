@@ -1055,3 +1055,100 @@ body {
     justify-content: flex-start !important;
   }
 }
+
+.seasonal-rates-editor {
+  padding: 0.9rem;
+  border: 1px solid #ead9d9;
+  border-radius: 10px;
+  background: #fffafa;
+}
+
+.seasonal-rates-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.75rem;
+}
+
+.seasonal-rates-heading label {
+  display: block;
+  margin-bottom: 0.2rem;
+  font-weight: 600;
+}
+
+.seasonal-rates-heading small {
+  display: block;
+  color: var(--text-light);
+  font-size: 0.76rem;
+}
+
+.seasonal-rates-list {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.seasonal-rate-row {
+  display: grid;
+  grid-template-columns: minmax(120px, 1.2fr) minmax(125px, 1fr) minmax(125px, 1fr) minmax(120px, 1fr) 36px;
+  align-items: end;
+  gap: 0.55rem;
+  padding: 0.7rem;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.seasonal-rate-row label {
+  min-width: 0;
+  color: var(--text-color);
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
+.seasonal-rate-row input {
+  width: 100%;
+  min-width: 0;
+  margin-top: 0.25rem;
+  padding: 0.55rem;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  font: inherit;
+  font-size: 0.82rem;
+}
+
+.seasonal-rate-remove {
+  width: 36px;
+  height: 36px;
+  border: 1px solid #f0c5c5;
+  border-radius: 7px;
+  background: #fff5f5;
+  color: #9c1c1c;
+  cursor: pointer;
+}
+
+.seasonal-rates-empty,
+.seasonal-rates-error {
+  margin: 0.6rem 0 0;
+  color: var(--text-light);
+  font-size: 0.78rem;
+}
+
+.seasonal-rates-error {
+  color: #b42318;
+}
+
+@media (max-width: 700px) {
+  .seasonal-rates-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .seasonal-rate-row {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 36px;
+  }
+
+  .seasonal-rate-row label:first-child {
+    grid-column: 1 / -1;
+  }
+}

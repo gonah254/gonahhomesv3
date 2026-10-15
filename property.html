@@ -11,8 +11,8 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-  <link rel="stylesheet" href="styles.css?v=5">
-  <link rel="stylesheet" href="property-page.css?v=1">
+  <link rel="stylesheet" href="styles.css?v=7">
+  <link rel="stylesheet" href="property-page.css?v=2">
 </head>
 <body class="property-detail-page">
   <header class="main-header">
@@ -114,8 +114,9 @@
 
           <aside class="property-booking-card" aria-label="Pricing and booking">
             <p class="property-price-label">From</p>
-            <p class="property-price"><span id="property-currency"></span> <strong id="property-price"></strong><small> / night</small></p>
+            <p class="property-price">From <span id="property-currency"></span> <strong id="property-price"></strong><small> / night</small></p>
             <p id="property-pricing-notes" class="property-pricing-notes" hidden></p>
+            <div id="property-seasonal-rates" class="property-seasonal-rates" hidden></div>
             <button type="button" id="property-book-button" class="btn btn-primary property-book-button">
               <i class="fas fa-calendar-check" aria-hidden="true"></i> Book this stay
             </button>
@@ -145,6 +146,7 @@
 
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
-  <script src="property-page.js?v=3"></script>
+  <script src="booking-pricing.js?v=1"></script>
+  <script src="property-page.js?v=4"></script>
 </body>
 </html>

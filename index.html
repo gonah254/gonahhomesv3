@@ -14,7 +14,7 @@
   <meta property="og:description" content="Book premium short-stay apartments and vacation homes in Mombasa and the Coast region. Experience comfort, luxury and unforgettable coastal stays.">
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
   <link rel="preconnect" href="https://firebasestorage.googleapis.com" crossorigin>
-  <link rel="stylesheet" href="styles.css?v=6">
+  <link rel="stylesheet" href="styles.css?v=7">
   <link rel="stylesheet" href="customer-dashboard.css?v=3">
   <!-- Font Awesome for icons -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
@@ -112,6 +112,7 @@
             <div class="price-tag">
                 <span id="featured-property-price" class="price-amount">Loading…</span>
               <span class="price-period">/night</span>
+                <small id="featured-seasonal-note" class="price-season-note" hidden>Seasonal rates vary by dates</small>
             </div>
             <button id="featured-book-btn" class="btn btn-disabled" disabled>
               <i class="fas fa-calendar-check"></i> Book Now
@@ -444,6 +445,7 @@
           <span id="summary-checkout"></span>
           <span id="summary-nights"></span>
           <span id="summary-total"></span>
+          <span id="summary-rate-breakdown"></span>
         </div>
 
         <!-- FORM FIELDS -->
@@ -485,6 +487,9 @@
         <div class="calendar-legend">
           <div class="leg-item"><span class="cal-dot avail"></span> Available</div>
           <div class="leg-item"><span class="cal-dot booked"></span> Unavailable</div>
+        </div>
+        <div id="booking-rate-preview" class="booking-rate-preview" role="status" aria-live="polite">
+          Choose your dates to see the full stay price.
         </div>
 
         <div class="form-group">
@@ -616,7 +621,8 @@
   <script defer src="https://cdn.emailjs.com/dist/email.min.js"></script>
   
   <!-- Public properties are loaded directly from Firestore by script.js -->
-  <script defer src="script.js?v=9"></script>
-  <script defer src="booking-calendar.js?v=4"></script>
+  <script defer src="booking-pricing.js?v=1"></script>
+  <script defer src="script.js?v=10"></script>
+  <script defer src="booking-calendar.js?v=5"></script>
 </body>
 </html>

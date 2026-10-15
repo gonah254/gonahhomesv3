@@ -1748,6 +1748,25 @@ html.booking-entry #booking-modal-bg.active {
   margin-top: 0.15rem;
 }
 
+.price-season-note {
+  display: block;
+  margin-top: 0.25rem;
+  color: #7b5b00;
+  font-size: 0.72rem;
+}
+
+.booking-rate-preview {
+  margin: 0.5rem 0 1rem;
+  padding: 0.75rem 0.9rem;
+  border: 1px solid rgba(128, 0, 0, 0.16);
+  border-radius: 9px;
+  background: rgba(128, 0, 0, 0.045);
+  color: #4d2525;
+  font-size: 0.82rem;
+  line-height: 1.55;
+  white-space: pre-line;
+}
+
 /* Gallery Button */
 .gallery-btn {
   position: absolute;

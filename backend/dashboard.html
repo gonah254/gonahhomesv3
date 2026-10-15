@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Gonah Homes - Management Dashboard</title>
     <link rel="icon" href="../favicon.svg" type="image/svg+xml">
-    <link rel="stylesheet" href="dashboard.css?v=4">
+    <link rel="stylesheet" href="dashboard.css?v=5">
     <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, max-age=0">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
@@ -582,6 +582,20 @@
                         <input type="number" id="property-price" required min="0" step="1" placeholder="e.g. 6500">
                     </div>
                 </div>
+                <div class="form-group seasonal-rates-editor">
+                    <div class="seasonal-rates-heading">
+                        <div>
+                            <label>Seasonal nightly rates <span style="font-weight:400;color:#888;">(optional)</span></label>
+                            <small>Each period includes its start and end dates. The base rate applies outside these dates. Periods cannot overlap.</small>
+                        </div>
+                        <button type="button" class="btn btn-outline btn-sm" onclick="addSeasonalRateRow()">
+                            <i class="fas fa-plus"></i> Add dates
+                        </button>
+                    </div>
+                    <div id="seasonal-rates-list" class="seasonal-rates-list"></div>
+                    <p id="seasonal-rates-empty" class="seasonal-rates-empty">No seasonal rates added. The base nightly rate will apply year-round.</p>
+                    <p id="seasonal-rates-error" class="seasonal-rates-error" role="alert" aria-live="polite"></p>
+                </div>
                 <div class="form-group">
                     <label for="property-location">Location</label>
                     <select id="property-location" required>
@@ -675,6 +689,7 @@
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.emailjs.com/dist/email.min.js"></script>
-<script src="dashboard.js?v=5"></script>
+<script src="../booking-pricing.js?v=1"></script>
+<script src="dashboard.js?v=6"></script>
 </body>
 </html>

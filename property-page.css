@@ -403,6 +403,44 @@
   white-space: pre-line;
 }
 
+.property-seasonal-rates {
+  padding: 0.8rem;
+  margin: 0.85rem 0;
+  border: 1px solid #ead9ad;
+  border-radius: 9px;
+  background: #fffaf0;
+  color: #594528;
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+
+.property-seasonal-rates strong {
+  display: block;
+  margin-bottom: 0.45rem;
+  color: #800000;
+}
+
+.property-seasonal-rate-list {
+  display: grid;
+  gap: 0.35rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.property-seasonal-rate-list li {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+
+.property-seasonal-rate-note {
+  display: block;
+  margin-top: 0.55rem;
+  color: #76684f;
+  font-size: 0.7rem;
+}
+
 .property-book-button {
   width: 100%;
   margin-top: 1rem;

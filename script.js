@@ -278,6 +278,19 @@ function propertyTypeLabel(value) {
   return PROPERTY_TYPE_LABELS[key] || String(value || '');
 }
 
+function propertyStartingPrice(property) {
+  return window.GonahPricing
+    ? window.GonahPricing.lowestNightlyRate(property)
+    : Number(property?.price || 0);
+}
+
+function propertyHasActiveSeasonalRates(property) {
+  if (!window.GonahPricing) return false;
+  const today = window.GonahPricing.todayDateKey();
+  return window.GonahPricing.normalizeSeasonalRates(property?.seasonalRates)
+    .some(rate => rate.endDate >= today);
+}
+
 function amenityIcon(amenity) {
   const value = String(amenity || '').toLowerCase();
   if (value.includes('wi-fi') || value.includes('wifi') || value.includes('internet')) return 'fa-wifi';
@@ -342,8 +355,9 @@ function renderPublicProperties() {
           ${features.length ? `<div class="card-features">${features.map(feature => `<div class="feature"><i class="fas ${amenityIcon(feature)}"></i><span>${escapePropertyHtml(feature)}</span></div>`).join('')}</div>` : ''}
           <div class="card-price-actions">
             <div class="price-tag">
-              <span class="price-amount">${escapePropertyHtml(property.currency || 'KSh')} ${Number(property.price || 0).toLocaleString()}</span>
+              <span class="price-amount">From ${escapePropertyHtml(property.currency || 'KSh')} ${propertyStartingPrice(property).toLocaleString('en-KE')}</span>
               <span class="price-period">/night</span>
+              ${propertyHasActiveSeasonalRates(property) ? '<small class="price-season-note">Seasonal rates vary by dates</small>' : ''}
             </div>
              <button class="btn ${isMaintenance ? 'btn-disabled' : 'btn-primary'} property-book-btn" data-property="${escapePropertyHtml(property.name)}" ${isMaintenance ? 'disabled' : ''}>
                <i class="fas ${isMaintenance ? 'fa-wrench' : 'fa-calendar-check'}"></i> ${isMaintenance ? 'Unavailable' : 'Book Now'}
@@ -404,7 +418,9 @@ function renderPublicProperties() {
     }
     if (featuredName) featuredName.textContent = featured.name;
     if (featuredDescription) featuredDescription.textContent = featured.description || '';
-    if (featuredPrice) featuredPrice.textContent = `${featured.currency || 'KSh'} ${Number(featured.price || 0).toLocaleString()}`;
+    if (featuredPrice) featuredPrice.textContent = `From ${featured.currency || 'KSh'} ${propertyStartingPrice(featured).toLocaleString('en-KE')}`;
+    const featuredSeasonalNote = document.getElementById('featured-seasonal-note');
+    if (featuredSeasonalNote) featuredSeasonalNote.hidden = !propertyHasActiveSeasonalRates(featured);
     const featuredFeatures = document.getElementById('featured-property-features');
     if (featuredFeatures) {
       featuredFeatures.innerHTML = propertyFeatures(featured).map(feature =>
@@ -481,7 +497,7 @@ function applyPropertyFilters(properties) {
     const location = String(property.location || '').toLowerCase();
     return (!filters.search || text.includes(filters.search))
       && (!filters.location || location === filters.location.toLowerCase())
-      && (!filters.maxPrice || Number(property.price || 0) <= filters.maxPrice)
+      && (!filters.maxPrice || propertyStartingPrice(property) <= filters.maxPrice)
       && (filters.bedrooms < 0 || propertyBedrooms(property) >= filters.bedrooms)
       && (!filters.guests || propertyGuests(property) >= filters.guests)
       && (!filters.beach || propertyHasAmenity(property, 'beach'))
@@ -584,15 +600,25 @@ function sendWhatsAppInquiry(event) {
     alert('Please select a valid check-in and check-out date.');
     return;
   }
+  const quote = window.GonahPricing?.calculateStay(whatsappInquiryProperty, checkin, checkout);
+  if (!quote?.valid) {
+    alert(quote?.error || 'We could not calculate the stay price. Please try again.');
+    return;
+  }
 
   const ref = `GNH-WA-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
   const propertyUrl = new URL(`property.html?id=${encodeURIComponent(whatsappInquiryProperty.id)}`, window.location.href).href;
+  const breakdown = quote.breakdown.map(line =>
+    `${line.label}: ${line.nights} × ${line.currency} ${Number(line.pricePerNight).toLocaleString('en-KE')} = ${line.currency} ${Number(line.total).toLocaleString('en-KE')}`
+  ).join('\n');
   const message = [
     'Hi Gonah Homes, I would like to enquire about a stay.',
     `Property: ${whatsappInquiryProperty.name || 'Selected property'}`,
     `Check-in: ${checkin}`,
     `Check-out: ${checkout}`,
     `Guests: ${guests}`,
+    `Estimated stay total: ${quote.currency} ${Number(quote.total).toLocaleString('en-KE')} (${quote.nights} night${quote.nights === 1 ? '' : 's'})`,
+    `Rate breakdown:\n${breakdown}`,
     `Booking enquiry reference: ${ref}`,
     'This is an enquiry only; my booking is not confirmed yet.',
     `Property details: ${propertyUrl}`
@@ -679,6 +705,12 @@ function openBookingModal(house) {
 
   if (modal && form && confirmDiv) {
     form.reset();
+    const ratePreview = document.getElementById('booking-rate-preview');
+    if (ratePreview) ratePreview.textContent = 'Choose your dates to see the full stay price.';
+    ['summary-total', 'summary-rate-breakdown'].forEach(id => {
+      const field = document.getElementById(id);
+      if (field) field.textContent = '';
+    });
     if (bookingEntryIsActive()) document.documentElement.classList.add('booking-ready');
     modal.classList.add('active');
     document.getElementById('booking-house').value = house;
@@ -718,24 +750,37 @@ function openBookingConfirmation() {
   const guests = document.getElementById("booking-guests").value;
   const checkin = document.getElementById("booking-checkin").value;
   const checkout = document.getElementById("booking-checkout").value;
+  const house = document.getElementById("booking-house").value;
 
   if (!name || !email || !phone || !guests || !checkin || !checkout) {
     alert("Please fill all required fields.");
     return;
   }
 
+  if (!window.GonahPricing || !propertiesData[house]) {
+    alert("We could not load this property's pricing. Please close the form and try again.");
+    return;
+  }
+  const quote = window.GonahPricing.calculateStay(propertiesData[house], checkin, checkout);
+  if (!quote.valid) {
+    alert(quote.error || "Please choose valid check-in and check-out dates.");
+    return;
+  }
+  if (typeof updateBookingSummary === 'function') updateBookingSummary();
+
   document.getElementById("booking-form").style.display = "none";
   document.getElementById("booking-confirmation").style.display = "block";
 
   document.getElementById("confirm-summary").innerHTML = `
-    <div class="confirm-row"><strong>Name:</strong> ${name}</div>
-    <div class="confirm-row"><strong>Email:</strong> ${email}</div>
-    <div class="confirm-row"><strong>Phone:</strong> ${phone}</div>
-    <div class="confirm-row"><strong>Guests:</strong> ${guests}</div>
-    <div class="confirm-row"><strong>Check-In:</strong> ${checkin}</div>
-    <div class="confirm-row"><strong>Check-Out:</strong> ${checkout}</div>
-    <div class="confirm-row"><strong>Nights:</strong> ${document.getElementById("summary-nights").textContent}</div>
-    <div class="confirm-row"><strong>Total:</strong> ${document.getElementById("summary-total").textContent}</div>
+    <div class="confirm-row"><strong>Name:</strong> ${escapePropertyHtml(name)}</div>
+    <div class="confirm-row"><strong>Email:</strong> ${escapePropertyHtml(email)}</div>
+    <div class="confirm-row"><strong>Phone:</strong> ${escapePropertyHtml(phone)}</div>
+    <div class="confirm-row"><strong>Guests:</strong> ${escapePropertyHtml(guests)}</div>
+    <div class="confirm-row"><strong>Check-In:</strong> ${escapePropertyHtml(checkin)}</div>
+    <div class="confirm-row"><strong>Check-Out:</strong> ${escapePropertyHtml(checkout)}</div>
+    <div class="confirm-row"><strong>Nights:</strong> ${quote.nights}</div>
+    <div class="confirm-row"><strong>Rate breakdown:</strong> ${escapePropertyHtml(document.getElementById("summary-rate-breakdown").textContent)}</div>
+    <div class="confirm-row"><strong>Total:</strong> ${escapePropertyHtml(document.getElementById("summary-total").textContent)}</div>
   `;
 }
 
@@ -788,14 +833,34 @@ function submitBookingFinal() {
     alert(`This property accommodates up to ${maxGuests} guests.`);
     return;
   }
-  
-  // Get calculated total from the hidden summary fields
-  const totalText = document.getElementById('summary-total').textContent || '';
-  const totalMatch = totalText.match(/[\d,]+/);
-  const total = totalMatch ? parseInt(totalMatch[0].replace(/,/g, ''), 10) : 0;
+
+  if (!window.GonahPricing || !bookingProperty) {
+    alert("We could not load this property's pricing. Please close the form and try again.");
+    return;
+  }
+  const pricing = window.GonahPricing.calculateStay(bookingProperty, checkin, checkout);
+  if (!pricing.valid) {
+    alert(pricing.error || "Please choose valid check-in and check-out dates.");
+    return;
+  }
 
   const bookingData = {
-    name, email, phone, guests, checkin, checkout, house, total
+    name,
+    email,
+    phone,
+    guests,
+    checkin,
+    checkout,
+    house,
+    total: pricing.total,
+    currency: pricing.currency,
+    nights: pricing.nights,
+    pricingBreakdown: pricing.breakdown,
+    pricingSnapshot: {
+      basePrice: pricing.basePrice,
+      currency: pricing.currency,
+      seasonalRates: window.GonahPricing.normalizeSeasonalRates(bookingProperty.seasonalRates)
+    }
   };
 
   const bookingId = 'GNH-' + Math.random().toString(36).substr(2, 6).toUpperCase();

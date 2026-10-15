@@ -186,7 +186,10 @@
     setText('property-occupancy', String(maxGuests));
     setText('property-type', type);
     setText('property-currency', property.currency || 'KSh');
-    setText('property-price', Number(property.price || 0).toLocaleString('en-KE'));
+    const startingPrice = window.GonahPricing
+      ? window.GonahPricing.lowestNightlyRate(property)
+      : Number(property.price || 0);
+    setText('property-price', startingPrice.toLocaleString('en-KE'));
     document.getElementById('property-bedroom-fact').hidden = bedrooms === null || bedrooms === 0;
     if (bedrooms > 0) setText('property-bedroom-count', `${bedrooms} bedroom${bedrooms === 1 ? '' : 's'}`);
 
@@ -231,6 +234,27 @@
       pricingNotes.textContent = property.pricingNotes;
       pricingNotes.hidden = false;
     }
+    const seasonalRatesElement = document.getElementById('property-seasonal-rates');
+    const currentDateKey = window.GonahPricing?.todayDateKey();
+    const seasonalRates = window.GonahPricing
+      ? window.GonahPricing.normalizeSeasonalRates(property.seasonalRates).filter(rate => rate.endDate >= currentDateKey)
+      : [];
+    if (seasonalRatesElement && seasonalRates.length) {
+      const currency = property.currency || 'KSh';
+      seasonalRatesElement.innerHTML = `
+        <strong>Seasonal nightly rates</strong>
+        <ul class="property-seasonal-rate-list">
+          ${seasonalRates.map(rate => `
+            <li>
+              <span>${escapeHtml(rate.name || 'Seasonal rate')} · ${escapeHtml(window.GonahPricing.formatDate(rate.startDate))} – ${escapeHtml(window.GonahPricing.formatDate(rate.endDate))}</span>
+              <b>${escapeHtml(currency)} ${Number(rate.price).toLocaleString('en-KE')}</b>
+            </li>
+          `).join('')}
+        </ul>
+        <small class="property-seasonal-rate-note">Rates apply to each night dated within the period. Your booking form shows the exact total for your dates.</small>
+      `;
+      seasonalRatesElement.hidden = false;
+    }
 
     const bookButton = document.getElementById('property-book-button');
     if (isMaintenance) {
@@ -269,14 +293,24 @@
       window.alert('Please choose a check-out date that is after check-in.');
       return;
     }
+    const quote = window.GonahPricing?.calculateStay(propertyRecord, checkin, checkout);
+    if (!quote?.valid) {
+      window.alert(quote?.error || 'We could not calculate the stay price. Please try again.');
+      return;
+    }
 
     const reference = `GNH-WA-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
+    const breakdown = quote.breakdown.map(line =>
+      `${line.label}: ${line.nights} × ${line.currency} ${Number(line.pricePerNight).toLocaleString('en-KE')} = ${line.currency} ${Number(line.total).toLocaleString('en-KE')}`
+    ).join('\n');
     const message = [
       'Hi Gonah Homes, I would like to enquire about a stay.',
       `Property: ${propertyRecord.name || 'Gonah Homes property'}`,
       `Check-in: ${checkin}`,
       `Check-out: ${checkout}`,
       `Guests: ${guests}`,
+      `Estimated stay total: ${quote.currency} ${Number(quote.total).toLocaleString('en-KE')} (${quote.nights} night${quote.nights === 1 ? '' : 's'})`,
+      `Rate breakdown:\n${breakdown}`,
       `Booking enquiry reference: ${reference}`,
       'This is an enquiry only; the booking is not confirmed yet.',
       `Property details: ${window.location.href}`
