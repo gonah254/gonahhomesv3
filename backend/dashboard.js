@@ -436,6 +436,7 @@ async function loadBookings() {
         </td>
         <td><button class="btn btn-sm btn-outline" onclick="viewUserDocs('${bookingId}')"><i class="fas fa-id-card"></i> View IDs</button></td>
         <td style="white-space:nowrap;display:flex;flex-direction:column;gap:0.3rem;padding:0.5rem;">
+          ${booking.status === 'confirmed' || booking.status === 'completed' ? `<button class="btn btn-outline btn-sm" onclick="receiptDownloadAdmin('${doc.id}')"><i class="fas fa-file-download"></i> Receipt</button><button class="btn btn-outline btn-sm" onclick="receiptWhatsAppAdmin('${doc.id}')"><i class="fab fa-whatsapp"></i> WhatsApp</button><button class="btn btn-outline btn-sm" onclick="receiptInAppAdmin('${doc.id}')"><i class="fas fa-bell"></i> In-app</button>` : ''}
           <button class="btn btn-outline btn-sm" onclick="openBookingDetails('${doc.id}')"><i class="fas fa-eye"></i> View</button>
           ${booking.status !== 'confirmed' && booking.status !== 'cancelled' && booking.status !== 'completed' ?
             `<button class="btn btn-success btn-sm" onclick="openPaymentModal('${doc.id}')"><i class="fas fa-check"></i> Confirm</button>` : ''}
@@ -2622,3 +2623,42 @@ loadBookings = async function () {
   await loadBookingsStatusStep.apply(this, arguments);
   try { applyDisplayStatuses(); } catch (e) { console.warn('Display statuses failed:', e.message); }
 };
+
+
+// ---- Receipt tools (download / WhatsApp / in-app) ----
+function _receiptBooking(docId) {
+  const b = adminBookingCache.get(docId);
+  if (!b) { showToast('Booking not loaded. Refresh the dashboard and try again.', 'error'); return null; }
+  return b;
+}
+function receiptDownloadAdmin(docId) {
+  const b = _receiptBooking(docId); if (!b) return;
+  if (!window.GonahReceipt) { showToast('Receipt tools could not load. Refresh and try again.', 'error'); return; }
+  window.GonahReceipt.open(docId, Object.assign({ id: b.id || docId.substring(0, 8) }, b));
+}
+function _kenyaPhone(raw) {
+  let d = String(raw || '').replace(/[^0-9]/g, '');
+  if (d.startsWith('0') && d.length === 10) d = '254' + d.slice(1);
+  else if (d.length === 9 && /^[17]/.test(d)) d = '254' + d;
+  return /^254[17][0-9]{8}$/.test(d) ? d : '';
+}
+function receiptWhatsAppAdmin(docId) {
+  const b = _receiptBooking(docId); if (!b) return;
+  const phone = _kenyaPhone(b.phone);
+  if (!phone) { showToast('This guest has no valid phone number, so WhatsApp was not opened.', 'error'); return; }
+  const ref = b.id || docId.substring(0, 8);
+  const paid = Number(b.amountPaid || b.total || 0).toLocaleString();
+  const msg = 'Hello ' + (b.name || 'there') + ', thank you for choosing Gonah Homes. Your booking ' + ref +
+    ' for ' + (b.house || 'your stay') + ' (' + (b.checkin || '') + ' to ' + (b.checkout || '') + ') is confirmed. Amount paid: KSh ' + paid +
+    '. You can download your receipt any time from your account at gonahhomes.com. Karibu Mombasa!';
+  window.open('https://wa.me/' + phone + '?text=' + encodeURIComponent(msg), '_blank');
+  db.collection('receipt_log').add({ booking: docId, channel: 'whatsapp', at: firebase.firestore.FieldValue.serverTimestamp(), by: (firebase.auth().currentUser || {}).email || '' }).catch(() => {});
+}
+async function receiptInAppAdmin(docId) {
+  const b = _receiptBooking(docId); if (!b) return;
+  try {
+    await db.collection('bookings').doc(docId).update({ receiptSentAt: firebase.firestore.FieldValue.serverTimestamp() });
+    db.collection('receipt_log').add({ booking: docId, channel: 'in-app', at: firebase.firestore.FieldValue.serverTimestamp(), by: (firebase.auth().currentUser || {}).email || '' }).catch(() => {});
+    showToast('Receipt marked as sent in the guest account.', 'success');
+  } catch (e) { showToast('Could not mark the receipt as sent.', 'error'); }
+}
