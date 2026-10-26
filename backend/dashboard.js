@@ -926,35 +926,37 @@ async function loadReviews() {
       const safeName = guestName.replace(/'/g, '');
 
       reviewCard.innerHTML = `
-        <div class="review-header">
+        <div class="review-header" style="display:flex;justify-content:space-between;align-items:flex-start;">
           <div style="flex:1;">
             <strong>${guestName}</strong>
             ${guestEmail ? `<div style="font-size:0.8rem;color:var(--text-light);">${guestEmail}</div>` : ''}
             <div class="review-rating" style="margin-top:0.25rem;">${stars}</div>
-            <span style="display:inline-block;margin-top:0.35rem;background:${verificationLabel === 'Visitor review' ? '#fff8e1' : '#e8f5e9'};color:${verificationLabel === 'Visitor review' ? '#e65100' : '#2e7d32'};padding:2px 8px;border-radius:12px;font-size:0.72rem;font-weight:600;">${verificationLabel}</span>
+            <span style="display:inline-block;margin-top:0.35rem;background:#f5f5f5;padding:2px 6px;border-radius:4px;font-size:0.75rem;">${verificationLabel}</span>
           </div>
-          <div style="display:flex;flex-direction:column;align-items:flex-end;gap:0.4rem;flex-shrink:0;">
-            <span style="background:${isApproved ? '#e8f5e9' : '#fce4ec'};color:${isApproved ? '#2e7d32' : '#b71c1c'};padding:2px 10px;border-radius:12px;font-size:0.75rem;font-weight:600;white-space:nowrap;">
+          <div style="display:flex;flex-direction:column;align-items:flex-end;">
+            <span style="background:${isApproved ? '#e8f5e9' : '#fce4ec'};${isApproved ? 'color:#2e7d32' : 'color:#c2185b'};padding:4px 8px;border-radius:4px;font-size:0.75rem;font-weight:bold;">
               ${isApproved ? '✓ Visible to guests' : '🚫 Hidden from guests'}
             </span>
-            <div style="display:flex;gap:0.3rem;flex-wrap:wrap;justify-content:flex-end;">
-              <button class="btn ${isApproved ? 'btn-warning' : 'btn-success'} btn-sm" onclick="toggleReviewVisibility('${doc.id}', ${isApproved})"><i class="fas fa-eye${isApproved ? '-slash' : ''}"></i> ${isApproved ? 'Hide' : 'Show'}</button>
-              <button class="btn btn-info btn-sm" onclick="replyToReview('${doc.id}', '${safeEmail}', '${safeName}')"><i class="fas fa-reply"></i> Reply</button>
-              <button class="btn btn-danger btn-sm" onclick="deleteReview('${doc.id}')"><i class="fas fa-trash"></i> Delete</button>
-            </div>
           </div>
         </div>
         <p style="margin:0.75rem 0;line-height:1.5;">${review.review || ''}</p>
-        ${review.imageUrl ? `<div style="margin:0.5rem 0;"><img src="${review.imageUrl}" alt="Review image" style="max-width:100%;max-height:200px;object-fit:cover;border-radius:8px;"></div>` : ''}
-        <small style="color: var(--text-light);">
+        ${review.imageUrl ? `<div style="margin:0.5rem 0;"><img src="${review.imageUrl}" alt="Review" /></div>` : ''}
+        <small style="color: var(--text-light); display:block; margin-bottom:0.5rem;">
           ${review.property ? `<strong>${review.property}</strong> · ` : ''}
           ${review.timestamp ? new Date(review.timestamp.toDate()).toLocaleDateString() : 'Unknown date'}
         </small>
         ${review.adminReply ? `
-          <div style="margin-top: 1rem; padding: 1rem; background: var(--bg-color); border-radius: var(--border-radius); border-left: 3px solid var(--primary-color);">
+          <div style="margin-top: 1rem; padding: 1rem; background: var(--bg-color); border-radius: 4px;">
             <strong>Management Reply:</strong><br>${review.adminReply}
           </div>
         ` : ''}
+        <div style="display:flex;gap:0.4rem;flex-wrap:wrap;margin-top:1rem;padding-top:0.75rem;border-top:1px dashed #eee;">
+          <button class="btn ${isApproved ? 'btn-warning' : 'btn-success'} btn-sm" onclick="toggleReviewApproval('${doc.id}', ${!isApproved})">
+            ${isApproved ? 'Hide' : 'Approve'}
+          </button>
+          <button class="btn btn-info btn-sm" onclick="replyToReview('${doc.id}', '${safeEmail}', '${safeName}')">Reply</button>
+          <button class="btn btn-danger btn-sm" onclick="deleteReview('${doc.id}')"><i class="fa fa-trash"></i> Delete</button>
+        </div>
       `;
 
       reviewsGrid.appendChild(reviewCard);
@@ -1639,10 +1641,6 @@ async function loadProperties() {
                   ${seasonalRateCount ? ` • ${seasonalRateCount} seasonal rate${seasonalRateCount === 1 ? '' : 's'}` : ''}
                 </p>
               </div>
-              <div style="display:flex;gap:.45rem;flex-wrap:wrap;">
-                <a class="btn btn-outline btn-sm" href="../property.html?id=${encodeURIComponent(docId)}" target="_blank" rel="noopener"><i class="fas fa-arrow-up-right-from-square"></i> Public page</a>
-                <button class="btn btn-outline btn-sm edit-property-btn" data-doc-id="${escapeDashboardHtml(docId)}"><i class="fas fa-pen"></i> Edit Details</button>
-              </div>
             </div>
             <div style="margin-top:1rem;">
               <p style="font-size:.78rem;color:var(--text-light);margin:0 0 .4rem;">Photos (${images.length}/${MAX_PROPERTY_IMAGES}) — first photo is the cover</p>
@@ -1653,12 +1651,19 @@ async function loadProperties() {
                   ${index === 0 ? '<span style="position:absolute;left:3px;bottom:3px;background:#800000;color:#fff;font-size:9px;padding:1px 4px;border-radius:3px;">COVER</span>' : ''}
             </div>`).join('')}</div>` : '<p style="font-size:.82rem;color:#888;margin:0;">No photos uploaded for this property.</p>'}
             </div>
+            <div style="display:flex;gap:.45rem;flex-wrap:wrap;margin-top:1.25rem;padding-top:1rem;border-top:1px solid #f0f0f0;">
+              <a class="btn btn-outline btn-sm" href="https://gonahhomes.com/property.html?id=${encodeURIComponent(docId)}" target="_blank" rel="noopener">
+                Public page
+              </a>
+              <button class="btn btn-outline btn-sm edit-property-btn" data-doc-id="${escapeDashboardHtml(docId)}">Edit Details</button>
+            </div>
             ${features.length ? `<p style="font-size:.82rem;margin:.75rem 0 0;"><strong>Amenities:</strong> ${escapeDashboardHtml(features.join(', '))}</p>` : ''}
             ${nearby.length ? `<p style="font-size:.82rem;margin:.3rem 0 0;"><strong>Nearby:</strong> ${escapeDashboardHtml(nearby.join(', '))}</p>` : ''}
             ${property.description ? `<p style="font-size:.82rem;margin:.3rem 0 0;"><strong>Description:</strong> ${escapeDashboardHtml(property.description)}</p>` : ''}
             <p style="font-size:.82rem;margin:.3rem 0 0;"><strong>Max guests:</strong> ${Number(property.occupancy || defaultOccupancyForType(normalizePropertyType(property.type)))}</p>
             ${houseRules.length ? `<p style="font-size:.82rem;margin:.3rem 0 0;"><strong>House rules:</strong> ${escapeDashboardHtml(houseRules.join(' · '))}</p>` : ''}
-          </article>`;
+          </article>
+        `;
       }).join('')}
     </div>`;
 
