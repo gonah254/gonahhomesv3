@@ -596,3 +596,18 @@
   .property-loading-bar::after { animation: none; }
   *, *::before, *::after { scroll-behavior: auto !important; }
 }
+
+.property-back {
+  display: inline-flex;
+  align-items: center;
+  gap: .5rem;
+  margin: .25rem 0 .75rem;
+  padding: .55rem 1rem;
+  border: 2px solid #800000;
+  border-radius: 999px;
+  color: #800000;
+  font-weight: 600;
+  font-size: .9rem;
+  text-decoration: none;
+}
+.property-back:hover { background: #800000; color: #fff; }
