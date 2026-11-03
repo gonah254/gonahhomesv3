@@ -318,6 +318,7 @@
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-functions-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
   <script src="avatar.js"></script>
   <script src="https://cdn.emailjs.com/dist/email.min.js"></script>
@@ -333,6 +334,9 @@
     };
     if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
     const db = firebase.firestore();
+    const reviewFunctions = firebase.app().functions("us-central1");
+    const verifyReviewBookingSecure = reviewFunctions.httpsCallable("verifyReviewBookingSecure");
+    const submitDedicatedReviewSecure = reviewFunctions.httpsCallable("submitDedicatedReviewSecure");
     const storage = firebase.storage();
     const EMAILJS_SERVICE_ID = 'service_ky2kj3t';
     const EMAILJS_PUBLIC_KEY = 'VgDakmh3WscKrr_wQ';
@@ -351,8 +355,13 @@
     // ---- Alert Helper ----
     function showAlert(msg, type) {
       const el = document.getElementById('form-alert');
-      el.innerHTML = `<div class="alert alert-${type}">${msg}</div>`;
-      setTimeout(() => el.innerHTML = '', 5000);
+      const allowedTypes = ['success', 'error', 'warning', 'info'];
+      const alertType = allowedTypes.includes(type) ? type : 'info';
+      const alert = document.createElement('div');
+      alert.className = `alert alert-${alertType}`;
+      alert.textContent = String(msg ?? '');
+      el.replaceChildren(alert);
+      setTimeout(() => el.replaceChildren(), 5000);
     }
 
     // ---- Activate Review Form ----
@@ -456,43 +465,39 @@
       const btn = document.getElementById('verify-btn');
       btn.disabled = true;
       btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Verifying...';
+
       try {
         if (signedInGoogleUser && signedInGoogleUser.email.toLowerCase() !== email) {
           showAlert('Use the same email address as your Google account, or sign out and verify with the booking email.', 'error');
           return;
         }
-        const snap = await db.collection('bookings')
-          .where('email', '==', email)
-          .where('id', '==', code)
-          .get();
-        if (snap.empty) {
-          showAlert('No booking found with that email and Booking ID. Please check and try again.', 'error');
-          return;
+
+        const response = await verifyReviewBookingSecure({ email, bookingId: code });
+        const verified = response.data;
+
+        if (!verified || !verified.verificationToken) {
+          throw new Error('The server did not return a valid booking verification. Please try again.');
         }
-        const b = snap.docs[0].data();
-        const bookingStatus = String(b.status || '').toLowerCase();
-        if (!['confirmed', 'completed'].includes(bookingStatus)) {
-          showAlert('This booking is not confirmed yet. Reviews become available after the booking is confirmed.', 'error');
-          return;
-        }
-        const isCompletedStay = bookingStatus === 'completed';
+
         const usesGoogleProfile = signedInGoogleUser && signedInGoogleUser.email.toLowerCase() === email;
+
         activateReviewForm({
           email,
           code,
+          verificationToken: verified.verificationToken,
           name: usesGoogleProfile
-            ? (signedInGoogleUser.displayName || b.name || email.split('@')[0])
-            : (b.name || email.split('@')[0]),
+            ? (signedInGoogleUser.displayName || verified.name || email.split('@')[0])
+            : (verified.name || email.split('@')[0]),
           avatarUrl: usesGoogleProfile ? signedInGoogleUser.photoURL : null,
           uid: usesGoogleProfile ? signedInGoogleUser.uid : null,
           authProvider: usesGoogleProfile ? 'google.com' : 'booking-email',
           verifiedBooking: true,
-          verificationType: isCompletedStay ? 'verified_stay' : 'verified_booking',
-          property: b.house || b.property || null,
-          bookingStatus
+          verificationType: verified.verificationType,
+          property: verified.property
         });
       } catch (err) {
-        showAlert('Error verifying booking: ' + err.message, 'error');
+        console.error('Secure booking verification failed:', err);
+        showAlert('Error verifying booking: ' + (err.message || 'Please check your details and try again.'), 'error');
       } finally {
         btn.disabled = false;
         btn.innerHTML = '<i class="fas fa-check-circle"></i> Verify & Continue';
@@ -567,6 +572,11 @@
       if (!rating) { showAlert('Please select a star rating.', 'error'); return; }
 
       const text = document.getElementById('review-text').value.trim();
+      if (!text || text.length > 2000) {
+        showAlert('Your review must contain 1 to 2,000 characters.', 'error');
+        return;
+      }
+
       const imageFile = document.getElementById('review-image').files[0];
       const btn = document.getElementById('submit-btn');
       btn.disabled = true;
@@ -601,7 +611,7 @@
           // Compress and store as base64 in Firestore — no Storage auth needed
           try {
             const b64 = await compressToBase64(imageFile, 600, 0.72);
-            if (b64.length < 700000) {
+            if (b64.length <= 500000) {
               imageUrl = b64;
             } else {
               showAlert('Photo is too large to attach (max ~500 KB). Please choose a smaller photo — your review will be submitted without it.', 'warning');
@@ -611,22 +621,11 @@
           }
         }
 
-        await db.collection('reviews').add({
-          name: verifiedReviewer.name,
-          email: verifiedReviewer.email,
-          bookingCode: verifiedReviewer.code || null,
-          property: verifiedReviewer.property || null,
-          uid: verifiedReviewer.uid || null,
-          authProvider: verifiedReviewer.authProvider || 'booking-email',
-          verifiedBooking: verifiedReviewer.verifiedBooking === true,
-          verificationType: verifiedReviewer.verificationType || 'verified_booking',
-          rating: parseInt(rating),
+        const response = await submitDedicatedReviewSecure({
+          verificationToken: verifiedReviewer.verificationToken || null,
+          rating: parseInt(rating, 10),
           review: text,
-          imageUrl: imageUrl || null,
-          timestamp: firebase.firestore.FieldValue.serverTimestamp(),
-          approved: true,
-          avatarUrl: verifiedReviewer.avatarUrl ||
-            (window.buildRealAvatar ? window.buildRealAvatar(verifiedReviewer.name, verifiedReviewer.email, 100) : null)
+          imageUrl: imageUrl || null
         });
         emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_ADMIN_TEMPLATE, {
           to_name: 'Gonah Homes',
@@ -639,12 +638,12 @@
         }).catch(error => console.error('Review notification failed:', error));
 
         const confirmationLabel = verifiedReviewer.verifiedBooking
-          ? 'Your verified review is now live and visible to all guests!'
-          : 'Your visitor review is now live and clearly labelled for guests.';
+          ? 'Your verified review has been submitted and is awaiting approval.'
+          : 'Your visitor review has been submitted and is awaiting approval.';
         document.getElementById('review-section').innerHTML = `
           <div style="text-align:center;padding:1.5rem;">
             <i class="fas fa-check-circle" style="font-size:3rem;color:#2e7d32;"></i>
-            <h3 style="color:#2e7d32;margin:0.75rem 0 0.5rem;">Thank you, ${verifiedReviewer.name}!</h3>
+            <h3 style="color:#2e7d32;margin:0.75rem 0 0.5rem;">Thank you, ${escapeReviewHTML(verifiedReviewer.name)}!</h3>
             <p style="color:#555;margin:0;">${confirmationLabel}</p>
           </div>`;
       } catch (err) {
@@ -667,27 +666,62 @@
       return Number.isNaN(date.getTime()) ? null : date;
     }
 
+    function escapeReviewHTML(value) {
+      return String(value ?? '').replace(/[&<>"']/g, char => ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#39;'
+      })[char]);
+    }
+
+    function safeReviewImageUrl(value) {
+      const url = String(value || '');
+      if (/^https:\/\/[^\s"'<>]+$/i.test(url)) return url;
+      if (/^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/.test(url)) return url;
+      return '';
+    }
+
     function buildReviewCard(r, index) {
-      const name  = r.name || 'Anonymous';
+      const name = escapeReviewHTML(r.name || 'Anonymous');
+      const reviewText = escapeReviewHTML(r.review || '');
       const timestampDate = reviewTimestampDate(r.timestamp);
-      const date  = timestampDate ? timestampDate.toLocaleDateString('en-KE', {day:'numeric', month:'short', year:'numeric'}) : '';
-      const stars = '★'.repeat(Number(r.rating||5)) + '☆'.repeat(5 - Number(r.rating||5));
-      const avatar = r.avatarUrl || buildAvatar(name, r.email || '');
-      const verificationLabel = r.verificationType === 'visitor_review' || r.verifiedBooking === false
+      const date = timestampDate
+        ? escapeReviewHTML(timestampDate.toLocaleDateString('en-KE', {
+            day: 'numeric', month: 'short', year: 'numeric'
+          }))
+        : '';
+
+      const rawRating = Number(r.rating);
+      const rating = Number.isInteger(rawRating) && rawRating >= 1 && rawRating <= 5
+        ? rawRating : 5;
+      const stars = '★'.repeat(rating) + '☆'.repeat(5 - rating);
+
+      const avatarUrl = safeReviewImageUrl(r.avatarUrl) ||
+        safeReviewImageUrl(buildAvatar('Guest', ''));
+      const avatar = escapeReviewHTML(avatarUrl);
+      const reviewImage = safeReviewImageUrl(r.imageUrl);
+      const verificationLabel = r.verificationType === 'visitor_review' ||
+        r.verificationType === 'Website Visitor' || r.verifiedBooking === false
         ? 'Visitor review'
-        : (r.verificationType === 'verified_stay' ? 'Verified stay' : 'Verified booking');
+        : (r.verificationType === 'verified_stay' ||
+           r.verificationType === 'Verified Stay'
+            ? 'Verified stay' : 'Verified booking');
+
       return `
-        <div class="review-card" style="animation-delay:${index * 0.07}s">
+        <div class="review-card" style="animation-delay:${Math.max(0, Math.min(Number(index) || 0, 100)) * 0.07}s">
           <div class="review-card-header">
-            <img src="${avatar}" alt="${name}" class="review-avatar" onerror="this.src=window.buildRealAvatar ? window.buildRealAvatar('Guest', '', 100) : ''">
+            <img src="${avatar}" alt="${name}" class="review-avatar"
+              onerror="this.onerror=null;this.src=window.buildRealAvatar ? window.buildRealAvatar('Guest', '', 100) : ''">
             <div>
               <div class="reviewer-name">${name}</div>
               <div class="star-display">${stars}</div>
               <div class="review-meta">${verificationLabel}${date ? ' &bull; ' + date : ''}</div>
             </div>
           </div>
-          <div class="review-text">&ldquo;${r.review}&rdquo;</div>
-          ${r.imageUrl ? `<div class="review-img"><img src="${r.imageUrl}" alt="Review photo" loading="lazy"></div>` : ''}
+          <div class="review-text">&ldquo;${reviewText}&rdquo;</div>
+          ${reviewImage ? `<div class="review-img"><img src="${escapeReviewHTML(reviewImage)}" alt="Review photo" loading="lazy"></div>` : ''}
         </div>`;
     }
 

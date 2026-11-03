@@ -42,7 +42,7 @@ class GonahHomesBackend {
       // Send confirmation email
       await this.sendBookingConfirmation(booking);
 
-      return { success: true, bookingId: docRef.id };
+      return { success: true, bookingId };
     } catch (error) {
       console.error('Error saving booking:', error);
       return { success: false, error: error.message };

@@ -249,6 +249,7 @@
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-functions-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
     <script src="https://cdn.emailjs.com/dist/email.min.js"></script>
     <script src="avatar.js"></script>
@@ -270,6 +271,7 @@
         const db = firebase.firestore();
         const auth = firebase.auth();
         const storage = firebase.storage();
+        const functions = firebase.app().functions("us-central1");
         const EMAILJS_SERVICE_ID = 'service_ky2kj3t';
         const EMAILJS_PUBLIC_KEY = 'VgDakmh3WscKrr_wQ';
         const EMAILJS_ADMIN_TEMPLATE = 'template_24gjzd3';
@@ -342,32 +344,101 @@
         showLogin();
 
         // Login form submission
-        authForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const email = document.getElementById('auth-email').value.trim();
-            const bookingId = document.getElementById('auth-booking-id').value.trim().toUpperCase();
-            loginError.style.display = 'none';
-            loginLoading.style.display = 'block';
-            authForm.querySelector('button[type="submit"]').disabled = true;
+        async function completeGuestEmailLink() {
+            if (!auth.isSignInWithEmailLink(window.location.href)) return;
+
+            let email = localStorage.getItem('gonah_guest_email');
+            let bookingId = localStorage.getItem('gonah_guest_booking_id');
+
+            if (!email) email = prompt('Enter the email address where you received the verification link:');
+            if (!email) return;
+
+            if (!bookingId) bookingId = prompt('Enter your booking reference:');
+            if (!bookingId) return;
+
+            bookingId = bookingId.trim().toUpperCase();
 
             try {
-                const snap = await db.collection('bookings')
-                    .where('email', '==', email)
-                    .where('id', '==', bookingId)
-                    .get();
-                if (snap.empty) throw new Error('No booking found with that email and Booking ID. Please check and try again.');
-                const b = snap.docs[0].data();
-                const user = { name: b.name || email.split('@')[0], email: b.email, code: bookingId };
+                loginLoading.style.display = 'block';
+
+                const result = await auth.signInWithEmailLink(
+                    email.trim(),
+                    window.location.href
+                );
+
+                if (!result.user.emailVerified) {
+                    throw new Error('Your email address could not be verified.');
+                }
+
+                const verifiedEmail = result.user.email.trim().toLowerCase();
+
+                const bookingResult = await functions.httpsCallable('getMyBookingSecure')({
+                    bookingId: bookingId
+                });
+                const booking = bookingResult.data;
+
+                if (!booking || !booking.id) {
+                    await auth.signOut();
+                    throw new Error('No booking matches this verified email and booking reference.');
+                }
+
+                const user = {
+                    name: booking.name || verifiedEmail.split('@')[0],
+                    email: verifiedEmail,
+                    code: bookingId
+                };
+
                 clearGuestSession();
                 sessionStorage.setItem(GUEST_SESSION_KEY, JSON.stringify(user));
-                currentGuestUser = user;
+
+                localStorage.removeItem('gonah_guest_email');
+                localStorage.removeItem('gonah_guest_booking_id');
+
+                window.history.replaceState({}, document.title, window.location.pathname);
                 showDashboard(user);
+
             } catch (err) {
                 loginError.textContent = err.message;
                 loginError.style.display = 'block';
             } finally {
                 loginLoading.style.display = 'none';
-                authForm.querySelector('button[type="submit"]').disabled = false;
+            }
+        }
+
+        completeGuestEmailLink();
+
+        authForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const email = document.getElementById('auth-email').value.trim().toLowerCase();
+            const bookingId = document.getElementById('auth-booking-id').value.trim().toUpperCase();
+
+            loginError.style.display = 'none';
+            loginLoading.style.display = 'block';
+
+            const submitButton = authForm.querySelector('button[type="submit"]');
+            submitButton.disabled = true;
+
+            try {
+                const actionCodeSettings = {
+                    url: window.location.origin + window.location.pathname,
+                    handleCodeInApp: true
+                };
+
+                await auth.sendSignInLinkToEmail(email, actionCodeSettings);
+
+                localStorage.setItem('gonah_guest_email', email);
+                localStorage.setItem('gonah_guest_booking_id', bookingId);
+
+                loginError.textContent = 'A verification link has been sent to your email. Open it to continue to your account.';
+                loginError.style.display = 'block';
+
+            } catch (err) {
+                loginError.textContent = err.message;
+                loginError.style.display = 'block';
+            } finally {
+                loginLoading.style.display = 'none';
+                submitButton.disabled = false;
             }
         });
 
@@ -390,27 +461,40 @@
             pastDiv.innerHTML = '<h3><i class="fas fa-history"></i> Past Bookings</h3>';
 
             try {
-                const snap = await db.collection('bookings').where('email', '==', user.email).get();
-                if (snap.empty) {
+                const result = await functions.httpsCallable('getMyBookingsSecure')({});
+                const bookings = result.data || [];
+
+                if (!Array.isArray(bookings)) {
+                    throw new Error('Unexpected booking response from server.');
+                }
+
+                if (bookings.length === 0) {
                     activeDiv.innerHTML += '<p style="color:#666;">No bookings found.</p>';
+                    updatePaymentRestriction(false);
                     return;
                 }
+
                 let hasActive = false, hasPast = false, hasConfirmed = false;
-                snap.forEach(doc => {
-                    const b = doc.data();
-                    const card = createBookingCard(b, doc.id);
+
+                bookings.forEach(b => {
+                    const bookingId = b.id;
+                    const card = createBookingCard(b, bookingId);
                     const checkin = new Date(b.checkin);
+
                     if (b.status === 'confirmed') hasConfirmed = true;
+
                     if (checkin >= new Date()) {
                         activeDiv.appendChild(card);
-                        startCountdown(b.checkin, doc.id);
+                        startCountdown(b.checkin, bookingId);
                         hasActive = true;
                     } else {
                         pastDiv.appendChild(card);
                         hasPast = true;
                     }
                 });
+
                 updatePaymentRestriction(hasConfirmed);
+
                 if (!hasActive) activeDiv.innerHTML += '<p style="color:#666;">No upcoming bookings.</p>';
                 if (!hasPast) pastDiv.innerHTML += '<p style="color:#666;">No past bookings.</p>';
             } catch (err) {
@@ -423,95 +507,131 @@
 
         let _viewerObjectUrl = null;
 
-        function _openDoc(docId) {
-            const d = _docCache[docId];
-            if (!d) { alert('Document not found. Please refresh the page and try again.'); return; }
-            const win = window.open('', '_blank');
-            if (!win) { alert('Please allow pop-ups to view documents.'); return; }
-            const isPdf = d.type === 'application/pdf' || (d.name && d.name.toLowerCase().endsWith('.pdf'));
+        async function _openDoc(docId) {
+            const cached = _docCache[docId];
+            if (!cached) {
+                alert('Document not found. Please refresh the page and try again.');
+                return;
+            }
 
-            if (isPdf && d.data) {
-                // PDFs: use data URI directly (small enough)
-                win.document.write(`<html><body style="margin:0;background:#333;height:100vh;">
-                  <embed src="${d.data}" type="application/pdf" width="100%" height="100%">
-                </body></html>`);
-                win.document.close();
-            } else if (d.data && d.data.startsWith('data:')) {
-                // Images: convert base64 to Blob to avoid crashing the tab
-                try {
-                    if (_viewerObjectUrl) { URL.revokeObjectURL(_viewerObjectUrl); }
+            const user = currentGuestUser || getGuestSession();
+            if (!user || !user.code) {
+                alert('Please sign in again to view this document.');
+                return;
+            }
+
+            const win = window.open('', '_blank');
+            if (!win) {
+                alert('Please allow pop-ups to view documents.');
+                return;
+            }
+
+            win.document.write('<html><body style="font-family:sans-serif;padding:20px;">Loading secure document...</body></html>');
+            win.document.close();
+
+            try {
+                const result = await functions.httpsCallable('getGuestDocumentSecure')({
+                    bookingId: user.code,
+                    documentId: docId
+                });
+
+                const d = result.data;
+                if (!d || (!d.data && !d.url)) {
+                    throw new Error('Document content is unavailable.');
+                }
+
+                const isPdf = d.type === 'application/pdf' ||
+                    (d.name && d.name.toLowerCase().endsWith('.pdf'));
+
+                if (isPdf && d.data) {
+                    win.document.open();
+                    win.document.write(`<html><body style="margin:0;background:#333;height:100vh;">
+                        <embed src="${d.data}" type="application/pdf" width="100%" height="100%">
+                    </body></html>`);
+                    win.document.close();
+
+                } else if (d.data && d.data.startsWith('data:')) {
                     const parts = d.data.split(',');
-                    const mime = parts[0].match(/:(.*?);/)[1];
+                    const match = parts[0].match(/:(.*?);/);
+                    if (!match || !parts[1]) throw new Error('Invalid document data.');
+
+                    const mime = match[1];
                     const byteString = atob(parts[1]);
                     const ab = new ArrayBuffer(byteString.length);
                     const ia = new Uint8Array(ab);
-                    for (let i = 0; i < byteString.length; i++) { ia[i] = byteString.charCodeAt(i); }
+
+                    for (let i = 0; i < byteString.length; i++) {
+                        ia[i] = byteString.charCodeAt(i);
+                    }
+
+                    if (_viewerObjectUrl) URL.revokeObjectURL(_viewerObjectUrl);
                     const blob = new Blob([ab], { type: mime });
                     _viewerObjectUrl = URL.createObjectURL(blob);
+
+                    win.document.open();
                     win.document.write(`<html><body style="margin:0;background:#111;display:flex;align-items:center;justify-content:center;min-height:100vh;">
-                      <img src="${_viewerObjectUrl}" style="max-width:100%;max-height:100vh;object-fit:contain;">
+                        <img src="${_viewerObjectUrl}" style="max-width:100%;max-height:100vh;object-fit:contain;">
                     </body></html>`);
                     win.document.close();
-                } catch (e) {
-                    win.close();
-                    alert('Could not open image: ' + e.message);
+
+                } else if (d.url) {
+                    win.document.open();
+                    win.document.write(`<html><body style="margin:0;background:#111;display:flex;align-items:center;justify-content:center;min-height:100vh;">
+                        <img src="${d.url}" style="max-width:100%;max-height:100vh;object-fit:contain;">
+                    </body></html>`);
+                    win.document.close();
+                } else {
+                    throw new Error('Unsupported document format.');
                 }
-            } else if (d.url) {
-                win.document.write(`<html><body style="margin:0;background:#111;display:flex;align-items:center;justify-content:center;min-height:100vh;">
-                  <img src="${d.url}" style="max-width:100%;max-height:100vh;object-fit:contain;" onerror="document.body.innerHTML='<p style=color:#fff;font-family:sans-serif;>Image unavailable</p>'">
-                </body></html>`);
+
+            } catch (err) {
+                win.document.open();
+                win.document.write('<html><body style="font-family:sans-serif;padding:20px;"></body></html>');
                 win.document.close();
+                win.document.body.textContent = 'Could not open document: ' + err.message;
             }
         }
 
         async function loadUploadedDocs(user) {
             const container = document.getElementById('uploaded-docs');
             container.innerHTML = '<p style="color:#888;font-size:0.9rem;">Loading documents...</p>';
+
             try {
-                const snap = await db.collection('users').doc('booking_' + user.code).collection('documents').orderBy('uploadedAt', 'desc').get();
-                if (snap.empty) {
+                const result = await functions.httpsCallable('listGuestDocumentsSecure')({
+                    bookingId: user.code
+                });
+                const documents = result.data || [];
+
+                if (!Array.isArray(documents) || documents.length === 0) {
                     container.innerHTML = '<p style="color:#888;font-size:0.9rem;">No documents uploaded yet.</p>';
                     return;
                 }
+
                 let html = '<div style="display:flex;flex-direction:column;gap:0.75rem;margin-top:0.5rem;">';
-                snap.forEach(doc => {
-                    const d = doc.data();
-                    _docCache[doc.id] = d;
-                    const date = d.uploadedAt ? new Date(d.uploadedAt.toDate()).toLocaleDateString() : '';
-                    const isPdf = d.name && (d.name.toLowerCase().endsWith('.pdf') || d.type === 'application/pdf');
-                    // Support both old (url) and new (data) storage
-                    const hasContent = !!(d.data || d.url);
-                    const viewBtn = hasContent
-                        ? `<button onclick="_openDoc('${doc.id}')" style="background:none;border:none;color:#800000;font-size:0.85rem;cursor:pointer;padding:0;white-space:nowrap;"><i class="fas fa-eye"></i> View</button>`
+
+                documents.forEach(d => {
+                    _docCache[d.id] = d;
+                    const date = d.uploadedAt ? new Date(d.uploadedAt).toLocaleDateString() : '';
+                    const isPdf = d.type === 'application/pdf' || (d.name && d.name.toLowerCase().endsWith('.pdf'));
+                    const viewBtn = d.hasContent
+                        ? `<button onclick="_openDoc('${d.id}')" style="background:none;border:none;color:#800000;font-size:0.85rem;cursor:pointer;padding:0;white-space:nowrap;"><i class="fas fa-eye"></i> View</button>`
                         : '';
-                    html += `
-                        <div style="display:flex;align-items:center;gap:0.75rem;background:rgba(128,0,0,0.05);border:1px solid #ddd;border-radius:8px;padding:0.75rem;">
-                            <i class="fas ${isPdf ? 'fa-file-pdf' : 'fa-file-image'}" style="font-size:1.5rem;color:#800000;flex-shrink:0;"></i>
-                            <div style="flex:1;min-width:0;">
-                                <p style="margin:0;font-weight:600;font-size:0.9rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${d.name}</p>
-                                ${date ? `<p style="margin:0;font-size:0.78rem;color:#888;">Uploaded ${date}</p>` : ''}
-                            </div>
-                            ${viewBtn}
-                        </div>`;
-                });
-                html += '</div>';
-                container.innerHTML = html;
-            } catch (err) {
-                container.innerHTML = `
-                    <p style="color:red;font-size:0.9rem;">Error loading documents: ${err.message}</p>
-                    <div style="margin-top:0.75rem;padding:0.85rem 1rem;background:#e8f5e9;border:1px solid #a5d6a7;border-radius:10px;">
-                        <p style="margin:0;font-size:0.85rem;color:#1b5e20;">
-                            <i class="fab fa-whatsapp" style="font-size:1.1rem;vertical-align:middle;"></i>
-                            <strong>Send via WhatsApp instead</strong>
-                        </p>
-                        <p style="margin:0.3rem 0 0;font-size:0.8rem;color:#2e7d32;">
-                            Save your document to your phone, then
-                            <a href="https://wa.me/254799466723?text=Hi%20Gonah%20Homes%2C%20I%20would%20like%20to%20send%20my%20document%20for%20booking%20${encodeURIComponent(user.code || '')}" 
-                               target="_blank" style="color:#1b5e20;font-weight:600;text-decoration:underline;">
-                                click here to send on WhatsApp <i class="fas fa-external-link-alt" style="font-size:0.7rem;"></i>
-                            </a>
-                        </p>
+
+                    html += `<div style="display:flex;align-items:center;gap:0.75rem;background:rgba(128,0,0,0.05);border:1px solid #ddd;border-radius:8px;padding:0.75rem;">
+                        <i class="fas ${isPdf ? 'fa-file-pdf' : 'fa-file-image'}" style="font-size:1.5rem;color:#800000;flex-shrink:0;"></i>
+                        <div style="flex:1;min-width:0;">
+                            <p style="margin:0;font-weight:600;font-size:0.9rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${d.name}</p>
+                            ${date ? `<p style="margin:0;font-size:0.78rem;color:#888;">Uploaded ${date}</p>` : ''}
+                        </div>
+                        ${viewBtn}
                     </div>`;
+                });
+
+                container.innerHTML = html + '</div>';
+            } catch (err) {
+                container.innerHTML = `<p style="color:red;font-size:0.9rem;">Error loading documents: ${err.message}</p>
+                    <p>Alternatively, save your document to your phone and
+                    <a href="https://wa.me/254799466723?text=Hi%20Gonah%20Homes%2C%20I%20would%20like%20to%20send%20my%20document%20for%20booking%20${encodeURIComponent(user.code || '')}" target="_blank">send it through WhatsApp</a>.</p>`;
             }
         }
 
@@ -600,16 +720,20 @@
 
         async function cancelBooking(id) {
             const reason = prompt('Please provide a reason for cancellation (optional):');
-            if (reason === null) return; // user clicked Cancel on prompt
+            if (reason === null) return;
+
             try {
-                await db.collection('bookings').doc(id).update({
-                    status: 'cancelled',
-                    cancellationReason: reason || 'Cancelled by guest',
-                    cancelledAt: firebase.firestore.FieldValue.serverTimestamp()
+                await functions.httpsCallable('cancelMyBookingSecure')({
+                    bookingId: id,
+                    reason: reason || 'Cancelled by guest'
                 });
+
                 const user = currentGuestUser || getGuestSession();
-                if (user) loadBookings(user);
-            } catch (err) { alert('Error: ' + err.message); }
+                if (user) await loadBookings(user);
+                alert('Your cancellation request has been processed.');
+            } catch (err) {
+                alert('Error: ' + err.message);
+            }
         }
 
         function updatePaymentRestriction(hasConfirmed) {
@@ -939,18 +1063,18 @@
 
                 progressBar.style.width = '75%'; progressPct.textContent = '75%';
                 progressLbl.textContent = 'Saving...';
-                const documentRecord = {
+                const detectedMime = base64Data.match(/^data:([^;]+);base64,/);
+                const uploadType = isPdf
+                    ? 'application/pdf'
+                    : (detectedMime ? detectedMime[1] : 'image/jpeg');
+
+                await functions.httpsCallable('uploadGuestDocumentSecure')({
+                    bookingId: user.code,
                     name: file.name,
-                    type: file.type || (isPdf ? 'application/pdf' : 'image/jpeg'),
+                    type: uploadType,
                     size: file.size,
-                    uploadedBy: { name: user.name, email: user.email, bookingCode: user.code },
-                    // Save the compressed payload directly so an unavailable
-                    // Storage/anonymous-auth configuration cannot block the
-                    // guest's ID submission.
-                    data: base64Data,
-                    uploadedAt: firebase.firestore.FieldValue.serverTimestamp()
-                };
-                await db.collection('users').doc('booking_' + user.code).collection('documents').add(documentRecord);
+                    data: base64Data
+                });
 
                 progressBar.style.width = '100%'; progressPct.textContent = '100%';
                 setTimeout(() => {
@@ -998,12 +1122,10 @@
             const type = document.getElementById('request-type').value;
             const details = document.getElementById('request-details').value;
             try {
-                await db.collection('service_requests').add({
-                    userId: 'booking_' + user.code,
-                    userEmail: user.email,
-                    type, details,
-                    status: 'pending',
-                    timestamp: firebase.firestore.FieldValue.serverTimestamp()
+                await functions.httpsCallable('submitGuestServiceRequestSecure')({
+                    bookingId: user.code,
+                    type: type,
+                    details: details
                 });
                 emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_ADMIN_TEMPLATE, {
                     to_name: 'Gonah Homes',

@@ -13,6 +13,12 @@ if (!firebase.apps.length) {
   firebase.initializeApp(firebaseConfig);
 }
 
+// Secure server-side booking function
+const bookingFunctions = firebase.app().functions("us-central1");
+const createBookingSecure = bookingFunctions.httpsCallable("createBookingSecure");
+const getMyBookingsSecure = bookingFunctions.httpsCallable("getMyBookingsSecure");
+const submitReviewSecure = bookingFunctions.httpsCallable("submitReviewSecure");
+
 // Initialize EmailJS
 if (typeof emailjs !== 'undefined') {
   emailjs.init("VgDakmh3WscKrr_wQ");
@@ -817,7 +823,7 @@ function showBookingConfirmation(bookingData) {
   }
 }
 
-function submitBookingFinal() {
+async function submitBookingFinal() {
   const name = document.getElementById("booking-name").value.trim();
   const email = document.getElementById("booking-email").value.trim();
   const phone = document.getElementById("booking-phone").value.trim();
@@ -826,9 +832,11 @@ function submitBookingFinal() {
   const checkout = document.getElementById("booking-checkout").value;
   const house = document.getElementById("booking-house").value;
   const bookingProperty = propertiesData[house];
+
   const maxGuests = bookingProperty
     ? (Number(bookingProperty.occupancy) || propertyGuests(bookingProperty))
     : 0;
+
   if (maxGuests && Number(guests) > maxGuests) {
     alert(`This property accommodates up to ${maxGuests} guests.`);
     return;
@@ -838,50 +846,47 @@ function submitBookingFinal() {
     alert("We could not load this property's pricing. Please close the form and try again.");
     return;
   }
+
   const pricing = window.GonahPricing.calculateStay(bookingProperty, checkin, checkout);
+
   if (!pricing.valid) {
     alert(pricing.error || "Please choose valid check-in and check-out dates.");
     return;
   }
 
-  const bookingData = {
-    name,
-    email,
-    phone,
-    guests,
-    checkin,
-    checkout,
-    house,
-    total: pricing.total,
-    currency: pricing.currency,
-    nights: pricing.nights,
-    pricingBreakdown: pricing.breakdown,
-    pricingSnapshot: {
-      basePrice: pricing.basePrice,
-      currency: pricing.currency,
-      seasonalRates: window.GonahPricing.normalizeSeasonalRates(bookingProperty.seasonalRates)
+  try {
+    const response = await createBookingSecure({
+      name,
+      email,
+      phone,
+      guests: Number(guests),
+      checkin,
+      checkout,
+      house
+    });
+
+    const finalBookingData = response.data;
+    const bookingId = finalBookingData.id;
+
+    if (!bookingId || !finalBookingData.total) {
+      throw new Error("The booking service returned an incomplete confirmation. Please contact us before trying again.");
     }
-  };
 
-  const bookingId = 'GNH-' + Math.random().toString(36).substr(2, 6).toUpperCase();
-  const finalBookingData = {
-    ...bookingData,
-    id: bookingId,
-    timestamp: firebase.firestore.FieldValue.serverTimestamp(),
-    status: 'pending'
-  };
-
-  db.collection("bookings").doc(bookingId).set(finalBookingData).then(() => {
     showBookingConfirmation(finalBookingData);
 
-    // Update "Go to My Account" button so it pre-fills the login form with this booking
-    const params = new URLSearchParams({ email: finalBookingData.email.toLowerCase(), code: bookingId });
-    const accountBtn = document.querySelector('#booking-confirm .btn-primary');
-    if (accountBtn) accountBtn.setAttribute('onclick', `window.location.href='account.html?${params}'`);
+    const params = new URLSearchParams({
+      email: finalBookingData.email.toLowerCase(),
+      code: bookingId
+    });
 
-    // Send both the guest confirmation and the bookings-team notification
-    // from the submission flow, so they do not depend on the admin dashboard
-    // being open.
+    const accountBtn = document.querySelector('#booking-confirm .btn-primary');
+    if (accountBtn) {
+      accountBtn.setAttribute(
+        'onclick',
+        `window.location.href='account.html?${params}'`
+      );
+    }
+
     const emailJobs = [
       sendEmailJs(EMAILJS_CLIENT_TEMPLATE, {
         to_name: finalBookingData.name,
@@ -906,58 +911,64 @@ function submitBookingFinal() {
         subject: 'New Booking Request'
       })
     ];
+
     Promise.allSettled(emailJobs).then(results => {
-      results.filter(result => result.status === 'rejected')
+      results
+        .filter(result => result.status === 'rejected')
         .forEach(result => console.error('Booking email failed:', result.reason));
     });
 
-    db.collection("messages").add({
-      name: "System",
-      email: "system@gonahhomes.com",
-      message: `New booking: ${bookingId} for ${finalBookingData.house} by ${finalBookingData.name}`,
-      timestamp: firebase.firestore.FieldValue.serverTimestamp(),
-      status: 'new'
-    });
-  }).catch((error) => {
-    console.error("Error saving booking: ", error);
-    alert("Error processing booking: " + error.message);
-  });
+  } catch (error) {
+    console.error("Error creating secure booking:", error);
+    const message = error && error.message
+      ? error.message
+      : "Please try again or contact Gonah Homes.";
+    alert("Error processing booking: " + message);
+  }
 }
 
 // ---- Returning Guest Recognition ----
 async function checkReturningGuest(email) {
   const banner = document.getElementById('returning-guest-banner');
   const bannerText = document.getElementById('returning-guest-text');
+
   if (!banner) return;
+
   banner.style.display = 'none';
-  if (!email || !email.includes('@')) return;
+
+  const user = firebase.auth().currentUser;
+  const enteredEmail = String(email || '').trim().toLowerCase();
+
+  if (
+    !user ||
+    !user.emailVerified ||
+    !user.email ||
+    user.email.toLowerCase() !== enteredEmail
+  ) {
+    return;
+  }
 
   try {
-    const snap = await firebase.firestore().collection('bookings')
-      .where('email', '==', email)
-      .limit(5)
-      .get();
-    if (snap.empty) return;
+    const response = await getMyBookingsSecure();
+    const bookings = Array.isArray(response.data) ? response.data : [];
 
-    let count = 0;
-    let guestName = '';
-    snap.forEach(doc => {
-      const b = doc.data();
-      if (b.status !== 'cancelled') {
-        count++;
-        if (!guestName) guestName = b.name || '';
-      }
-    });
+    const previousStays = bookings.filter(
+      booking => booking.status !== 'cancelled'
+    );
 
-    if (count > 0 && bannerText) {
+    if (previousStays.length > 0 && bannerText) {
+      const guestName = previousStays[0].name || '';
       const firstName = guestName.split(' ')[0];
-      bannerText.innerHTML = firstName
-        ? `Welcome back, <strong>${firstName}</strong>! Great to have you again — ${count} stay${count > 1 ? 's' : ''} with us.`
+
+      bannerText.textContent = firstName
+        ? `Welcome back, ${firstName}! Great to have you again — ${previousStays.length} stay${previousStays.length > 1 ? 's' : ''} with us.`
         : `Welcome back! You're a returning guest.`;
+
       banner.style.display = 'block';
     }
-  } catch (e) {
-    // Silently fail — non-critical feature
+  } catch (error) {
+    console.error('Returning guest lookup unavailable:', error);
+    banner.style.display = 'none';
   }
 }
 
@@ -990,11 +1001,21 @@ function hideUserInfo() {
   }
 }
 
+function escapeReviewHTML(value) {
+  return String(value ?? '').replace(/[&<>"']/g, char => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;'
+  })[char]);
+}
+
 function renderTestimonials(reviews) {
   const testimonialsGrid = document.getElementById('testimonials-grid');
   if (!testimonialsGrid) return;
 
-  if (!reviews || reviews.length === 0) {
+  if (!Array.isArray(reviews) || reviews.length === 0) {
     testimonialsGrid.innerHTML = `
       <div class="testimonial-empty-state">
         <i class="fas fa-comments"></i>
@@ -1005,39 +1026,67 @@ function renderTestimonials(reviews) {
   }
 
   let html = '';
+
   reviews.slice(0, 6).forEach(review => {
-    const rating = '★'.repeat(Number(review.rating || 5));
+    const ratingValue = Number(review.rating);
+    const rating = Number.isInteger(ratingValue)
+      ? Math.min(5, Math.max(1, ratingValue))
+      : 5;
+
     const timestamp = review.timestamp;
-    const reviewDate = timestamp
-      ? (typeof timestamp.toDate === 'function' ? timestamp.toDate() : new Date(timestamp)).toLocaleDateString()
+    const dateValue = timestamp && typeof timestamp.toDate === 'function'
+      ? timestamp.toDate()
+      : timestamp ? new Date(timestamp) : null;
+
+    const reviewDate = dateValue && !Number.isNaN(dateValue.getTime())
+      ? dateValue.toLocaleDateString()
       : '';
-    const userName = review.name || 'Anonymous';
-    const userEmail = (review.email || '').trim().toLowerCase();
-    // Generate a consistent color from the email/name
-    let hash = 0;
-    const seed = (userEmail || userName).toLowerCase();
-    for (let i = 0; i < seed.length; i++) { hash = seed.charCodeAt(i) + ((hash << 5) - hash); hash = hash & hash; }
-    const palette = ['7B2D00','8B1A1A','6A0F49','0D47A1','1B5E20','006064','4A148C','E65100','37474F','880E4F'];
-    const bg = palette[Math.abs(hash) % palette.length];
-    const userAvatar = review.avatarUrl || (
-      window.buildRealAvatar
-        ? window.buildRealAvatar(userName, userEmail, 100)
+
+    const rawName = review.name || 'Anonymous';
+    const userName = escapeReviewHTML(rawName);
+    const reviewText = escapeReviewHTML(review.review || '');
+    const verification = escapeReviewHTML(review.verificationType || 'Guest');
+
+    // Preserve the real Google profile photo when available.
+    const safeGooglePhoto = typeof review.avatarUrl === 'string' &&
+      /^https:\/\/[^"'<>]+$/i.test(review.avatarUrl)
+        ? review.avatarUrl
+        : '';
+
+    // Otherwise generate a name-based avatar without using guest email.
+    const generatedAvatar = !safeGooglePhoto && window.buildRealAvatar
+      ? window.buildRealAvatar(rawName, '', 100)
+      : '';
+
+    const userAvatar = safeGooglePhoto || (
+      typeof generatedAvatar === 'string' &&
+      /^(https:\/\/[^"'<>]+|data:image\/[a-zA-Z0-9.+-]+;base64,[A-Za-z0-9+/=]+)$/i.test(generatedAvatar)
+        ? generatedAvatar
         : ''
     );
+
+    const safeImage = typeof review.imageUrl === 'string' &&
+      (/^https:\/\/[^"'<>]+$/i.test(review.imageUrl) ||
+       /^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/i.test(review.imageUrl))
+        ? review.imageUrl
+        : '';
+
+    const imageHTML = safeImage
+      ? `<div class="testimonial-image" style="margin: 1rem 0;"><img src="${escapeReviewHTML(safeImage)}" loading="lazy" decoding="async" style="width: 100%; border-radius: 8px; max-height: 200px; object-fit: cover;" alt="Guest review photo"></div>`
+      : '';
 
     html += `
       <div class="testimonial-card">
         <div class="testimonial-rating">
-          ${rating.split('').map(() => '<i class="fas fa-star"></i>').join('')}
+          ${'<i class="fas fa-star"></i>'.repeat(rating)}
         </div>
-        <p class="testimonial-text">"${review.review}"</p>
-        ${review.imageUrl ? `<div class="testimonial-image" style="margin: 1rem 0;"><img src="${review.imageUrl}" loading="lazy" decoding="async" style="width: 100%; border-radius: 8px; max-height: 200px; object-fit: cover;"></div>` : ''}
+        <p class="testimonial-text">"${reviewText}"</p>
+        ${imageHTML}
         <div class="testimonial-author">
-          <img src="${userAvatar}" alt="${userName}" class="author-avatar">
+          ${userAvatar ? `<img src="${escapeReviewHTML(userAvatar)}" alt="${userName}" class="author-avatar">` : ''}
           <div class="author-info">
             <h4>${userName}</h4>
-            <span>${review.verificationType || 'Verified Guest'} ${reviewDate ? '• ' + reviewDate : ''}</span>
-
+            <span>${verification}${reviewDate ? ' • ' + escapeReviewHTML(reviewDate) : ''}</span>
           </div>
         </div>
       </div>
@@ -1048,27 +1097,19 @@ function renderTestimonials(reviews) {
 }
 
 function loadReviews() {
-  db.collection("reviews").where("approved", "==", true).orderBy("timestamp", "desc").onSnapshot((snapshot) => {
-    const reviews = [];
-    snapshot.forEach((doc) => {
-      reviews.push({ id: doc.id, ...doc.data() });
-    });
-    renderTestimonials(reviews);
-  }, (error) => {
-    if (error.message && error.message.includes('index')) {
-      db.collection("reviews").orderBy("timestamp", "desc").onSnapshot((snap) => {
-        const reviews = [];
-        snap.forEach(doc => {
-          const d = doc.data();
-          if (d.approved === true) reviews.push({ id: doc.id, ...d });
-        });
-        renderTestimonials(reviews);
+  db.collection("reviews")
+    .where("approved", "==", true)
+    .orderBy("timestamp", "desc")
+    .onSnapshot((snapshot) => {
+      const reviews = [];
+      snapshot.forEach((doc) => {
+        reviews.push({ id: doc.id, ...doc.data() });
       });
-    } else {
-      console.error("Error loading reviews:", error);
+      renderTestimonials(reviews);
+    }, (error) => {
+      console.error("Error loading approved reviews:", error);
       renderTestimonials([]);
-    }
-  });
+    });
 }
 
 // New Simplified Review Logic (Google Sign-In Only)
@@ -1150,85 +1191,76 @@ firebase.auth().onAuthStateChanged(user => {
   }
 });
 
-// Single Unified Form Submission
+// Secure server-side review submission
 if (submissionForm) {
   submissionForm.addEventListener('submit', async (e) => {
     e.preventDefault();
+
     if (!homeSignedInGoogleUser) {
       showHomeReviewAlert('Please sign in with Google first.', 'error');
       return;
     }
 
     const rating = document.querySelector('#review-submission-form input[name="rating"]:checked')?.value;
-    if (!rating) { showHomeReviewAlert('Please select a star rating.', 'error'); return; }
+    if (!rating) {
+      showHomeReviewAlert('Please select a star rating.', 'error');
+      return;
+    }
 
     const text = document.getElementById('review-text-input').value.trim();
-    const imageFile = document.getElementById('review-image-input').files[0];
+    if (!text || text.length > 2000) {
+      showHomeReviewAlert('Your review must contain 1 to 2,000 characters.', 'error');
+      return;
+    }
 
+    const imageFile = document.getElementById('review-image-input').files[0];
     const submitBtn = submissionForm.querySelector('button[type="submit"]');
+
     submitBtn.disabled = true;
     submitBtn.textContent = "Submitting...";
 
     try {
-      const email = homeSignedInGoogleUser.email.toLowerCase();
-      let visitorLabel = "Website Visitor";
-      let matchedProperty = null;
-
-      // Behind-the-scenes automatic guest check
-      const snapshot = await db.collection('bookings')
-        .where('email', '==', email)
-        .get();
-
-      if (!snapshot.empty) {
-        const bookings = snapshot.docs.map(doc => doc.data());
-        const dynamicMatch = bookings.find(b => ['confirmed', 'completed'].includes(String(b.status).toLowerCase()));
-        
-        if (dynamicMatch) {
-          const status = String(dynamicMatch.status).toLowerCase();
-          visitorLabel = status === 'completed' ? 'Verified Stay' : 'Verified Booking';
-          matchedProperty = dynamicMatch.house || dynamicMatch.property || null;
-        }
-      }
-
       let imageUrl = null;
+
       if (imageFile) {
-        try {
-          imageUrl = await compressReviewPhoto(imageFile);
-        } catch (_) {
-          console.warn('Skipping photo embedding due to processing failure.');
+        imageUrl = await compressReviewPhoto(imageFile);
+
+        if (imageUrl.length > 500000) {
+          throw new Error('Photo is too large. Please choose a smaller image.');
         }
       }
-      
-      await db.collection('reviews').add({
-        name: homeSignedInGoogleUser.displayName || email.split('@')[0],
-        email: email,
-        uid: homeSignedInGoogleUser.uid,
-        authProvider: 'google.com',
-        verificationType: visitorLabel, 
-        property: matchedProperty,
-        rating: parseInt(rating),
+
+      const response = await submitReviewSecure({
+        rating: Number(rating),
         review: text,
-        imageUrl: imageUrl,
-        timestamp: firebase.firestore.FieldValue.serverTimestamp(),
-        approved: true,
-        avatarUrl: homeSignedInGoogleUser.photoURL || null
+        imageUrl: imageUrl
       });
 
-      showHomeReviewAlert('Review submitted successfully! Thank you.', 'success');
-      
+      showHomeReviewAlert(
+        response.data?.message || 'Your review has been submitted for approval. Thank you.',
+        'success'
+      );
+
       if (firebase.auth().currentUser) {
         await firebase.auth().signOut().catch(() => {});
       }
+
       homeSignedInGoogleUser = null;
-      
       submissionForm.reset();
       submissionForm.style.display = 'none';
-      if (homeGoogleSignInStatus) homeGoogleSignInStatus.style.display = 'none';
+
+      if (homeGoogleSignInStatus) {
+        homeGoogleSignInStatus.style.display = 'none';
+      }
+
       resetGoogleButtonState();
-      document.querySelectorAll('.review-form-container .form-divider').forEach(el => el.style.display = 'flex');
+
+      document.querySelectorAll('.review-form-container .form-divider')
+        .forEach(el => el.style.display = 'flex');
 
     } catch (error) {
-      showHomeReviewAlert('Error saving review: ' + error.message, 'error');
+      console.error('Review submission failed:', error);
+      showHomeReviewAlert('Error submitting review: ' + error.message, 'error');
     } finally {
       submitBtn.disabled = false;
       submitBtn.textContent = "Submit Review";
@@ -1259,7 +1291,7 @@ function compressReviewPhoto(file) {
         canvas.height = height;
         canvas.getContext('2d').drawImage(image, 0, 0, width, height);
         const dataUrl = canvas.toDataURL('image/jpeg', 0.72);
-        if (dataUrl.length > 700000) {
+        if (dataUrl.length > 500000) {
           reject(new Error('Photo is too large after compression. Please choose a smaller image.'));
         } else {
           resolve(dataUrl);
