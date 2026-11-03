@@ -72,6 +72,9 @@ async function login(email, password) {
   }
   try {
     const result = await firebase.auth().signInWithEmailAndPassword(email, password);
+    await result.user.reload();
+    await result.user.getIdToken(true);
+    showToast('Primary email verified: ' + result.user.emailVerified, 'success');
     let role = 'admin';
     try {
       const staffDoc = await db.collection('staff_accounts').doc(result.user.uid).get();
@@ -102,7 +105,7 @@ async function login(email, password) {
       'auth/too-many-requests': 'Too many sign-in attempts — try again later.',
       'auth/invalid-credential': 'Invalid email or password.'
     };
-    showToast(msgs[error.code] || 'Login failed. Please check your credentials.', 'error');
+    showToast((msgs[error.code] || 'Login failed') + ' (' + (error.code || 'unknown-error') + ')', 'error');
     return false;
   } finally {
     if (loginBtn) {
