@@ -74,6 +74,12 @@ async function login(email, password) {
     const result = await firebase.auth().signInWithEmailAndPassword(email, password);
     await result.user.reload();
     await result.user.getIdToken(true);
+    if (isPrimaryAdminEmail(result.user.email) && !result.user.emailVerified) {
+      await result.user.sendEmailVerification();
+      showToast('Verification email sent. Check your inbox and verify your email before accessing Staff Accounts.', 'warning');
+      await firebase.auth().signOut();
+      return false;
+    }
     showToast('Primary email verified: ' + result.user.emailVerified, 'success');
     let role = 'admin';
     try {
