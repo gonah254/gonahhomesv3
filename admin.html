@@ -353,7 +353,7 @@
   <!-- Admin Dashboard Initialization Script -->
   <script>
     // Firebase Configuration (same as in dashboard.js)
-    const firebaseConfig = {
+    const adminFirebaseConfig = {
       apiKey: "AIzaSyABTVp797tNu353FBVLzsOp90aIX2mNF74",
       authDomain: "my-website-project2797.firebaseapp.com",
       projectId: "my-website-project2797",
@@ -363,20 +363,23 @@
     };
 
     // Initialize Firebase
+    let auth;
+    let adminDb;
+
     try {
       if (!firebase.apps.length) {
-        firebase.initializeApp(firebaseConfig);
+        firebase.initializeApp(adminFirebaseConfig);
       }
-      const auth = firebase.auth();
-      const db = firebase.firestore();
-      console.log('✅ Firebase initialized successfully');
+      auth = firebase.auth();
+      adminDb = firebase.firestore();
+      console.log('Firebase initialized successfully');
     } catch (error) {
-      console.error('❌ Firebase initialization error:', error);
+      console.error('Firebase initialization error:', error);
+      throw error;
     }
 
-    // Admin credentials
-    const ADMIN_EMAIL = 'admin@gonahhomes.com';
-    const ADMIN_PASSWORD = 'gonahhomes@0799466723';
+    // Primary administrator identity
+    const PRIMARY_ADMIN_EMAIL = 'gonahhomes0@gmail.com';
 
     // DOM Elements
     const loginModal = document.getElementById('login-modal');
@@ -436,23 +439,12 @@
       const email = document.getElementById('admin-email').value;
       const password = document.getElementById('admin-password').value;
 
-      if (email !== ADMIN_EMAIL) {
-        loginError.textContent = '❌ Access denied. Admin only.';
-        return;
-      }
-
-      if (password !== ADMIN_PASSWORD) {
-        loginError.textContent = '❌ Invalid password.';
-        return;
-      }
-
       try {
         await auth.signInWithEmailAndPassword(email, password);
-        showDashboard();
+        loginError.textContent = 'Checking administrator permissions...';
       } catch (error) {
-        console.warn('Firebase sign-in failed, allowing direct login:', error);
-        // Allow direct login even if Firebase fails
-        showDashboard();
+        console.error('Firebase sign-in failed:', error);
+        loginError.textContent = 'Login failed. Check your email and password, then try again.';
       }
     });
 
@@ -600,12 +592,54 @@
       setTimeout(() => toast.remove(), 3000);
     }
 
-    // Check authentication on page load
-    auth.onAuthStateChanged((user) => {
-      if (user && user.email === ADMIN_EMAIL) {
-        showDashboard();
-      } else if (!user) {
+    // Verify administrator access against Firebase identity and staff record
+    auth.onAuthStateChanged(async (user) => {
+      if (!user) {
         showLogin();
+        return;
+      }
+
+      try {
+        await user.reload();
+
+        const currentUser = auth.currentUser;
+        if (!currentUser) {
+          showLogin();
+          return;
+        }
+
+        const email = (currentUser.email || '').toLowerCase();
+
+        // Primary administrator must have a verified email.
+        if (email === PRIMARY_ADMIN_EMAIL && currentUser.emailVerified) {
+          showDashboard();
+          return;
+        }
+
+        // Staff administrator must match their Firebase UID document.
+        const staffDoc = await adminDb.collection('staff_accounts')
+          .doc(currentUser.uid)
+          .get();
+
+        if (
+          staffDoc.exists &&
+          staffDoc.data().email &&
+          staffDoc.data().email.toLowerCase() === email &&
+          staffDoc.data().role === 'admin' &&
+          staffDoc.data().active === true
+        ) {
+          showDashboard();
+          return;
+        }
+
+        await auth.signOut();
+        showLogin();
+        loginError.textContent = 'Access denied. This account is not an active administrator.';
+      } catch (error) {
+        console.error('Administrator verification failed:', error);
+        await auth.signOut();
+        showLogin();
+        loginError.textContent = 'Could not verify administrator access. Please try again.';
       }
     });
 
