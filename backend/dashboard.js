@@ -1167,6 +1167,12 @@ async function loadClients() {
 
 // Initialize charts with empty data, then populate from Firestore
 function initializeCharts() {
+  ['bookingsChart', 'propertiesChart'].forEach(id => {
+    const canvas = document.getElementById(id);
+    const existingChart = canvas && Chart.getChart(canvas);
+    if (existingChart) existingChart.destroy();
+  });
+
   const bookingsCtx = document.getElementById('bookingsChart')?.getContext('2d');
   const propertiesCtx = document.getElementById('propertiesChart')?.getContext('2d');
 
