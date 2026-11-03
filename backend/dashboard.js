@@ -105,7 +105,7 @@ async function login(email, password) {
       'auth/too-many-requests': 'Too many sign-in attempts — try again later.',
       'auth/invalid-credential': 'Invalid email or password.'
     };
-    showToast((msgs[error.code] || 'Login failed') + ' (' + (error.code || 'unknown-error') + ')', 'error');
+    console.error('Dashboard login error:', error); showToast((msgs[error.code] || 'Login failed') + ' (' + (error.code || 'unknown-error') + '): ' + (error.message || 'No details'), 'error');
     return false;
   } finally {
     if (loginBtn) {
