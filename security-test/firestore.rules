@@ -1,0 +1,103 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function activeStaff() {
+      return signedIn()
+        && exists(/databases/$(database)/documents/staff_accounts/$(request.auth.uid))
+        && get(/databases/$(database)/documents/staff_accounts/$(request.auth.uid)).data.active == true;
+    }
+
+    function primaryAdmin() {
+      return signedIn()
+        && request.auth.token.email == 'gonahhomes0@gmail.com'
+        && request.auth.token.email_verified == true;
+    }
+
+    function admin() {
+      return primaryAdmin()
+        || (activeStaff()
+          && get(/databases/$(database)/documents/staff_accounts/$(request.auth.uid)).data.role == 'admin');
+    }
+
+    // Public website content
+    match /properties/{id} {
+      allow read: if true;
+      allow write: if admin();
+    }
+
+    match /property_settings/{id} {
+      allow read: if true;
+      allow write: if admin();
+    }
+
+    match /offers/{id} {
+      allow read: if true;
+      allow write: if admin();
+    }
+
+    match /announcements/{id} {
+      allow read: if true;
+      allow write: if admin();
+    }
+
+    // Guests may submit a booking, but cannot read or alter bookings.
+    // Guest booking lookup must move to a trusted, verified backend.
+    // All booking creation and guest access go through secure backend functions.
+    match /bookings/{id} {
+      allow read: if admin();
+      allow create, update: if admin();
+
+      // Only Primary Admin may delete unpaid test or obsolete bookings.
+      // Never delete confirmed, completed, or payment-recorded bookings.
+      allow delete: if false;
+    }
+
+    // Reviews are public only after approval.
+    match /reviews/{id} {
+      allow read: if resource.data.approved == true || admin();
+      allow create, update, delete: if admin();
+    }
+
+    // Visitors may send messages, but cannot read the inbox.
+    match /messages/{id} {
+      allow create: if
+        request.resource.data.keys().hasAll(['name', 'email', 'message'])
+        && request.resource.data.name is string
+        && request.resource.data.email is string
+        && request.resource.data.message is string;
+      allow read, update, delete: if admin();
+    }
+
+    // Sensitive or internal records: staff admin access only for now.
+    match /staff_accounts/{id} {
+      allow read: if primaryAdmin() || (signedIn() && request.auth.uid == id);
+      allow create, update, delete: if primaryAdmin();
+    }
+
+    match /payments/{id} {
+      allow read, write: if admin();
+    }
+
+    match /users/{id}/{document=**} {
+      allow read, write: if admin();
+    }
+
+    // Audit trail: only Primary Admin and Admin may read.
+    // Client-side creation, modification and deletion are prohibited.
+    // Trusted Cloud Functions write through the Firebase Admin SDK.
+    match /dashboard_activity/{id} {
+      allow read: if admin();
+      allow create, update, delete: if false;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

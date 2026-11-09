@@ -1,0 +1,19 @@
+{
+  "name": "gonah-security-rules-test",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Isolated Firebase security rules testing",
+  "engines": {
+    "node": "22"
+  },
+  "devDependencies": {
+    "@firebase/rules-unit-testing": "6.0.0",
+    "firebase": "13.2.0"
+  },
+  "scripts": {
+    "test:rules": "node --test rules-tests/*.test.cjs"
+  },
+  "overrides": {
+    "@grpc/grpc-js": "1.14.7"
+  }
+}
