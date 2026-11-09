@@ -1,31 +1,29 @@
 rules_version = '2';
-
 service firebase.storage {
   match /b/{bucket}/o {
 
+    function primaryAdmin() {
+      return request.auth != null
+        && request.auth.token.email == 'gonahhomes0@gmail.com'
+        && request.auth.token.email_verified == true;
+    }
+
     function activeStaff() {
       return request.auth != null
-        && firestore.exists(
-          /databases/(default)/documents/staff_accounts/$(request.auth.uid)
-        )
-        && firestore.get(
-          /databases/(default)/documents/staff_accounts/$(request.auth.uid)
-        ).data.active == true;
+        && firestore.exists(/databases/(default)/documents/staff_accounts/$(request.auth.uid))
+        && firestore.get(/databases/(default)/documents/staff_accounts/$(request.auth.uid)).data.active == true;
     }
 
     function admin() {
-      return activeStaff()
-        && firestore.get(
-          /databases/(default)/documents/staff_accounts/$(request.auth.uid)
-        ).data.role == 'admin';
+      return primaryAdmin()
+        || (activeStaff()
+          && firestore.get(/databases/(default)/documents/staff_accounts/$(request.auth.uid)).data.role == 'admin');
     }
 
-    // Private guest documents must not be publicly readable.
     match /documents/{allPaths=**} {
       allow read, write: if admin();
     }
 
-    // Deny everything else unless a specific public asset path is approved.
     match /{allPaths=**} {
       allow read, write: if false;
     }

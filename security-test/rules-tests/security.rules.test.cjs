@@ -152,3 +152,21 @@ test('verified Primary Admin can upload protected Storage documents', async () =
     ref(storage, 'documents/primary-admin-test.txt'), 'owner test document'
   ));
 });
+
+test('guest cannot upload protected Storage documents', async () => {
+  const storage = guest().storage();
+  await assertFails(uploadString(
+    ref(storage, 'documents/guest-test.txt'), 'guest test document'
+  ));
+});
+
+test('unverified Primary Admin cannot upload protected Storage documents', async () => {
+  const unverifiedOwner = env.authenticatedContext('owner-unverified-storage', {
+    email: primaryEmail,
+    email_verified: false
+  });
+  const storage = unverifiedOwner.storage();
+  await assertFails(uploadString(
+    ref(storage, 'documents/unverified-owner-test.txt'), 'unverified test document'
+  ));
+});
