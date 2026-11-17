@@ -1,16 +1,9 @@
 rules_version = '2';
-
 service cloud.firestore {
   match /databases/{database}/documents {
 
     function signedIn() {
       return request.auth != null;
-    }
-
-    function activeStaff() {
-      return signedIn()
-        && exists(/databases/$(database)/documents/staff_accounts/$(request.auth.uid))
-        && get(/databases/$(database)/documents/staff_accounts/$(request.auth.uid)).data.active == true;
     }
 
     function primaryAdmin() {
@@ -19,10 +12,27 @@ service cloud.firestore {
         && request.auth.token.email_verified == true;
     }
 
+    function activeStaff() {
+      return signedIn()
+        && exists(/databases/$(database)/documents/staff_accounts/$(request.auth.uid))
+        && get(/databases/$(database)/documents/staff_accounts/$(request.auth.uid)).data.active == true;
+    }
+
+    function staffRole(role) {
+      return activeStaff()
+        && get(/databases/$(database)/documents/staff_accounts/$(request.auth.uid)).data.role == role;
+    }
+
     function admin() {
-      return primaryAdmin()
-        || (activeStaff()
-          && get(/databases/$(database)/documents/staff_accounts/$(request.auth.uid)).data.role == 'admin');
+      return primaryAdmin() || staffRole('admin');
+    }
+
+    function managerAccess() {
+      return admin() || staffRole('manager');
+    }
+
+    function operationalAccess() {
+      return managerAccess() || staffRole('receptionist');
     }
 
     // Public website content
@@ -43,59 +53,149 @@ service cloud.firestore {
 
     match /announcements/{id} {
       allow read: if true;
-      allow write: if admin();
+
+      allow create: if managerAccess()
+        && request.resource.data.keys().hasAll([
+          'title', 'type', 'message', 'validUntil',
+          'active', 'createdAt', 'views', 'clicks'
+        ])
+        && request.resource.data.title is string
+        && request.resource.data.title.size() > 0
+        && request.resource.data.title.size() <= 200
+        && request.resource.data.type is string
+        && request.resource.data.message is string
+        && request.resource.data.message.size() <= 5000
+        && (request.resource.data.validUntil == null
+          || request.resource.data.validUntil is timestamp)
+        && request.resource.data.active is bool
+        && request.resource.data.createdAt is timestamp
+        && request.resource.data.views == 0
+        && request.resource.data.clicks == 0;
+
+      allow update: if managerAccess()
+        && request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['active'])
+        && request.resource.data.active is bool;
+
+      allow delete: if managerAccess();
     }
 
-    // Guests may submit a booking, but cannot read or alter bookings.
-    // Guest booking lookup must move to a trusted, verified backend.
-    // All booking creation and guest access go through secure backend functions.
+    // Booking access remains restricted. Financial changes use trusted functions.
     match /bookings/{id} {
       allow read: if admin();
-      allow create, update: if admin();
+      allow create: if false;
 
-      // Only Primary Admin may delete unpaid test or obsolete bookings.
-      // Never delete confirmed, completed, or payment-recorded bookings.
+      allow update: if admin()
+        && request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['receiptSentAt'])
+        && request.resource.data.receiptSentAt is timestamp;
+
       allow delete: if false;
     }
 
-    // Reviews are public only after approval.
+    // Manager may moderate and reply; only Admin may permanently delete.
     match /reviews/{id} {
-      allow read: if resource.data.approved == true || admin();
-      allow create, update, delete: if admin();
+      allow read: if resource.data.approved == true || managerAccess();
+
+      allow update: if managerAccess()
+        && (
+          (
+            request.resource.data.diff(resource.data).affectedKeys()
+              .hasOnly(['approved', 'updatedAt'])
+            && request.resource.data.diff(resource.data).affectedKeys()
+              .hasAll(['approved', 'updatedAt'])
+            && request.resource.data.approved is bool
+            && request.resource.data.updatedAt is timestamp
+          )
+          ||
+          (
+            request.resource.data.diff(resource.data).affectedKeys()
+              .hasOnly(['adminReply', 'repliedAt'])
+            && request.resource.data.diff(resource.data).affectedKeys()
+              .hasAll(['adminReply', 'repliedAt'])
+            && request.resource.data.adminReply is string
+            && request.resource.data.adminReply.size() > 0
+            && request.resource.data.adminReply.size() <= 2000
+            && request.resource.data.repliedAt is timestamp
+          )
+        );
+
+      allow create: if admin();
+      allow delete: if admin();
     }
 
-    // Visitors may send messages, but cannot read the inbox.
+    // Guest message submission remains open with basic field validation.
+    // Operational staff may mark messages as read, but cannot alter message content.
     match /messages/{id} {
-      allow create: if
-        request.resource.data.keys().hasAll(['name', 'email', 'message'])
+      allow create: if request.resource.data.keys().hasAll([
+          'name', 'email', 'message'
+        ])
         && request.resource.data.name is string
         && request.resource.data.email is string
         && request.resource.data.message is string;
-      allow read, update, delete: if admin();
+
+      allow read: if operationalAccess();
+
+      allow update: if operationalAccess()
+        && request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['status', 'readAt'])
+        && request.resource.data.diff(resource.data).affectedKeys()
+          .hasAll(['status', 'readAt'])
+        && request.resource.data.status == 'read'
+        && request.resource.data.readAt is timestamp;
+
+      allow delete: if admin();
     }
 
-    // Sensitive or internal records: staff admin access only for now.
+    // Staff accounts: Primary Admin alone manages staff.
     match /staff_accounts/{id} {
-      allow read: if primaryAdmin() || (signedIn() && request.auth.uid == id);
+      allow read: if primaryAdmin()
+        || (signedIn() && request.auth.uid == id);
       allow create, update, delete: if primaryAdmin();
     }
 
+    // Payment ledger: Primary Admin only. No client writes.
     match /payments/{id} {
-      allow read, write: if admin();
+      allow read: if primaryAdmin();
+      allow create, update, delete: if false;
     }
 
+    // Guest document data is stored in Firestore.
+    // Operational staff may read; all client writes remain prohibited.
     match /users/{id}/{document=**} {
-      allow read, write: if admin();
+      allow read: if operationalAccess();
+      allow write: if false;
     }
 
-    // Audit trail: only Primary Admin and Admin may read.
-    // Client-side creation, modification and deletion are prohibited.
-    // Trusted Cloud Functions write through the Firebase Admin SDK.
+    // Service requests: operational staff may read and update status only.
+    match /service_requests/{id} {
+      allow read: if operationalAccess();
+
+      allow update: if operationalAccess()
+        && request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['status', 'updatedAt'])
+        && request.resource.data.diff(resource.data).affectedKeys()
+          .hasAll(['status', 'updatedAt'])
+        && request.resource.data.status in ['completed', 'cancelled']
+        && request.resource.data.updatedAt is timestamp;
+
+      allow delete: if admin();
+      allow create: if false;
+    }
+
+    // Notifications remain restricted to Admin and Primary Admin.
+    match /admin_notifications/{id} {
+      allow read: if admin();
+      allow write: if false;
+    }
+
+    // Audit trail: Admin and Primary Admin read only.
     match /dashboard_activity/{id} {
       allow read: if admin();
       allow create, update, delete: if false;
     }
 
+    // No other access unless explicitly granted above.
     match /{document=**} {
       allow read, write: if false;
     }

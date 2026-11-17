@@ -4,7 +4,7 @@ const { before, after, beforeEach, test } = require('node:test');
 const {
   initializeTestEnvironment, assertFails, assertSucceeds
 } = require('@firebase/rules-unit-testing');
-const { doc, getDoc, setDoc } = require('firebase/firestore');
+const { doc, getDoc, setDoc, updateDoc, Timestamp } = require('firebase/firestore');
 const { ref, uploadString } = require('firebase/storage');
 
 let env;
@@ -70,12 +70,25 @@ test('guests cannot read, create or alter bookings directly', async () => {
   await assertFails(setDoc(doc(db, 'bookings', 'GNH-ABC123'), { status: 'cancelled' }));
 });
 
-test('verified Primary Admin has Firestore admin access', async () => {
-  await seed([['bookings', 'GNH-ABC123', { id: 'GNH-ABC123', status: 'pending' }]]);
+test('verified Primary Admin can update receipt timestamp but not booking status or payment amounts', async () => {
+  await seed([['bookings', 'GNH-ABC123', {
+    id: 'GNH-ABC123',
+    status: 'pending',
+    amountPaid: 0,
+    totalAmount: 1000
+  }]]);
   const db = owner().firestore();
-  await assertSucceeds(getDoc(doc(db, 'bookings', 'GNH-ABC123')));
-  await assertSucceeds(setDoc(doc(db, 'bookings', 'GNH-ABC123'), {
-    id: 'GNH-ABC123', status: 'approved'
+  const booking = doc(db, 'bookings', 'GNH-ABC123');
+
+  await assertSucceeds(getDoc(booking));
+  await assertSucceeds(updateDoc(booking, {
+    receiptSentAt: Timestamp.now()
+  }));
+  await assertFails(updateDoc(booking, {
+    status: 'approved'
+  }));
+  await assertFails(updateDoc(booking, {
+    amountPaid: 1000
   }));
 });
 
@@ -169,4 +182,219 @@ test('unverified Primary Admin cannot upload protected Storage documents', async
   await assertFails(uploadString(
     ref(storage, 'documents/unverified-owner-test.txt'), 'unverified test document'
   ));
+});
+
+// Additional staff-role permission tests
+function roleUser(uid, role) {
+  return env.authenticatedContext(uid, {
+    email: `${uid}@example.com`,
+    email_verified: true
+  });
+}
+
+async function seedStaffRoles() {
+  await seed([
+    ['staff_accounts', 'manager-1', { active: true, role: 'manager' }],
+    ['staff_accounts', 'accountant-1', { active: true, role: 'accountant' }],
+    ['staff_accounts', 'receptionist-1', { active: true, role: 'receptionist' }],
+    ['staff_accounts', 'staff-admin-1', { active: true, role: 'admin' }]
+  ]);
+}
+
+test('Manager can manage announcements but Receptionist and Accountant cannot', async () => {
+  await seedStaffRoles();
+
+  const managerDb = roleUser('manager-1', 'manager').firestore();
+  const receptionistDb = roleUser('receptionist-1', 'receptionist').firestore();
+  const accountantDb = roleUser('accountant-1', 'accountant').firestore();
+
+  await assertSucceeds(setDoc(doc(managerDb, 'announcements', 'manager-announcement'), {
+    title: 'Service update',
+    type: 'general',
+    message: 'A test announcement',
+    validUntil: null,
+    active: true,
+    createdAt: Timestamp.now(),
+    views: 0,
+    clicks: 0
+  }));
+
+  await assertSucceeds(updateDoc(
+    doc(managerDb, 'announcements', 'manager-announcement'),
+    { active: false }
+  ));
+
+  await assertSucceeds(
+    getDoc(doc(receptionistDb, 'announcements', 'manager-announcement'))
+  );
+
+  await assertFails(setDoc(doc(receptionistDb, 'announcements', 'receptionist-announcement'), {
+    title: 'Not allowed',
+    type: 'general',
+    message: 'Should fail',
+    validUntil: null,
+    active: true,
+    createdAt: Timestamp.now(),
+    views: 0,
+    clicks: 0
+  }));
+
+  await assertSucceeds(getDoc(doc(accountantDb, 'announcements', 'manager-announcement')));
+});
+
+test('Manager can moderate and reply to reviews but cannot delete them', async () => {
+  await seedStaffRoles();
+  await seed([['reviews', 'review-1', {
+    approved: false,
+    message: 'Test review'
+  }]]);
+
+  const managerDb = roleUser('manager-1', 'manager').firestore();
+  const accountantDb = roleUser('accountant-1', 'accountant').firestore();
+
+  await assertSucceeds(getDoc(doc(managerDb, 'reviews', 'review-1')));
+
+  await assertSucceeds(updateDoc(doc(managerDb, 'reviews', 'review-1'), {
+    approved: true,
+    updatedAt: Timestamp.now()
+  }));
+
+  await assertSucceeds(updateDoc(doc(managerDb, 'reviews', 'review-1'), {
+    adminReply: 'Thank you for your feedback.',
+    repliedAt: Timestamp.now()
+  }));
+
+  await assertFails(updateDoc(doc(managerDb, 'reviews', 'review-1'), {
+    message: 'Tampered review'
+  }));
+
+  await assertFails((async () => {
+    const { deleteDoc } = require('firebase/firestore');
+    return deleteDoc(doc(managerDb, 'reviews', 'review-1'));
+  })());
+
+  await assertSucceeds(getDoc(doc(accountantDb, 'reviews', 'review-1')));
+});
+
+test('Receptionist and Manager can handle operational records; Accountant cannot', async () => {
+  await seedStaffRoles();
+  await seed([
+    ['messages', 'message-1', {
+      name: 'Guest',
+      email: 'guest@example.com',
+      message: 'Please contact me',
+      status: 'new'
+    }],
+    ['service_requests', 'service-1', {
+      status: 'pending',
+      details: 'Extra towels'
+    }]
+  ]);
+
+  const receptionistDb = roleUser('receptionist-1', 'receptionist').firestore();
+  const managerDb = roleUser('manager-1', 'manager').firestore();
+  const accountantDb = roleUser('accountant-1', 'accountant').firestore();
+  const adminDb = roleUser('staff-admin-1', 'admin').firestore();
+
+  await assertSucceeds(getDoc(doc(receptionistDb, 'messages', 'message-1')));
+  await assertSucceeds(updateDoc(doc(receptionistDb, 'messages', 'message-1'), {
+    status: 'read',
+    readAt: Timestamp.now()
+  }));
+
+  await assertSucceeds(getDoc(doc(receptionistDb, 'service_requests', 'service-1')));
+  await assertSucceeds(updateDoc(doc(receptionistDb, 'service_requests', 'service-1'), {
+    status: 'completed',
+    updatedAt: Timestamp.now()
+  }));
+
+  await assertFails(getDoc(doc(accountantDb, 'messages', 'message-1')));
+  await assertFails(getDoc(doc(accountantDb, 'service_requests', 'service-1')));
+
+  await assertFails(updateDoc(doc(managerDb, 'messages', 'message-1'), {
+    message: 'Tampered message'
+  }));
+
+  await assertFails(updateDoc(doc(receptionistDb, 'service_requests', 'service-1'), {
+    status: 'forged',
+    updatedAt: Timestamp.now()
+  }));
+
+  const { deleteDoc } = require('firebase/firestore');
+  await assertFails(deleteDoc(doc(receptionistDb, 'service_requests', 'service-1')));
+  await assertFails(deleteDoc(doc(managerDb, 'service_requests', 'service-1')));
+  await assertSucceeds(deleteDoc(doc(adminDb, 'service_requests', 'service-1')));
+});
+
+test('Only operational staff can read guest documents; no staff can write them', async () => {
+  await seedStaffRoles();
+  await seed([
+    ['users/booking_GNH-ABC123/documents', 'id-1', {
+      name: 'identity.pdf',
+      type: 'application/pdf'
+    }]
+  ]);
+
+  const managerDb = roleUser('manager-1', 'manager').firestore();
+  const receptionistDb = roleUser('receptionist-1', 'receptionist').firestore();
+  const accountantDb = roleUser('accountant-1', 'accountant').firestore();
+  const documentPath = 'users/booking_GNH-ABC123/documents/id-1';
+
+  await assertSucceeds(getDoc(doc(managerDb, documentPath)));
+  await assertSucceeds(getDoc(doc(receptionistDb, documentPath)));
+  await assertFails(getDoc(doc(accountantDb, documentPath)));
+
+  await assertFails(setDoc(doc(managerDb, 'users/booking_GNH-ABC123/documents/forged'), {
+    name: 'forged.pdf'
+  }));
+
+  await assertFails(setDoc(doc(receptionistDb, 'users/booking_GNH-ABC123/documents/forged'), {
+    name: 'forged.pdf'
+  }));
+});
+
+test('Payment ledger is Primary Admin only', async () => {
+  await seedStaffRoles();
+  await seed([['payments', 'payment-1', { amount: 1000 }]]);
+
+  const primaryDb = owner().firestore();
+  const adminDb = roleUser('staff-admin-1', 'admin').firestore();
+  const managerDb = roleUser('manager-1', 'manager').firestore();
+  const accountantDb = roleUser('accountant-1', 'accountant').firestore();
+  const receptionistDb = roleUser('receptionist-1', 'receptionist').firestore();
+
+  await assertSucceeds(getDoc(doc(primaryDb, 'payments', 'payment-1')));
+  await assertFails(getDoc(doc(adminDb, 'payments', 'payment-1')));
+  await assertFails(getDoc(doc(managerDb, 'payments', 'payment-1')));
+  await assertFails(getDoc(doc(accountantDb, 'payments', 'payment-1')));
+  await assertFails(getDoc(doc(receptionistDb, 'payments', 'payment-1')));
+
+  await assertFails(setDoc(doc(primaryDb, 'payments', 'forged'), { amount: 999999 }));
+});
+
+test('Only Admin and Primary Admin can delete messages and reviews', async () => {
+  await seedStaffRoles();
+  await seed([
+    ['messages', 'message-delete', {
+      name: 'Guest',
+      email: 'guest@example.com',
+      message: 'Test'
+    }],
+    ['reviews', 'review-delete', {
+      approved: true,
+      message: 'Test'
+    }]
+  ]);
+
+  const { deleteDoc } = require('firebase/firestore');
+  const adminDb = roleUser('staff-admin-1', 'admin').firestore();
+  const managerDb = roleUser('manager-1', 'manager').firestore();
+  const receptionistDb = roleUser('receptionist-1', 'receptionist').firestore();
+
+  await assertFails(deleteDoc(doc(managerDb, 'messages', 'message-delete')));
+  await assertFails(deleteDoc(doc(receptionistDb, 'messages', 'message-delete')));
+  await assertSucceeds(deleteDoc(doc(adminDb, 'messages', 'message-delete')));
+
+  await assertFails(deleteDoc(doc(managerDb, 'reviews', 'review-delete')));
+  await assertSucceeds(deleteDoc(doc(adminDb, 'reviews', 'review-delete')));
 });
