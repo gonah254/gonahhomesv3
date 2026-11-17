@@ -398,3 +398,109 @@ test('Only Admin and Primary Admin can delete messages and reviews', async () =>
   await assertFails(deleteDoc(doc(managerDb, 'reviews', 'review-delete')));
   await assertSucceeds(deleteDoc(doc(adminDb, 'reviews', 'review-delete')));
 });
+
+// FINAL SECURITY TESTS
+
+test('Payment ledger is readable only by Primary Admin and cannot be client-written', async () => {
+  await seed([
+    ['staff_accounts', 'staff-admin-1', { active: true, role: 'admin' }],
+    ['payments', 'payment-final-1', { bookingId: 'GNH-TEST', status: 'verified' }]
+  ]);
+
+  await assertSucceeds(getDoc(doc(owner().firestore(), 'payments', 'payment-final-1')));
+  await assertFails(getDoc(doc(staff().firestore(), 'payments', 'payment-final-1')));
+  await assertFails(getDoc(doc(guest().firestore(), 'payments', 'payment-final-1')));
+
+  await assertFails(setDoc(doc(owner().firestore(), 'payments', 'forged-payment'), {
+    status: 'verified'
+  }));
+  await assertFails(setDoc(doc(staff().firestore(), 'payments', 'staff-payment'), {
+    status: 'verified'
+  }));
+});
+
+test('Test-data classification manifests cannot be accessed or changed by clients', async () => {
+  await seed([
+    ['test_data_classifications', 'GNH-TEST', {
+      bookingId: 'GNH-TEST',
+      state: 'classified'
+    }]
+  ]);
+
+  await assertFails(getDoc(doc(owner().firestore(), 'test_data_classifications', 'GNH-TEST')));
+  await assertFails(getDoc(doc(guest().firestore(), 'test_data_classifications', 'GNH-TEST')));
+
+  await assertFails(setDoc(doc(owner().firestore(), 'test_data_classifications', 'forged'), {
+    state: 'deleted'
+  }));
+});
+
+test('Storage downloads are restricted to authorized admin staff', async () => {
+  await seedStaffRoles();
+
+  const path = 'documents/final-download-test.txt';
+  const adminStorage = staff().storage();
+  const { getBytes } = require('firebase/storage');
+
+  await assertSucceeds(uploadString(ref(adminStorage, path), 'private document'));
+
+  await assertSucceeds(getBytes(ref(adminStorage, path)));
+  await assertFails(getBytes(ref(roleUser('manager-1', 'manager').storage(), path)));
+  await assertFails(getBytes(ref(roleUser('receptionist-1', 'receptionist').storage(), path)));
+  await assertFails(getBytes(ref(guest().storage(), path)));
+});
+
+test('Storage overwrite and deletion are restricted to authorized admins', async () => {
+  await seedStaffRoles();
+
+  const path = 'documents/final-write-test.txt';
+  const adminStorage = staff().storage();
+  const managerStorage = roleUser('manager-1', 'manager').storage();
+  const { deleteObject } = require('firebase/storage');
+
+  await assertSucceeds(uploadString(ref(adminStorage, path), 'original document'));
+
+  await assertFails(uploadString(ref(managerStorage, path), 'overwritten document'));
+  await assertFails(deleteObject(ref(managerStorage, path)));
+
+  await assertSucceeds(deleteObject(ref(adminStorage, path)));
+});
+
+test('Booking financial and reconciliation fields cannot be changed directly', async () => {
+  await seed([
+    ['bookings', 'GNH-FINAL-TEST', {
+      id: 'GNH-FINAL-TEST',
+      status: 'confirmed',
+      amountPaid: 1000,
+      paymentStatus: 'paid',
+      totalAmount: 1000
+    }]
+  ]);
+
+  const booking = doc(owner().firestore(), 'bookings', 'GNH-FINAL-TEST');
+
+  await assertFails(updateDoc(booking, { amountPaid: 0 }));
+  await assertFails(updateDoc(booking, { paymentStatus: 'unpaid' }));
+  await assertFails(updateDoc(booking, { financialReconciliation: { status: 'changed' } }));
+  await assertFails(updateDoc(booking, { ownerSettlement: { status: 'paid' } }));
+  await assertFails(updateDoc(booking, { ownerSettlementStatus: 'approved' }));
+});
+
+test('Owner settlement records cannot be created or approved directly by clients', async () => {
+  const ownerDb = owner().firestore();
+  const staffDb = staff().firestore();
+
+  await seed([
+    ['staff_accounts', 'staff-admin-1', { active: true, role: 'admin' }]
+  ]);
+
+  await assertFails(setDoc(doc(ownerDb, 'owner_settlements', 'settlement-forged'), {
+    status: 'approved',
+    amount: 5000
+  }));
+
+  await assertFails(setDoc(doc(staffDb, 'owner_settlements', 'staff-settlement'), {
+    status: 'paid',
+    amount: 5000
+  }));
+});
