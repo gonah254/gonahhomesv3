@@ -6,7 +6,7 @@ from urllib.parse import urlsplit
 
 PORT = int(os.environ.get("PORT", "5000"))
 HOME_PAGE = "index.html"
-ADMIN_HOST = "admin.gonahhomes.com"
+ADMIN_HOSTS = {"admin.gonahhomes.com", "gonahhomesv3.onrender.com"}
 ADMIN_ASSETS = {
     "/receipt.js": "/backend/receipt.js",
     "/dashboard.css": "/backend/dashboard.css",
@@ -28,7 +28,7 @@ class NoCacheHandler(http.server.SimpleHTTPRequestHandler):
     def is_admin_host(self):
         forwarded_host = (self.headers.get("X-Forwarded-Host") or "").split(",", 1)[0].strip()
         hostname = (forwarded_host or self.headers.get("Host") or "").split(":", 1)[0].lower()
-        return hostname == ADMIN_HOST
+        return hostname in ADMIN_HOSTS
 
     def do_GET(self):
         path = urlsplit(self.path).path
