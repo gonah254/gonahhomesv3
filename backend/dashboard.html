@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Gonah Homes - Management Dashboard</title>
     <link rel="icon" href="../favicon.svg" type="image/svg+xml">
-    <link rel="stylesheet" href="dashboard.css?v=6">
+    <link rel="stylesheet" href="dashboard.css?v=11">
     <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, max-age=0">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
@@ -13,7 +13,9 @@
 <body>
     <div id="login-modal" class="modal active">
         <div class="modal-content">
+            <img src="../gonah-logo-transparent.png" alt="Gonah Homes Logo" class="login-logo">
             <h2><i class="fas fa-lock"></i> Management Access</h2>
+            <p class="login-subtitle">Sign in to access your dashboard</p>
             <form id="login-form">
                 <div class="form-group">
                     <label for="username"><i class="fas fa-user"></i> Username/Email</label>
@@ -27,6 +29,10 @@
                     <i class="fas fa-sign-in-alt"></i> Login
                 </button>
             </form>
+            <div class="login-footer">
+                <p>GONAH HOMES <span>•</span> MANAGEMENT PORTAL</p>
+                <small>Spaces made for living</small>
+            </div>
         </div>
     </div>
 
@@ -62,6 +68,9 @@
                 </a>
                 <a href="#" class="nav-link" data-section="clients">
                     <i class="fas fa-users"></i> Clients
+                </a>
+                <a href="#" class="nav-link" data-section="mpesa-verification">
+                    <i class="fas fa-money-bill-wave"></i> M-Pesa Verification
                 </a>
                 <a href="#" class="nav-link" data-section="staff">
                     <i class="fas fa-user-shield"></i> Staff Accounts
@@ -175,7 +184,7 @@
                         </div>
                     </div>
                     <div class="table-container">
-                        <table class="data-table">
+                        <table class="data-table bookings-data-table">
                             <thead>
                                 <tr>
                                     <th>ID</th>
@@ -373,6 +382,23 @@
                     </div>
                 </section>
 
+                <!-- Primary Admin M-Pesa Verification Queue -->
+                <section id="mpesa-verification-section" class="content-section">
+                    <div style="margin-bottom:1.5rem;">
+                        <h2 style="margin:0 0 .4rem;">M-Pesa Payment Verification</h2>
+                        <p style="color:var(--text-light);">
+                            Review guest payment notices. Check each transaction against actual M-Pesa records before verifying.
+                            A submitted notice is not proof of payment and does not confirm a booking.
+                        </p>
+                        <button class="btn btn-primary" onclick="loadPendingMpesaNotices()">
+                            <i class="fas fa-sync-alt"></i> Refresh Queue
+                        </button>
+                    </div>
+                    <div id="mpesa-notice-list">
+                        <p>Open this section to load pending notices.</p>
+                    </div>
+                </section>
+
                 <!-- Property Management Section -->
                 <section id="properties-section" class="content-section">
                     <div style="margin-bottom:1.5rem;display:flex;justify-content:space-between;align-items:flex-start;gap:1rem;flex-wrap:wrap;">
@@ -432,6 +458,7 @@
                     <label style="display:block;font-weight:600;margin-bottom:0.35rem;">Role</label>
                     <select id="staff-role" style="width:100%;padding:0.65rem 0.85rem;border:1.5px solid #ddd;border-radius:8px;font-size:0.95rem;box-sizing:border-box;">
                         <option value="receptionist">Receptionist</option>
+                        <option value="accountant">Accountant / Finance Officer</option>
                         <option value="manager">Manager</option>
                         <option value="admin">Admin</option>
                     </select>
@@ -480,46 +507,6 @@
                     </label>
                 </div>
                 <button type="submit" class="btn btn-primary">Create Announcement</button>
-            </form>
-        </div>
-    </div>
-
-    <!-- Payment Confirmation Modal -->
-    <div id="payment-modal" class="modal">
-        <div class="modal-content" style="background:#fff;border-radius:14px;padding:2rem;width:100%;max-width:480px;margin:1rem;max-height:90vh;overflow-y:auto;">
-            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.25rem;">
-                <h3 style="margin:0;color:#2e7d32;"><i class="fas fa-check-circle"></i> Confirm Booking</h3>
-                <button onclick="closePaymentModal()" style="background:none;border:none;font-size:1.5rem;cursor:pointer;color:#666;line-height:1;">&times;</button>
-            </div>
-            <div id="payment-modal-info" style="background:#f8f9fa;border-radius:8px;padding:0.85rem 1rem;margin-bottom:1.25rem;font-size:0.88rem;color:#333;border-left:4px solid #2e7d32;"></div>
-            <form id="payment-form" onsubmit="event.preventDefault(); submitPaymentConfirmation();">
-                <div style="margin-bottom:1rem;">
-                    <label style="display:block;font-weight:600;margin-bottom:0.35rem;font-size:0.9rem;">Payment Method <span style="color:red;">*</span></label>
-                    <select id="payment-method" required style="width:100%;padding:0.65rem 0.85rem;border:1.5px solid #ddd;border-radius:8px;font-size:0.95rem;box-sizing:border-box;background:#fff;">
-                        <option value="">Select payment method...</option>
-                        <option value="Paybill">Paybill</option>
-                        <option value="Bank Transfer">Bank Transfer</option>
-                        <option value="Pesapal">Pesapal</option>
-                        <option value="Cash">Cash</option>
-                        <option value="Cheque">Cheque</option>
-                        <option value="Other">Other</option>
-                    </select>
-                </div>
-                <div style="margin-bottom:1rem;">
-                    <label style="display:block;font-weight:600;margin-bottom:0.35rem;font-size:0.9rem;">Transaction Reference <span style="color:red;">*</span></label>
-                    <input type="text" id="payment-ref" required placeholder="e.g. QHJ7X8K2PL or Bank Ref No." style="width:100%;padding:0.65rem 0.85rem;border:1.5px solid #ddd;border-radius:8px;font-size:0.95rem;box-sizing:border-box;">
-                </div>
-                <div style="margin-bottom:1rem;">
-                    <label style="display:block;font-weight:600;margin-bottom:0.35rem;font-size:0.9rem;">Amount Paid (KSh) <span style="color:red;">*</span></label>
-                    <input type="number" id="payment-amount" required min="0" placeholder="e.g. 4500" style="width:100%;padding:0.65rem 0.85rem;border:1.5px solid #ddd;border-radius:8px;font-size:0.95rem;box-sizing:border-box;">
-                </div>
-                <div style="margin-bottom:1.5rem;">
-                    <label style="display:block;font-weight:600;margin-bottom:0.35rem;font-size:0.9rem;">Additional Notes (optional)</label>
-                    <textarea id="payment-notes" rows="2" placeholder="Any notes about this payment..." style="width:100%;padding:0.65rem 0.85rem;border:1.5px solid #ddd;border-radius:8px;font-size:0.95rem;box-sizing:border-box;resize:vertical;"></textarea>
-                </div>
-                <button type="submit" id="confirm-payment-btn" class="btn btn-success" style="width:100%;padding:0.8rem;font-size:0.95rem;">
-                    <i class="fas fa-check-circle"></i> Confirm Booking & Notify Guest
-                </button>
             </form>
         </div>
     </div>
@@ -690,8 +677,7 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.emailjs.com/dist/email.min.js"></script>
 <script src="../booking-pricing.js?v=2"></script>
-<script src="https://gonahhomes.com/booking-pricing.js?v=2"></script>
 <script src="receipt.js?v=1"></script>
-<script src="dashboard.js?v=8"></script>
+<script src="dashboard.js?v=11"></script>
 </body>
 </html>

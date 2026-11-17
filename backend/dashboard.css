@@ -1019,25 +1019,96 @@ body {
   }
 }
 
-/* Phone fix: let the bookings table scroll sideways instead of squeezing columns */
+/* MOBILE TABLE BASELINE */
 @media (max-width: 768px) {
   .table-container {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: auto;
     -webkit-overflow-scrolling: touch;
   }
 
   .data-table {
     table-layout: auto;
-    min-width: 900px;
+    min-width: 0;
   }
 
   .data-table th,
   .data-table td {
-    overflow-wrap: break-word;
+    overflow-wrap: anywhere;
     word-break: normal;
     vertical-align: top;
   }
 }
 
+/* GONAH HOMES — MOBILE BOOKING CARDS */
+@media (max-width: 768px) {
+  .bookings-data-table {
+    display: block;
+    width: 100%;
+    min-width: 0 !important;
+  }
+
+  .bookings-data-table thead {
+    display: none;
+  }
+
+  .bookings-data-table tbody#bookings-table {
+    display: block;
+    width: 100%;
+  }
+
+  .bookings-data-table tbody#bookings-table tr {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    gap: 0;
+    padding: 12px;
+    margin-bottom: 12px;
+    background: #fff;
+    border: 1px solid #e7e1dc;
+    border-radius: 12px;
+    box-sizing: border-box;
+    box-shadow: 0 2px 8px rgba(0,0,0,.05);
+  }
+
+  .bookings-data-table tbody#bookings-table td {
+    display: block;
+    width: 100%;
+    min-width: 0;
+    padding: 9px 7px;
+    border: 0;
+    border-bottom: 1px solid #f0ece8;
+    box-sizing: border-box;
+    font-size: .84rem;
+    overflow-wrap: anywhere;
+  }
+
+  .bookings-data-table tbody#bookings-table td::before {
+    display: block;
+    margin-bottom: 5px;
+    color: #777;
+    font-size: .66rem;
+    font-weight: 700;
+    letter-spacing: .04em;
+  }
+
+  .bookings-data-table tbody#bookings-table td::before {
+    content: attr(data-label);
+  }
+
+  .bookings-data-table .booking-actions-cell {
+    border-bottom: 0 !important;
+  }
+
+  .bookings-data-table .booking-actions-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    width: 100%;
+    min-width: 0;
+  }
+}
 /* Phone fix: review buttons wrap inside the card (markup uses inline styles) */
 @media (max-width: 768px) {
   .review-card .review-header {
@@ -1162,4 +1233,1170 @@ body {
   object-fit: cover;
   border-radius: 10px;
   display: block;
+}
+
+/* Gonah Homes logo on dashboard login */
+.login-logo {
+  display: block;
+  width: 180px;
+  max-width: 75%;
+  height: auto;
+  max-height: 110px;
+  object-fit: contain;
+  margin: 0 auto 1rem;
+}
+
+/* =========================================
+   GONAH HOMES — GLASS LOGIN REDESIGN
+   Test dashboard only
+========================================= */
+
+#login-modal {
+  background: rgba(20, 14, 12, 0.18);
+  background-image: url('../login-background.png');
+  background-size: cover;
+  background-position: center center;
+  background-repeat: no-repeat;
+  padding: 20px;
+  box-sizing: border-box;
+}
+
+#login-modal .modal-content {
+  width: min(680px, 94vw);
+  max-width: 680px;
+  padding: 42px 54px;
+  box-sizing: border-box;
+  border: 1px solid rgba(212, 175, 55, 0.65);
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.91);
+  -webkit-backdrop-filter: blur(22px);
+  backdrop-filter: blur(22px);
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.28);
+  text-align: center;
+}
+
+#login-modal .login-logo {
+  width: 260px;
+  max-width: 85%;
+  max-height: 145px;
+  height: auto;
+  object-fit: contain;
+  margin: 0 auto 22px;
+}
+
+#login-modal h2 {
+  color: #641522;
+  font-size: 1.8rem;
+  font-weight: 600;
+  margin: 0 0 10px;
+}
+
+#login-modal #login-form {
+  margin-top: 28px;
+}
+
+#login-modal .form-group {
+  margin-bottom: 20px;
+}
+
+#login-modal .form-group label {
+  color: #493b36;
+  font-size: 0.95rem;
+  font-weight: 500;
+}
+
+#login-modal .form-group input {
+  min-height: 52px;
+  padding: 13px 16px;
+  border: 1px solid rgba(100, 21, 34, 0.2);
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.88);
+  box-sizing: border-box;
+  color: #302522;
+}
+
+#login-modal .form-group input:focus {
+  border-color: #a77b32;
+  box-shadow: 0 0 0 3px rgba(167, 123, 50, 0.13);
+}
+
+#login-modal .btn-primary {
+  width: 100%;
+  min-height: 54px;
+  margin-top: 10px;
+  border: 1px solid #c6a04b;
+  border-radius: 11px;
+  background: linear-gradient(135deg, #641522, #851f32);
+  color: #fff;
+  font-size: 1rem;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  box-shadow: 0 7px 18px rgba(100, 21, 34, 0.2);
+}
+
+#login-modal .btn-primary:hover {
+  background: linear-gradient(135deg, #7b1b2d, #9b293d);
+  transform: translateY(-1px);
+}
+
+@media (max-width: 600px) {
+  #login-modal {
+    padding: 16px;
+    background-position: center center;
+  }
+
+  #login-modal .modal-content {
+    width: 100%;
+    padding: 30px 23px;
+    border-radius: 18px;
+  }
+
+  #login-modal .login-logo {
+    width: 220px;
+    max-height: 120px;
+    margin-bottom: 18px;
+  }
+
+  #login-modal h2 {
+    font-size: 1.45rem;
+  }
+
+  #login-modal #login-form {
+    margin-top: 22px;
+  }
+}
+
+#login-modal .login-subtitle {
+  color: #76645d;
+  font-size: 0.92rem;
+  margin: 0;
+  font-weight: 400;
+}
+
+#login-modal .login-footer {
+  margin-top: 30px;
+  padding-top: 18px;
+  border-top: 1px solid rgba(100, 21, 34, 0.13);
+}
+
+#login-modal .login-footer p {
+  color: #641522;
+  font-size: 0.76rem;
+  font-weight: 600;
+  letter-spacing: 1.5px;
+  margin: 0 0 6px;
+}
+
+#login-modal .login-footer p span {
+  color: #b38a3e;
+  padding: 0 4px;
+}
+
+#login-modal .login-footer small {
+  color: #89776e;
+  font-size: 0.82rem;
+  font-style: italic;
+}
+
+/* Corrected property-photo background and genuine glass login */
+#login-modal {
+  background-image:
+    linear-gradient(rgba(24, 15, 13, 0.25), rgba(24, 15, 13, 0.30)),
+    url('https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?w=1920&h=1200&fit=crop');
+  background-size: cover;
+  background-position: center;
+}
+
+#login-modal .modal-content {
+  width: min(500px, 94vw);
+  max-width: 500px;
+  padding: 38px 42px;
+  background: rgba(255, 255, 255, 0.24);
+  -webkit-backdrop-filter: blur(24px) saturate(145%);
+  backdrop-filter: blur(24px) saturate(145%);
+  border: 1px solid rgba(255, 255, 255, 0.65);
+  border-top: 1px solid rgba(255, 255, 255, 0.85);
+  border-radius: 22px;
+  box-shadow: 0 22px 65px rgba(0, 0, 0, 0.30);
+}
+
+#login-modal h2 {
+  color: #641522;
+  text-shadow: 0 1px 8px rgba(255, 255, 255, 0.25);
+}
+
+#login-modal .form-group input {
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.8);
+}
+
+@media (max-width: 600px) {
+  #login-modal .modal-content {
+    padding: 30px 24px;
+  }
+}
+
+/* ==================================================
+   GONAH HOMES — FULL DASHBOARD GLASS DESIGN
+   Test dashboard only
+   ================================================== */
+
+:root {
+  --bg-color: #f3eee9;
+  --bg-light: rgba(255, 255, 255, 0.76);
+  --text-color: #382c2c;
+  --text-light: #817474;
+  --border-color: rgba(100, 21, 34, 0.13);
+  --box-shadow: 0 10px 30px rgba(55, 30, 30, 0.07);
+  --border-radius: 14px;
+}
+
+/* Main atmosphere */
+body {
+  background:
+    radial-gradient(ellipse at 10% 10%, rgba(128,0,0,0.09), transparent 38%),
+    radial-gradient(ellipse at 90% 85%, rgba(212,175,55,0.12), transparent 35%),
+    #f3eee9;
+  color: #382c2c;
+}
+
+/* Sidebar */
+.sidebar {
+  background: linear-gradient(
+    155deg,
+    rgba(91, 13, 29, 0.96),
+    rgba(55, 17, 27, 0.98)
+  );
+  color: #fff;
+  border-right: 1px solid rgba(255,255,255,0.16);
+  box-shadow: 8px 0 30px rgba(45, 15, 22, 0.12);
+}
+
+.sidebar-header {
+  border-bottom-color: rgba(255,255,255,0.15);
+}
+
+.sidebar-header h2 {
+  color: #f1d48b;
+}
+
+.nav-link {
+  color: rgba(255,255,255,0.82);
+  border-left-color: transparent;
+}
+
+.nav-link:hover,
+.nav-link.active {
+  background: rgba(255,255,255,0.13);
+  border-left-color: #e0bd68;
+  color: #f5d98e;
+}
+
+.sidebar-footer {
+  border-top-color: rgba(255,255,255,0.15);
+}
+
+/* Main header */
+.content-header {
+  background: rgba(255,255,255,0.67);
+  border-bottom: 1px solid rgba(255,255,255,0.8);
+  box-shadow: 0 5px 20px rgba(55,30,30,0.04);
+  -webkit-backdrop-filter: blur(18px);
+  backdrop-filter: blur(18px);
+}
+
+.content-header h1,
+.section-header h2 {
+  color: #641522;
+}
+
+/* Dashboard panels and cards */
+.stat-card,
+.chart-card,
+.table-container {
+  background: rgba(255,255,255,0.66);
+  border: 1px solid rgba(255,255,255,0.82);
+  border-radius: 16px;
+  box-shadow: 0 10px 30px rgba(55,30,30,0.07);
+  -webkit-backdrop-filter: blur(18px) saturate(135%);
+  backdrop-filter: blur(18px) saturate(135%);
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+
+.stat-card:hover,
+.chart-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 15px 35px rgba(55,30,30,0.11);
+}
+
+.stat-info h3,
+.chart-card h3 {
+  color: #641522;
+}
+
+.stat-info p {
+  color: #817474;
+}
+
+/* Tables */
+.table-container {
+  overflow: auto;
+}
+
+.data-table th {
+  background: rgba(100,21,34,0.08);
+  color: #641522;
+}
+
+.data-table td {
+  background: rgba(255,255,255,0.16);
+}
+
+.data-table th,
+.data-table td {
+  border-bottom-color: rgba(100,21,34,0.10);
+}
+
+.data-table tr:hover td {
+  background: rgba(212,175,55,0.09);
+}
+
+/* Form controls */
+.form-group input,
+.form-group select,
+.form-group textarea,
+.search-filter input,
+.search-filter select {
+  background: rgba(255,255,255,0.76);
+  border: 1px solid rgba(100,21,34,0.17);
+  border-radius: 10px;
+  color: #382c2c;
+}
+
+.form-group input:focus,
+.form-group select:focus,
+.form-group textarea:focus,
+.search-filter input:focus,
+.search-filter select:focus {
+  border-color: #a77b3b;
+  box-shadow: 0 0 0 3px rgba(212,175,55,0.14);
+}
+
+/* Buttons */
+.btn {
+  border-radius: 10px;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, #641522, #8b2434);
+  border: 1px solid rgba(212,175,55,0.65);
+}
+
+.btn-primary:hover {
+  background: linear-gradient(135deg, #7b1c2c, #a02d3e);
+  box-shadow: 0 6px 18px rgba(100,21,34,0.2);
+  transform: translateY(-1px);
+}
+
+/* Notifications */
+.notification-dropdown {
+  background: rgba(255,255,255,0.91);
+  border: 1px solid rgba(255,255,255,0.9);
+  border-radius: 14px;
+  box-shadow: 0 15px 40px rgba(45,20,25,0.15);
+  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: blur(20px);
+}
+
+/* Other common panels */
+.amenity-options {
+  background: rgba(255,255,255,0.55);
+  border-color: rgba(100,21,34,0.15);
+  border-radius: 12px;
+}
+
+/* Modals, excluding the specially designed login card */
+.modal:not(#login-modal) {
+  background: rgba(35,18,22,0.48);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+}
+
+.modal:not(#login-modal) .modal-content {
+  background: rgba(255,255,255,0.94);
+  border: 1px solid rgba(255,255,255,0.9);
+  border-radius: 18px;
+  box-shadow: 0 20px 60px rgba(30,10,15,0.2);
+}
+
+/* Respect mobile layout */
+@media (max-width: 768px) {
+  .content-header {
+    background: rgba(255,255,255,0.82);
+  }
+
+  .stat-card,
+  .chart-card,
+  .table-container {
+    border-radius: 13px;
+  }
+}
+
+
+/* ==================================================
+   GONAH HOMES — FLOATING CASCADING GLASS NAVIGATION
+   Test dashboard only
+   ================================================== */
+
+/* Keep the menu button fixed on every screen */
+.menu-toggle {
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  position: fixed;
+  top: 16px;
+  left: 16px;
+  width: 46px;
+  height: 46px;
+  margin: 0;
+  padding: 0;
+  z-index: 1201;
+  color: #f5d98e;
+  background: linear-gradient(145deg, #641522, #3f101d);
+  border: 1px solid rgba(224,189,104,0.75);
+  border-radius: 14px;
+  box-shadow: 0 8px 22px rgba(55,15,25,0.22);
+  font-size: 1.25rem;
+  transition: transform .25s ease, box-shadow .25s ease;
+}
+
+.menu-toggle:hover {
+  background: linear-gradient(145deg, #7b1c2c, #501321);
+  transform: translateY(-2px);
+  box-shadow: 0 12px 26px rgba(55,15,25,0.28);
+}
+
+/* Make room for the fixed button in the header */
+.content-header {
+  padding-left: 5rem;
+}
+
+/* Floating navigation holder */
+.sidebar {
+  position: fixed;
+  top: 72px;
+  left: 18px;
+  width: min(285px, calc(100vw - 36px));
+  height: auto;
+  max-height: calc(100dvh - 90px);
+  display: flex;
+  flex-direction: column;
+  padding: 10px;
+  overflow: hidden;
+  border: 1px solid rgba(255,255,255,0.55);
+  border-radius: 19px;
+  background: rgba(65, 17, 29, 0.16);
+  box-shadow: none;
+  -webkit-backdrop-filter: blur(0);
+  backdrop-filter: blur(0);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transform: translateY(-12px);
+  z-index: 1200;
+  transition:
+    opacity .22s ease,
+    transform .28s ease,
+    visibility 0s linear .3s,
+    backdrop-filter .25s ease;
+}
+
+.sidebar.active {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transform: translateY(0);
+  background: rgba(75, 19, 34, 0.12);
+  -webkit-backdrop-filter: blur(18px);
+  backdrop-filter: blur(18px);
+  transition-delay: 0s;
+}
+
+/* Remove the old permanent sidebar heading */
+.sidebar-header {
+  display: none;
+}
+
+/* Scroll only the menu if all tiles cannot fit */
+.sidebar-nav {
+  display: flex;
+  flex-direction: column;
+  flex: 0 1 auto;
+  gap: 8px;
+  min-height: 0;
+  max-height: calc(100dvh - 150px);
+  padding: 2px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(224,189,104,.55) transparent;
+}
+
+/* Each navigation link is its own glass tile */
+.sidebar .nav-link {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  flex: 0 0 auto;
+  min-height: 45px;
+  padding: 11px 15px;
+  border: 1px solid rgba(255,255,255,0.24);
+  border-left: 3px solid rgba(224,189,104,0.7);
+  border-radius: 12px;
+  color: #fff8ed;
+  background: linear-gradient(
+    135deg,
+    rgba(255,255,255,0.19),
+    rgba(255,255,255,0.08)
+  );
+  box-shadow: 0 5px 14px rgba(35,10,18,0.12);
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-16px) scale(.96);
+  transition:
+    opacity .24s ease,
+    transform .32s cubic-bezier(.2,.8,.2,1),
+    background .2s ease,
+    border-color .2s ease;
+}
+
+.sidebar.active .nav-link {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0) scale(1);
+}
+
+.sidebar.active .nav-link:nth-child(1) { transition-delay: .03s; }
+.sidebar.active .nav-link:nth-child(2) { transition-delay: .07s; }
+.sidebar.active .nav-link:nth-child(3) { transition-delay: .11s; }
+.sidebar.active .nav-link:nth-child(4) { transition-delay: .15s; }
+.sidebar.active .nav-link:nth-child(5) { transition-delay: .19s; }
+.sidebar.active .nav-link:nth-child(6) { transition-delay: .23s; }
+.sidebar.active .nav-link:nth-child(7) { transition-delay: .27s; }
+.sidebar.active .nav-link:nth-child(8) { transition-delay: .31s; }
+.sidebar.active .nav-link:nth-child(9) { transition-delay: .35s; }
+.sidebar.active .nav-link:nth-child(10) { transition-delay: .39s; }
+.sidebar.active .nav-link:nth-child(11) { transition-delay: .43s; }
+.sidebar.active .nav-link:nth-child(12) { transition-delay: .47s; }
+
+.sidebar .nav-link:hover,
+.sidebar .nav-link.active {
+  color: #ffe5a2;
+  background: rgba(255,255,255,0.24);
+  border-color: rgba(255,255,255,0.42);
+  border-left-color: #f1d48b;
+  transform: translateX(4px);
+}
+
+/* Keep logout available as a separate tile */
+.sidebar-footer {
+  flex: 0 0 auto;
+  padding: 9px 2px 2px;
+  margin-top: 5px;
+  border-top: 1px solid rgba(255,255,255,0.2);
+  opacity: 0;
+  transition: opacity .2s ease .15s;
+}
+
+.sidebar.active .sidebar-footer {
+  opacity: 1;
+}
+
+.sidebar-footer .btn {
+  width: 100%;
+  min-height: 43px;
+  color: #fff8ed;
+  background: rgba(100,21,34,0.72);
+  border: 1px solid rgba(224,189,104,0.55);
+  border-radius: 11px;
+}
+
+/* Keep dashboard content full width on desktop and mobile */
+.dashboard {
+  display: flex;
+  width: 100%;
+}
+
+.main-content {
+  width: 100%;
+  min-width: 0;
+}
+
+/* Smaller spacing on phones */
+@media (max-width: 768px) {
+  .menu-toggle {
+    top: 12px;
+    left: 12px;
+    width: 43px;
+    height: 43px;
+  }
+
+  .content-header {
+    padding-left: 4.4rem;
+  }
+
+  .sidebar {
+    top: 64px;
+    left: 12px;
+    width: min(285px, calc(100vw - 24px));
+    max-height: calc(100dvh - 76px);
+    border-radius: 17px;
+  }
+
+  .sidebar-nav {
+    max-height: calc(100dvh - 135px);
+  }
+}
+
+/* Floating tiles — individual burgundy and gold finish */
+.sidebar {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+  padding: 4px;
+  overflow: visible;
+}
+
+.sidebar.active {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
+
+.sidebar .nav-link {
+  background: linear-gradient(145deg, #74182b, #430d1b) !important;
+  color: #f1d48b !important;
+  border: 1px solid rgba(241,212,139,0.65) !important;
+  border-left: 3px solid #e0bd68 !important;
+  border-radius: 12px;
+  box-shadow: 0 7px 17px rgba(45,10,20,0.22);
+}
+
+.sidebar .nav-link i {
+  color: #f1d48b !important;
+}
+
+.sidebar .nav-link:hover,
+.sidebar .nav-link.active {
+  background: linear-gradient(145deg, #8b2438, #5b1024) !important;
+  color: #ffe7a8 !important;
+  border-color: #f1d48b !important;
+  box-shadow: 0 10px 22px rgba(45,10,20,0.3);
+}
+
+.sidebar .nav-link:hover i,
+.sidebar .nav-link.active i {
+  color: #ffe7a8 !important;
+}
+
+.sidebar-footer {
+  border-top: none !important;
+}
+
+.sidebar-footer .btn {
+  background: linear-gradient(145deg, #74182b, #430d1b) !important;
+  color: #f1d48b !important;
+  border: 1px solid rgba(241,212,139,0.65) !important;
+  box-shadow: 0 7px 17px rgba(45,10,20,0.22);
+}
+
+/* Content-sized floating navigation tiles */
+.sidebar {
+  width: max-content !important;
+  max-width: calc(100vw - 24px) !important;
+  align-items: flex-start !important;
+}
+
+.sidebar-nav {
+  width: max-content !important;
+  max-width: 100% !important;
+  align-items: flex-start !important;
+}
+
+.sidebar .nav-link {
+  display: inline-flex !important;
+  width: max-content !important;
+  max-width: calc(100vw - 48px) !important;
+  min-width: 0 !important;
+  white-space: nowrap !important;
+  align-self: flex-start !important;
+  padding: 10px 15px !important;
+}
+
+.sidebar-footer {
+  width: max-content !important;
+  max-width: 100% !important;
+  align-self: flex-start !important;
+}
+
+.sidebar-footer .btn {
+  width: max-content !important;
+  white-space: nowrap !important;
+  padding: 10px 15px !important;
+}
+
+@media (max-width: 768px) {
+  .sidebar {
+    width: max-content !important;
+    max-width: calc(100vw - 24px) !important;
+  }
+
+  .sidebar .nav-link {
+    max-width: calc(100vw - 48px) !important;
+  }
+}
+
+/* FINAL NAVIGATION DESIGN — equal-width frosted glass tiles */
+.sidebar {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  width: max-content !important;
+  max-width: calc(100vw - 24px) !important;
+  align-items: stretch !important;
+}
+
+.sidebar.active {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+.sidebar-nav {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: stretch !important;
+  width: max-content !important;
+  max-width: 100% !important;
+}
+
+.sidebar .nav-link {
+  display: flex !important;
+  align-items: center !important;
+  align-self: stretch !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: calc(100vw - 48px) !important;
+  box-sizing: border-box !important;
+  white-space: nowrap !important;
+
+  background: rgba(255,255,255,0.48) !important;
+  color: #987025 !important;
+  border: 1px solid rgba(212,175,55,0.55) !important;
+  border-left: 1px solid rgba(212,175,55,0.55) !important;
+  border-radius: 12px !important;
+  box-shadow: 0 7px 18px rgba(35,25,15,0.12) !important;
+  backdrop-filter: blur(16px) saturate(150%) !important;
+  -webkit-backdrop-filter: blur(16px) saturate(150%) !important;
+}
+
+.sidebar .nav-link i {
+  color: #b28a36 !important;
+}
+
+.sidebar .nav-link:hover,
+.sidebar .nav-link.active {
+  background: rgba(255,255,255,0.78) !important;
+  color: #795719 !important;
+  border-color: rgba(212,175,55,0.85) !important;
+}
+
+.sidebar-footer {
+  width: 100% !important;
+  align-self: stretch !important;
+}
+
+.sidebar-footer .btn {
+  width: 100% !important;
+  background: rgba(255,255,255,0.48) !important;
+  color: #987025 !important;
+  border: 1px solid rgba(212,175,55,0.55) !important;
+  box-shadow: 0 7px 18px rgba(35,25,15,0.12) !important;
+  backdrop-filter: blur(16px) !important;
+  -webkit-backdrop-filter: blur(16px) !important;
+}
+
+@media (max-width: 768px) {
+  .sidebar {
+    max-width: calc(100vw - 24px) !important;
+  }
+
+  .sidebar-nav {
+    max-width: 100% !important;
+  }
+
+  .sidebar .nav-link {
+    max-width: calc(100vw - 48px) !important;
+  }
+}
+
+/* Refined Gonah frosted glass navigation */
+.sidebar .nav-link {
+  background: rgba(255,255,255,0.30) !important;
+  color: #800000 !important;
+  border: 1px solid rgba(212,175,55,0.48) !important;
+  border-left: 1px solid rgba(212,175,55,0.48) !important;
+  box-shadow: 0 8px 24px rgba(25,15,10,0.10) !important;
+  backdrop-filter: blur(24px) saturate(180%) !important;
+  -webkit-backdrop-filter: blur(24px) saturate(180%) !important;
+}
+
+.sidebar .nav-link i {
+  color: #800000 !important;
+}
+
+.sidebar .nav-link:hover,
+.sidebar .nav-link.active {
+  background: rgba(255,255,255,0.48) !important;
+  color: #650000 !important;
+  border-color: rgba(212,175,55,0.75) !important;
+}
+
+.sidebar .nav-link:hover i,
+.sidebar .nav-link.active i {
+  color: #650000 !important;
+}
+
+/* GONAH HOMES — UNIFIED PREMIUM CONTROLS */
+
+/* Dropdowns and form selectors */
+select,
+.form-group select,
+.search-filter select,
+.review-filters select {
+  appearance: none !important;
+  -webkit-appearance: none !important;
+  background-color: rgba(255,255,255,0.72) !important;
+  color: #800000 !important;
+  border: 1px solid rgba(212,175,55,0.55) !important;
+  border-radius: 11px !important;
+  padding: 11px 38px 11px 14px !important;
+  font-size: 0.92rem !important;
+  font-weight: 500 !important;
+  box-shadow: 0 4px 14px rgba(40,20,20,0.06) !important;
+  backdrop-filter: blur(18px) saturate(160%) !important;
+  -webkit-backdrop-filter: blur(18px) saturate(160%) !important;
+  cursor: pointer !important;
+  transition: border-color .2s ease, box-shadow .2s ease !important;
+}
+
+select:focus,
+.form-group select:focus,
+.search-filter select:focus,
+.review-filters select:focus {
+  outline: none !important;
+  border-color: #a77b27 !important;
+  box-shadow: 0 0 0 3px rgba(212,175,55,0.17) !important;
+}
+
+select option {
+  background: #fffaf0;
+  color: #800000;
+  padding: 10px;
+}
+
+/* Inputs and text areas */
+.form-group input,
+.form-group textarea,
+.search-filter input {
+  border: 1px solid rgba(212,175,55,0.42) !important;
+  border-radius: 11px !important;
+  background: rgba(255,255,255,0.68) !important;
+  color: #800000 !important;
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+
+.form-group input:focus,
+.form-group textarea:focus,
+.search-filter input:focus {
+  outline: none !important;
+  border-color: #a77b27 !important;
+  box-shadow: 0 0 0 3px rgba(212,175,55,0.15) !important;
+}
+
+/* Shared button foundation */
+.btn {
+  border-radius: 10px !important;
+  font-weight: 600 !important;
+  letter-spacing: .01em;
+  padding: 10px 15px !important;
+  box-shadow: 0 4px 12px rgba(40,20,20,0.09);
+  transition: transform .2s ease, box-shadow .2s ease,
+              background .2s ease !important;
+}
+
+.btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 7px 17px rgba(40,20,20,0.14);
+}
+
+.btn:active {
+  transform: translateY(0);
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, #800000, #a32635) !important;
+  color: #fffaf0 !important;
+  border: 1px solid rgba(212,175,55,0.65) !important;
+}
+
+.btn-outline {
+  background: rgba(255,255,255,0.55) !important;
+  color: #800000 !important;
+  border: 1px solid rgba(212,175,55,0.65) !important;
+  backdrop-filter: blur(15px);
+  -webkit-backdrop-filter: blur(15px);
+}
+
+.btn-outline:hover {
+  background: rgba(255,255,255,0.85) !important;
+  color: #650000 !important;
+  border-color: #c49a39 !important;
+}
+
+.btn-success {
+  background: linear-gradient(135deg, #356b50, #477e60) !important;
+  color: white !important;
+  border: 1px solid rgba(212,175,55,0.5) !important;
+}
+
+.btn-danger {
+  background: linear-gradient(135deg, #9b3038, #b94b50) !important;
+  color: white !important;
+  border: 1px solid rgba(212,175,55,0.4) !important;
+}
+
+.btn-warning {
+  background: linear-gradient(135deg, #a77b27, #c49a39) !important;
+  color: white !important;
+}
+
+.btn-info {
+  background: linear-gradient(135deg, #456c82, #5b879b) !important;
+  color: white !important;
+}
+
+.btn-sm {
+  padding: 8px 11px !important;
+  font-size: 0.82rem !important;
+}
+
+.btn:disabled {
+  opacity: .55;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+/* Booking table action spacing */
+td .btn {
+  margin: 3px 2px;
+  white-space: nowrap;
+}
+
+
+/* GONAH HOMES — CUSTOM GLASS BOOKING STATUS DROPDOWN */
+.gonah-native-select-hidden {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+  overflow: hidden !important;
+}
+
+.gonah-select {
+  position: relative;
+  width: 210px;
+  min-width: 210px;
+  font-family: inherit;
+  z-index: 30;
+}
+
+.gonah-select-trigger {
+  width: 100%;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 11px 14px;
+  border: 1px solid rgba(212,175,55,.72);
+  border-radius: 12px;
+  background: rgba(255,250,240,.82);
+  color: #800000;
+  font: inherit;
+  font-weight: 600;
+  text-align: left;
+  box-shadow: 0 6px 18px rgba(55,20,20,.09);
+  backdrop-filter: blur(18px) saturate(160%);
+  -webkit-backdrop-filter: blur(18px) saturate(160%);
+  cursor: pointer;
+}
+
+.gonah-select-trigger i {
+  color: #a77b27;
+  transition: transform .2s ease;
+}
+
+.gonah-select.open .gonah-select-trigger {
+  border-color: #a77b27;
+  box-shadow: 0 0 0 3px rgba(212,175,55,.15);
+}
+
+.gonah-select.open .gonah-select-trigger i {
+  transform: rotate(180deg);
+}
+
+.gonah-select-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  width: 100%;
+  max-height: 260px;
+  overflow-y: auto;
+  padding: 6px;
+  border: 1px solid rgba(212,175,55,.68);
+  border-radius: 13px;
+  background: rgba(255,250,240,.97);
+  box-shadow: 0 14px 32px rgba(45,15,20,.18);
+  backdrop-filter: blur(22px) saturate(170%);
+  -webkit-backdrop-filter: blur(22px) saturate(170%);
+}
+
+.gonah-select-menu[hidden] {
+  display: none !important;
+}
+
+.gonah-select-option {
+  display: block;
+  width: 100%;
+  padding: 11px 12px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #800000;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.gonah-select-option:hover,
+.gonah-select-option:focus-visible {
+  outline: none;
+  background: rgba(212,175,55,.15);
+}
+
+.gonah-select-option.selected {
+  background: rgba(128,0,0,.09);
+  color: #650000;
+  font-weight: 700;
+}
+
+@media (max-width: 600px) {
+  .gonah-select {
+    width: 100%;
+    min-width: 0;
+  }
+}
+
+
+
+
+/* GONAH HOMES — BOOKING ACTION GRID */
+.booking-actions-cell {
+  padding: 0.5rem;
+  vertical-align: top;
+}
+
+.booking-actions-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(105px, 1fr));
+  gap: 8px;
+  min-width: 225px;
+}
+
+.booking-actions-grid .btn {
+  width: 100%;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  box-sizing: border-box;
+  white-space: nowrap;
+  margin: 0 !important;
+  padding: 8px 6px !important;
+  font-size: 0.75rem !important;
+}
+
+@media (max-width: 768px) {
+  .booking-actions-grid {
+    grid-template-columns: repeat(2, minmax(95px, 1fr));
+    min-width: 205px;
+    gap: 6px;
+  }
+}
+
+/* FINAL MOBILE BOOKING ACTION ALIGNMENT */
+@media (max-width: 768px) {
+  .bookings-data-table .booking-actions-cell {
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+  }
+
+  .bookings-data-table .booking-actions-grid {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    grid-auto-rows: minmax(58px, auto);
+    width: 100% !important;
+    min-width: 0 !important;
+    gap: 8px !important;
+    align-items: stretch;
+  }
+
+  .bookings-data-table .booking-actions-grid .btn {
+    display: flex !important;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 100% !important;
+    min-width: 0 !important;
+    min-height: 58px;
+    height: auto;
+    padding: 7px 4px !important;
+    margin: 0 !important;
+    box-sizing: border-box;
+    text-align: center;
+    white-space: normal !important;
+    overflow-wrap: anywhere;
+    line-height: 1.2;
+    font-size: 0.72rem !important;
+    gap: 5px;
+  }
+
+  .bookings-data-table .booking-actions-grid .btn:last-child:nth-child(odd) {
+    grid-column: 1 / -1;
+  }
 }

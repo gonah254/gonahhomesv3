@@ -8,6 +8,7 @@ PORT = int(os.environ.get("PORT", "5000"))
 HOME_PAGE = "index.html"
 ADMIN_HOST = "admin.gonahhomes.com"
 ADMIN_ASSETS = {
+    "/receipt.js": "/backend/receipt.js",
     "/dashboard.css": "/backend/dashboard.css",
     "/dashboard.js": "/backend/dashboard.js",
     "/properties-data.js": "/backend/properties-data.js",

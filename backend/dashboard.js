@@ -48,7 +48,7 @@ function isPrimaryAdminEmail(email) {
 let currentSection = 'overview';
 let notifications = [];
 let charts = {};
-let currentAdminRole = 'admin';
+let currentAdminRole = null;
 let dashboardInitialized = false;
 let realtimeListenerReady = {
   bookings: false,
@@ -64,44 +64,70 @@ const adminBookingCache = new Map();
 let activeRecordDetail = null;
 
 // ---- Admin Authentication (Firebase Auth) ----
+async function authorizeDashboardUser(user) {
+  if (!user) throw new Error('No authenticated user.');
+
+  await user.reload();
+
+  if (!user.emailVerified) {
+    throw new Error('Email verification is required before dashboard access.');
+  }
+
+  await user.getIdToken(true);
+
+  if (isPrimaryAdminEmail(user.email)) {
+    currentAdminRole = 'primary_admin';
+    return currentAdminRole;
+  }
+
+  const staffDoc = await db.collection('staff_accounts').doc(user.uid).get();
+
+  if (!staffDoc.exists) {
+    throw new Error('No staff access record found.');
+  }
+
+  const staff = staffDoc.data() || {};
+
+  if (staff.active !== true) {
+    throw new Error('This staff account is inactive.');
+  }
+
+  if (typeof staff.role !== 'string' || !staff.role.trim()) {
+    throw new Error('Staff account has no valid role.');
+  }
+
+  currentAdminRole = staff.role.trim().toLowerCase();
+  return currentAdminRole;
+}
+
 async function login(email, password) {
   const loginBtn = document.querySelector('#login-form button[type="submit"]');
+
   if (loginBtn) {
     loginBtn.disabled = true;
     loginBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Signing in...';
   }
+
   try {
     const result = await firebase.auth().signInWithEmailAndPassword(email, password);
-    await result.user.reload();
-    await result.user.getIdToken(true);
-    if (isPrimaryAdminEmail(result.user.email) && !result.user.emailVerified) {
-      await result.user.sendEmailVerification();
-      showToast('Verification email sent. Check your inbox and verify your email before accessing Staff Accounts.', 'warning');
+
+    try {
+      await authorizeDashboardUser(result.user);
+    } catch (authError) {
       await firebase.auth().signOut();
+      currentAdminRole = null;
+      showToast(authError.message || 'Access denied.', 'error');
       return false;
     }
-    showToast('Primary email verified: ' + result.user.emailVerified, 'success');
-    let role = 'admin';
-    try {
-      const staffDoc = await db.collection('staff_accounts').doc(result.user.uid).get();
-      if (staffDoc.exists) {
-        role = staffDoc.data().role || 'admin';
-      } else if (!isPrimaryAdminEmail(result.user.email)) {
-        await firebase.auth().signOut();
-        showToast('Access denied — contact the administrator.', 'error');
-        return false;
-      }
-    } catch (_) {
-      if (!isPrimaryAdminEmail(result.user.email)) {
-        await firebase.auth().signOut();
-        showToast('Access denied.', 'error');
-        return false;
-      }
-    }
-    currentAdminRole = role;
+
     document.getElementById('login-modal').classList.remove('active');
     document.getElementById('dashboard').classList.remove('hidden');
-    if (!dashboardInitialized) { initializeDashboard(); dashboardInitialized = true; }
+
+    if (!dashboardInitialized) {
+      initializeDashboard();
+      dashboardInitialized = true;
+    }
+
     return true;
   } catch (error) {
     const msgs = {
@@ -111,7 +137,11 @@ async function login(email, password) {
       'auth/too-many-requests': 'Too many sign-in attempts — try again later.',
       'auth/invalid-credential': 'Invalid email or password.'
     };
-    console.error('Dashboard login error:', error); showToast((msgs[error.code] || 'Login failed') + ' (' + (error.code || 'unknown-error') + '): ' + (error.message || 'No details'), 'error');
+
+    console.error('Dashboard login error:', error);
+    showToast((msgs[error.code] || 'Login failed') + ' (' +
+      (error.code || 'unknown-error') + '): ' +
+      (error.message || 'No details'), 'error');
     return false;
   } finally {
     if (loginBtn) {
@@ -123,18 +153,39 @@ async function login(email, password) {
 
 function checkLoginStatus() {
   firebase.auth().onAuthStateChanged(async (user) => {
-    if (user) {
-      try {
-        const staffDoc = await db.collection('staff_accounts').doc(user.uid).get();
-        if (!staffDoc.exists && !isPrimaryAdminEmail(user.email)) {
-          firebase.auth().signOut();
-          return;
-        }
-        if (staffDoc.exists) currentAdminRole = staffDoc.data().role || 'admin';
-      } catch (_) {}
+    if (!user) {
+      currentAdminRole = null;
+      dashboardInitialized = false;
+      document.getElementById('login-modal')?.classList.add('active');
+      document.getElementById('dashboard')?.classList.add('hidden');
+      return;
+    }
+
+    try {
+      await authorizeDashboardUser(user);
+
       document.getElementById('login-modal')?.classList.remove('active');
       document.getElementById('dashboard')?.classList.remove('hidden');
-      if (!dashboardInitialized) { initializeDashboard(); dashboardInitialized = true; }
+
+      if (!dashboardInitialized) {
+        initializeDashboard();
+        dashboardInitialized = true;
+      }
+    } catch (error) {
+      console.error('Dashboard session authorization failed:', error);
+      currentAdminRole = null;
+      dashboardInitialized = false;
+
+      document.getElementById('login-modal')?.classList.add('active');
+      document.getElementById('dashboard')?.classList.add('hidden');
+
+      try {
+        await firebase.auth().signOut();
+      } catch (signOutError) {
+        console.error('Could not clear unauthorized session:', signOutError);
+      }
+
+      showToast(error.message || 'Dashboard access denied.', 'error');
     }
   });
 }
@@ -144,12 +195,17 @@ checkLoginStatus();
 function logout() {
   stopRealTimeListeners();
   firebase.auth().signOut().then(() => {
+    currentAdminRole = null;
     dashboardInitialized = false;
     document.getElementById('login-modal').classList.add('active');
     document.getElementById('dashboard').classList.add('hidden');
     document.getElementById('login-form').reset();
+  }).catch(error => {
+    console.error('Logout failed:', error);
+    showToast('Logout failed. Please try again.', 'error');
   });
 }
+
 
 // Reports & Data Export
 function exportBookingsToCSV() {
@@ -172,10 +228,32 @@ function exportBookingsToCSV() {
 }
 
 // Initialize Dashboard
+const ROLE_SECTION_ACCESS = {
+  primary_admin: ['*'],
+  admin: [
+    'overview', 'bookings', 'documents', 'messages', 'service-requests',
+    'reviews', 'analytics', 'announcements', 'clients', 'properties', 'settings', 'activity-log'
+  ],
+  accountant: ['overview', 'bookings', 'analytics', 'clients'],
+  manager: [
+    'overview', 'bookings', 'documents', 'messages', 'service-requests',
+    'reviews', 'analytics', 'announcements', 'clients', 'properties', 'settings'
+  ],
+  receptionist: [
+    'overview', 'bookings', 'documents', 'messages', 'service-requests', 'clients'
+  ]
+};
+
+function canAccessSection(sectionName) {
+  const allowed = ROLE_SECTION_ACCESS[currentAdminRole];
+  return Array.isArray(allowed) &&
+    (allowed.includes('*') || allowed.includes(sectionName));
+}
+
 function applyRoleRestrictions() {
-  const isPrimaryAdmin = isPrimaryAdminEmail(firebase.auth().currentUser?.email);
-  const staffLink = document.querySelector('[data-section="staff"]');
-  if (staffLink) staffLink.style.display = isPrimaryAdmin ? '' : 'none';
+  document.querySelectorAll('.nav-link[data-section]').forEach(link => {
+    link.style.display = canAccessSection(link.dataset.section) ? '' : 'none';
+  });
 }
 
 function initializeDashboard() {
@@ -394,18 +472,169 @@ async function loadStats() {
     const unreadMessages = messagesSnap.docs.filter(doc => doc.data().status === 'new').length;
     const pendingServices = serviceSnap.docs.filter(doc => doc.data().status === 'pending').length;
     const avgRating = reviewsSnap.docs.reduce((sum, doc) => sum + (parseFloat(doc.data().rating) || 0), 0) / reviewsSnap.size || 5.0;
-    const monthlyRevenue = totalBookings * 5000; // Example calculation
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const nextMonthStart = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+
+    const totalRevenue = bookingsSnap.docs.reduce((sum, doc) => {
+      const booking = doc.data();
+      if (String(booking.status || '').toLowerCase() !== 'confirmed') return sum;
+
+      const confirmedAt = booking.confirmedAt?.toDate
+        ? booking.confirmedAt.toDate()
+        : new Date(booking.confirmedAt);
+
+      if (isNaN(confirmedAt) || confirmedAt < monthStart || confirmedAt >= nextMonthStart) return sum;
+
+      const amountPaid = Number(booking.amountPaid);
+      return sum + (Number.isFinite(amountPaid) && amountPaid > 0 ? amountPaid : 0);
+    }, 0);
 
     document.getElementById('total-bookings').textContent = totalBookings;
     document.getElementById('unread-messages').textContent = unreadMessages;
     document.getElementById('avg-rating').textContent = avgRating.toFixed(1);
-    document.getElementById('monthly-revenue').textContent = `KSh ${monthlyRevenue.toLocaleString()}`;
+    document.getElementById('monthly-revenue').textContent = `KSh ${totalRevenue.toLocaleString()}`;
   } catch (error) {
     console.error('Error loading stats:', error);
   }
 }
 
 // Load bookings
+async function markBookingAsTestData(docId) {
+  if (currentAdminRole !== 'primary_admin') {
+    alert('Only the Primary Admin can mark bookings as test data.');
+    return;
+  }
+
+  const booking = adminBookingCache.get(docId);
+  if (!booking) {
+    alert('Booking details are unavailable. Reload the bookings and try again.');
+    return;
+  }
+
+  const status = String(booking.status || 'pending').toLowerCase();
+  if (['confirmed', 'completed'].includes(status)) {
+    alert('Confirmed and completed bookings cannot be marked as test data.');
+    return;
+  }
+  if (booking.testData === true) {
+    alert('This booking is already marked as test data.');
+    return;
+  }
+
+  const displayedId = String(booking.id || docId.substring(0, 8));
+  const reason = prompt(
+    'MARK BOOKING AS TEST DATA\n\n' +
+    'Guest: ' + (booking.name || 'N/A') + '\n' +
+    'Booking ID: ' + displayedId + '\n\n' +
+    'Explain why this booking and its linked payment/receipt records are test data:'
+  );
+
+  if (reason === null) return;
+  if (reason.trim().length < 5 || reason.trim().length > 500) {
+    alert('Please provide a reason between 5 and 500 characters. Nothing was changed.');
+    return;
+  }
+
+  const typedId = prompt(
+    'Confirm the booking you are classifying.\n\n' +
+    'Type this booking ID exactly:\n' + displayedId
+  );
+
+  if (typedId === null) return;
+  if (typedId.trim() !== displayedId) {
+    alert('Booking ID did not match. Nothing was changed.');
+    return;
+  }
+
+  try {
+    const markBooking = firebase.functions().httpsCallable('markBookingAsTestDataSecure');
+    const result = await markBooking({
+      bookingDocId: docId,
+      typedBookingId: typedId.trim(),
+      reason: reason.trim()
+    });
+
+    const data = result.data || {};
+    alert(
+      'Booking marked as test data.\n\n' +
+      'Linked payment records: ' + Number(data.linkedPaymentCount || 0) + '\n' +
+      'Linked receipt records: ' + Number(data.linkedReceiptCount || 0) +
+      '\n\nReloading bookings.'
+    );
+    await loadBookings();
+  } catch (error) {
+    console.error('Mark booking as test data failed:', error);
+    alert('Booking was not classified.\n\n' + (error.message || 'The server rejected the request.'));
+  }
+}
+
+async function deleteTestBooking(docId) {
+  if (currentAdminRole !== 'primary_admin') {
+    alert('Only the Primary Admin can permanently delete bookings.');
+    return;
+  }
+
+  const booking = adminBookingCache.get(docId);
+  if (!booking) {
+    alert('Booking details are unavailable. Reload the bookings and try again.');
+    return;
+  }
+
+  if (booking.testData !== true) {
+    alert('Mark this booking as test data first. Deletion is blocked until the Primary Admin completes that step.');
+    return;
+  }
+
+  const displayedId = String(booking.id || docId.substring(0, 8));
+  const guest = booking.name || 'N/A';
+  const dates = (booking.checkin || 'N/A') + ' to ' + (booking.checkout || 'N/A');
+
+  const reason = prompt(
+    'Why are you deleting this booking?\n\n' +
+    'Guest: ' + guest + '\n' +
+    'Booking ID: ' + displayedId + '\n\n' +
+    'Enter a reason (at least 5 characters):'
+  );
+
+  if (reason === null) return;
+  if (reason.trim().length < 5) {
+    alert('Please provide a deletion reason of at least 5 characters. Nothing was deleted.');
+    return;
+  }
+
+  const typedId = prompt(
+    'PERMANENTLY DELETE THIS BOOKING?\n\n' +
+    'Guest: ' + guest + '\n' +
+    'Booking ID: ' + displayedId + '\n' +
+    'Dates: ' + dates + '\n' +
+    'Status: ' + String(booking.status || 'pending').toUpperCase() + '\n\n' +
+    'This cannot be undone. Type the booking ID exactly to continue:'
+  );
+
+  if (typedId === null) return;
+  if (typedId.trim() !== displayedId) {
+    alert('Booking ID did not match. Nothing was deleted.');
+    return;
+  }
+
+  try {
+    const deleteBooking = firebase.functions().httpsCallable('deleteBookingSecure');
+    await deleteBooking({
+      bookingDocId: docId,
+      typedBookingId: typedId.trim(),
+      reason: reason.trim()
+    });
+
+    adminBookingCache.delete(docId);
+    alert('Booking deleted and recorded in the activity log.');
+    await loadBookings();
+  } catch (error) {
+    console.error('Secure booking deletion failed:', error);
+    alert('Booking was not deleted.\n\n' + (error.message || 'The server rejected the request.'));
+  }
+}
+
 async function loadBookings() {
   try {
     const bookingsTable = document.getElementById('bookings-table');
@@ -429,31 +658,32 @@ async function loadBookings() {
       adminBookingCache.set(doc.id, booking);
       const row = document.createElement('tr');
       row.innerHTML = `
-        <td style="font-family:monospace;font-size:0.82rem;">${bookingId}</td>
-        <td>
+        <td data-label="BOOKING ID" style="font-family:monospace;font-size:0.82rem;">${bookingId}</td>
+        <td data-label="GUEST">
           <strong>${booking.name || 'N/A'}</strong><br>
           <small>${booking.email || ''}</small><br>
           <small>${booking.phone || ''}</small>
         </td>
-        <td>${booking.house || 'N/A'}</td>
-        <td>${booking.checkin || 'N/A'}</td>
-        <td>${booking.checkout || 'N/A'}</td>
-        <td>
+        <td data-label="PROPERTY">${booking.house || 'N/A'}</td>
+        <td data-label="CHECK-IN">${booking.checkin || 'N/A'}</td>
+        <td data-label="CHECK-OUT">${booking.checkout || 'N/A'}</td>
+        <td data-label="STATUS">
           <span class="status status-${booking.status || 'pending'}">${(booking.status || 'pending').toUpperCase()}</span>
           ${booking.paymentMethod ? `<br><small style="color:#2e7d32;font-size:0.75rem;"><i class="fas fa-check-circle"></i> ${booking.paymentMethod} · ${booking.transactionRef || ''}</small>` : ''}
           ${booking.cancellationReason ? `<br><small style="color:#c62828;font-size:0.75rem;" title="${booking.cancellationReason}"><i class="fas fa-times-circle"></i> ${booking.cancellationReason.substring(0,35)}${booking.cancellationReason.length>35?'...':''}</small>` : ''}
         </td>
-        <td><button class="btn btn-sm btn-outline" onclick="viewUserDocs('${bookingId}')"><i class="fas fa-id-card"></i> View IDs</button></td>
-        <td style="white-space:nowrap;display:flex;flex-direction:column;gap:0.3rem;padding:0.5rem;">
+        <td data-label="DOCUMENTS"><button class="btn btn-sm btn-outline" onclick="viewUserDocs('${bookingId}')"><i class="fas fa-id-card"></i> View IDs</button></td>
+        <td data-label="ACTIONS" class="booking-actions-cell"><div class="booking-actions-grid">
           ${booking.status === 'confirmed' || booking.status === 'completed' ? `<button class="btn btn-outline btn-sm" onclick="receiptDownloadAdmin('${doc.id}')"><i class="fas fa-file-download"></i> Receipt</button><button class="btn btn-outline btn-sm" onclick="receiptWhatsAppAdmin('${doc.id}')"><i class="fab fa-whatsapp"></i> WhatsApp</button><button class="btn btn-outline btn-sm" onclick="receiptInAppAdmin('${doc.id}')"><i class="fas fa-bell"></i> In-app</button>` : ''}
           <button class="btn btn-outline btn-sm" onclick="openBookingDetails('${doc.id}')"><i class="fas fa-eye"></i> View</button>
+          ${currentAdminRole === 'primary_admin' && !['confirmed', 'completed'].includes(String(booking.status || 'pending').toLowerCase()) ? (booking.testData === true ? `<span class="status status-approved" title="Marked by ${escapeDashboardHtml(booking.testDataMarkedBy || 'Primary Admin')}">TEST DATA</span><button class="btn btn-danger btn-sm" onclick="deleteTestBooking('${doc.id}')"><i class="fas fa-trash"></i> Delete</button>` : `<button class="btn btn-outline btn-sm" onclick="markBookingAsTestData('${doc.id}')"><i class="fas fa-flask"></i> Mark as Test Data</button>`) : ''}
           ${booking.status !== 'confirmed' && booking.status !== 'cancelled' && booking.status !== 'completed' ?
-            `<button class="btn btn-success btn-sm" onclick="openPaymentModal('${doc.id}')"><i class="fas fa-check"></i> Confirm</button>` : ''}
+            `<button class="btn btn-success btn-sm" onclick="switchSection('mpesa-verification')"><i class="fas fa-money-bill-wave"></i> Review Payments</button>` : ''}
           ${booking.status !== 'cancelled' && booking.status !== 'completed' ?
             `<button class="btn btn-danger btn-sm" onclick="openCancellationModal('${doc.id}')"><i class="fas fa-times"></i> Cancel</button>` : ''}
           ${booking.status === 'confirmed' ?
             `<button class="btn btn-outline btn-sm" onclick="updateBookingStatus('${doc.id}', 'completed')"><i class="fas fa-flag-checkered"></i> Complete</button>` : ''}
-        </td>
+        </div></td>
       `;
       bookingsTable.appendChild(row);
     });
@@ -504,7 +734,7 @@ function openBookingDetails(bookingDocId) {
     `<button class="btn btn-outline" onclick="closeRecordDetail(); viewUserDocs('${escapeDashboardHtml(bookingId)}')"><i class="fas fa-id-card"></i> View IDs</button>`
   ];
   if (status !== 'confirmed' && status !== 'cancelled' && status !== 'completed') {
-    actions.push(`<button class="btn btn-success" onclick="closeRecordDetail(); openPaymentModal('${escapeDashboardHtml(bookingDocId)}')"><i class="fas fa-check"></i> Confirm Booking</button>`);
+    actions.push(`<button class="btn btn-success" onclick="closeRecordDetail(); switchSection('mpesa-verification')"><i class="fas fa-money-bill-wave"></i> M-Pesa Verification</button>`);
   }
   if (status !== 'cancelled' && status !== 'completed') {
     actions.push(`<button class="btn btn-danger" onclick="closeRecordDetail(); openCancellationModal('${escapeDashboardHtml(bookingDocId)}')"><i class="fas fa-times"></i> Cancel Booking</button>`);
@@ -630,9 +860,12 @@ async function loadIdDocuments() {
 // Update booking status
 async function updateBookingStatus(bookingId, status) {
   try {
-    await db.collection('bookings').doc(bookingId).update({
-      status: status,
-      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+    if (status !== 'completed') {
+      throw new Error('Only the secure completion action is supported here.');
+    }
+
+    await firebase.functions().httpsCallable('completeBookingSecure')({
+      bookingDocId: bookingId
     });
     
     // Send email to client about status update
@@ -666,19 +899,6 @@ async function updateBookingStatus(bookingId, status) {
       }
     }
     
-    // Write in-app notification to Firestore
-    try {
-      await db.collection('admin_notifications').add({
-        type: 'booking_' + status,
-        bookingId: bookingId,
-        house: booking.house || '',
-        guestName: booking.name || '',
-        guestEmail: booking.email || '',
-        message: `Booking ${bookingId} (${booking.house || 'N/A'}) marked as ${status} for ${booking.name || 'guest'}`,
-        timestamp: firebase.firestore.FieldValue.serverTimestamp(),
-        read: false
-      });
-    } catch (_) {}
 
     showToast(`Booking ${status} successfully`, 'success');
     loadBookings();
@@ -1243,18 +1463,11 @@ async function loadAnalyticsData() {
       'Four Bedroom Apartment': 0,
       'Luxury Maisonette': 0
     };
-    let totalRevenue = 0;
-
     snapshot.forEach(doc => {
       const b = doc.data();
       if (b.status === 'cancelled') return;
       if (b.timestamp) monthCounts[new Date(b.timestamp.toDate()).getMonth()]++;
       if (b.house && propMap.hasOwnProperty(b.house)) propMap[b.house]++;
-      const paid = Number(b.amountPaid);
-      const bookedTotal = Number(b.total);
-      totalRevenue += Number.isFinite(paid) && paid > 0
-        ? paid
-        : (Number.isFinite(bookedTotal) && bookedTotal > 0 ? bookedTotal : 0);
     });
 
     if (charts.bookingsChart) {
@@ -1267,8 +1480,6 @@ async function loadAnalyticsData() {
       charts.propertiesChart.update();
     }
 
-    const revenueEl = document.getElementById('monthly-revenue');
-    if (revenueEl) revenueEl.textContent = `KSh ${totalRevenue.toLocaleString()}`;
   } catch (error) {
     console.error('Error loading analytics:', error);
   }
@@ -1401,10 +1612,25 @@ async function loadStaff() {
 }
 
 async function createStaffAccount() {
+  const currentUser = firebase.auth().currentUser;
+  if (!currentUser || !currentUser.emailVerified ||
+      !isPrimaryAdminEmail(currentUser.email) ||
+      currentAdminRole !== 'primary_admin') {
+    showToast('Only the verified Primary Admin can create staff accounts.', 'error');
+    return;
+  }
+
+  const allowedStaffRoles = ['admin', 'accountant', 'manager', 'receptionist'];
+
   const email = document.getElementById('staff-email').value.trim();
   const password = document.getElementById('staff-password').value;
   const displayName = document.getElementById('staff-name').value.trim();
   const role = document.getElementById('staff-role').value;
+  if (!allowedStaffRoles.includes(role)) {
+    showToast('Invalid staff role selected.', 'error');
+    return;
+  }
+
 
   if (!email || !password || password.length < 6) {
     showToast('Fill all fields. Password must be at least 6 characters.', 'error');
@@ -1453,6 +1679,14 @@ async function createStaffAccount() {
 }
 
 async function removeStaffAccess(uid) {
+  const currentUser = firebase.auth().currentUser;
+  if (!currentUser || !currentUser.emailVerified ||
+      !isPrimaryAdminEmail(currentUser.email) ||
+      currentAdminRole !== 'primary_admin') {
+    showToast('Only the verified Primary Admin can remove staff access.', 'error');
+    return;
+  }
+
   if (!confirm('Remove this staff member\'s dashboard access?\n\nTheir Firebase account remains, but they will no longer be able to log into the admin dashboard.')) return;
   try {
     await db.collection('staff_accounts').doc(uid).delete();
@@ -1643,12 +1877,13 @@ async function loadProperties() {
         const nearby = propertyTextList(property.landmarks);
         const houseRules = propertyMultilineList(property.houseRules);
         const propertyStatus = String(property.status || 'available').toLowerCase();
+        const isArchived = property.archived === true;
         return `
           <article class="card" style="padding:1.25rem 1.5rem;">
             <div style="display:flex;justify-content:space-between;gap:1rem;align-items:flex-start;flex-wrap:wrap;">
               <div>
                 <h3 style="margin:0 0 .25rem;">${escapeDashboardHtml(property.name)}
-                  <span class="status ${propertyStatus === 'maintenance' ? 'status-cancelled' : 'status-confirmed'}" style="margin-left:.4rem;">${propertyStatus === 'maintenance' ? 'MAINTENANCE' : 'AVAILABLE'}</span>
+                  <span class="status ${isArchived ? 'status-cancelled' : (propertyStatus === 'maintenance' ? 'status-cancelled' : 'status-confirmed')}" style="margin-left:.4rem;">${isArchived ? 'ARCHIVED' : (propertyStatus === 'maintenance' ? 'MAINTENANCE' : 'AVAILABLE')}</span>
                 </h3>
                 <p style="font-size:.84rem;color:var(--text-light);margin:0;">
                   ${escapeDashboardHtml(property.type || 'Property')} ${property.location ? ` • ${escapeDashboardHtml(property.location)}` : ''}
@@ -1671,6 +1906,7 @@ async function loadProperties() {
                 Public page
               </a>
               <button class="btn btn-outline btn-sm edit-property-btn" data-doc-id="${escapeDashboardHtml(docId)}">Edit Details</button>
+              <button class="btn btn-outline btn-sm toggle-property-archive-btn" data-doc-id="${escapeDashboardHtml(docId)}" data-archived="${isArchived ? 'true' : 'false'}">${isArchived ? 'Restore' : 'Archive'}</button>
             </div>
             ${features.length ? `<p style="font-size:.82rem;margin:.75rem 0 0;"><strong>Amenities:</strong> ${escapeDashboardHtml(features.join(', '))}</p>` : ''}
             ${nearby.length ? `<p style="font-size:.82rem;margin:.3rem 0 0;"><strong>Nearby:</strong> ${escapeDashboardHtml(nearby.join(', '))}</p>` : ''}
@@ -1684,6 +1920,48 @@ async function loadProperties() {
 
   container.querySelectorAll('.edit-property-btn').forEach(button => {
     button.addEventListener('click', () => openPropertyModal(button.dataset.docId));
+  });
+
+  container.querySelectorAll('.toggle-property-archive-btn').forEach(button => {
+    button.addEventListener('click', async () => {
+      const docId = button.dataset.docId;
+      const currentlyArchived = button.dataset.archived === 'true';
+      const action = currentlyArchived ? 'restore' : 'archive';
+      const propertyName = button.closest('.card')?.querySelector('h3')?.textContent?.trim() || 'this property';
+
+      if (!docId) {
+        showToast('Property ID is missing. No changes were made.', 'error');
+        return;
+      }
+
+      const confirmed = window.confirm(
+        currentlyArchived
+          ? `Restore "${propertyName}" to the public property catalogue?`
+          : `Archive "${propertyName}"? It will be hidden from customers, but its records will be preserved.`
+      );
+      if (!confirmed) return;
+
+      button.disabled = true;
+      try {
+        await db.collection('property_settings').doc(docId).update({
+          archived: !currentlyArchived,
+          archivedAt: currentlyArchived ? null : firebase.firestore.FieldValue.serverTimestamp(),
+          archivedBy: currentlyArchived ? null : (firebase.auth().currentUser?.email || ADMIN_EMAIL),
+          updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+          updatedBy: firebase.auth().currentUser?.email || ADMIN_EMAIL
+        });
+
+        showToast(
+          currentlyArchived ? 'Property restored successfully.' : 'Property archived successfully.',
+          'success'
+        );
+        await loadProperties();
+      } catch (error) {
+        console.error(`Could not ${action} property:`, error);
+        showToast(`Could not ${action} property: ${error.message}`, 'error');
+        button.disabled = false;
+      }
+    });
   });
 }
 
@@ -1859,9 +2137,28 @@ async function savePropertyDetails() {
   }
   if (button) { button.disabled = true; button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...'; }
   try {
+    const propertiesSnapshot = await db.collection('property_settings').get();
+    const normalizedName = name.replace(/\s+/g, ' ').trim().toLowerCase();
+
+    const duplicate = propertiesSnapshot.docs.find(doc => {
+      if (doc.id === docId) return false;
+      const savedName = String(doc.data()?.name || '').replace(/\s+/g, ' ').trim().toLowerCase();
+      return savedName === normalizedName;
+    });
+
+    if (duplicate) {
+      showToast('A property with this name already exists. Please use a different name.', 'error');
+      return;
+    }
+
+    const targetId = docId || propertyDocumentId(name);
+    if (!docId && propertiesSnapshot.docs.some(doc => doc.id === targetId)) {
+      showToast('This property ID is already in use. Please choose a different property name.', 'error');
+      return;
+    }
+
     const existingSnapshot = docId ? await db.collection('property_settings').doc(docId).get() : null;
     const existing = existingSnapshot?.exists ? existingSnapshot.data() : {};
-    const targetId = docId || propertyDocumentId(name);
     const existingImages = Array.isArray(existing.images) ? existing.images.filter(Boolean) : [];
     let uploadedImages = [];
     if (files.length) {
@@ -1951,111 +2248,140 @@ function bookingPricingBreakdownHtml(lines) {
   }).join('')}</div>`;
 }
 
-async function openPaymentModal(bookingId) {
-  _pendingPaymentId = bookingId;
-  _pendingExpectedTotal = 0;
-  _pendingNights = 0;
-  _pendingPricingBreakdown = [];
-  try {
-    const snap = await db.collection('bookings').doc(bookingId).get();
-    _pendingBooking = snap.data();
-    const b = _pendingBooking || {};
-    const nights = Number(b.nights) || bookingNights(b.checkin, b.checkout);
-    const hasSavedTotal = b.total !== undefined && b.total !== null && b.total !== ''
-      && Number.isFinite(Number(b.total));
-    let expectedTotal = hasSavedTotal ? Number(b.total) : 0;
-    let breakdown = Array.isArray(b.pricingBreakdown) ? b.pricingBreakdown : [];
-    const currency = b.currency || b.pricingSnapshot?.currency || 'KSh';
 
-    if (!hasSavedTotal && window.GonahPricing) {
-      const pricingProperty = await getPropertyPricingForBooking(b);
-      if (pricingProperty) {
-        const quote = window.GonahPricing.calculateStay(pricingProperty, b.checkin, b.checkout);
-        if (quote.valid) {
-          expectedTotal = quote.total;
-          breakdown = quote.breakdown;
-        }
-      }
-    }
-    _pendingExpectedTotal = expectedTotal;
-    _pendingNights = nights;
-    _pendingPricingBreakdown = breakdown;
+async function loadPendingMpesaNotices() {
+  const container = document.getElementById('mpesa-notice-list');
+  if (!container) return;
 
-    document.getElementById('payment-modal-info').innerHTML =
-      `<strong>${escapeDashboardHtml(b.house || 'N/A')}</strong> &bull; ${escapeDashboardHtml(b.name || '')}<br>
-       <span style="color:#666;">${escapeDashboardHtml(b.checkin || '')} → ${escapeDashboardHtml(b.checkout || '')} &bull; ${nights} night${nights !== 1 ? 's' : ''} &bull; ${escapeDashboardHtml(b.email || '')}</span><br>
-       ${expectedTotal >= 0 && (hasSavedTotal || expectedTotal > 0) ? `<strong style="color:#800000;">Expected Total: ${escapeDashboardHtml(currency)} ${expectedTotal.toLocaleString('en-KE')}</strong>${bookingPricingBreakdownHtml(breakdown)}` : '<strong style="color:#9c1c1c;">No saved quote is available. Verify the rate before confirming payment.</strong>'}`;
-
-    // Auto-fill amount with expected total
-    if (expectedTotal >= 0 && (hasSavedTotal || expectedTotal > 0)) {
-      document.getElementById('payment-amount').value = expectedTotal;
-    }
-  } catch(_) {}
-  document.getElementById('payment-form').reset();
-  if (_pendingExpectedTotal > 0) document.getElementById('payment-amount').value = _pendingExpectedTotal;
-  document.getElementById('payment-modal').classList.add('active');
-}
-
-function closePaymentModal() {
-  document.getElementById('payment-modal').classList.remove('active');
-  _pendingPaymentId = null; _pendingBooking = null; _pendingExpectedTotal = 0;
-}
-
-async function submitPaymentConfirmation() {
-  if (!_pendingPaymentId) return;
-  const method = document.getElementById('payment-method').value;
-  const ref    = document.getElementById('payment-ref').value.trim();
-  const amount = document.getElementById('payment-amount').value;
-  const notes  = document.getElementById('payment-notes').value.trim();
-  if (!method || !ref || !amount) { showToast('Please fill all required fields.', 'error'); return; }
-
-  // Validate amount matches expected total
-  if (_pendingExpectedTotal > 0 && Number(amount) !== _pendingExpectedTotal) {
-    const entered = Number(amount).toLocaleString();
-    const expected = _pendingExpectedTotal.toLocaleString();
-    showToast(
-      `Amount KSh ${entered} does not match the expected total of KSh ${expected} for ${_pendingNights} night${_pendingNights!==1?'s':''}. Please enter the correct amount to confirm.`,
-      'error'
-    );
+  if (currentAdminRole !== 'primary_admin') {
+    container.innerHTML = '<p>Access restricted to the Primary Admin.</p>';
     return;
   }
 
-  const btn = document.getElementById('confirm-payment-btn');
-  btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Confirming...';
+  container.innerHTML = '<p>Loading pending M-Pesa notices...</p>';
+
   try {
-    await db.collection('bookings').doc(_pendingPaymentId).update({
-      status: 'confirmed',
-      paymentMethod: method, transactionRef: ref,
-      amountPaid: Number(amount), paymentNotes: notes,
-      paymentConfirmedAt: firebase.firestore.FieldValue.serverTimestamp(),
-      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-    });
+    const result = await firebase.functions()
+      .httpsCallable('listPendingMpesaPaymentNoticesSecure')({});
 
-    const b = _pendingBooking || {};
-    if (b.email) {
-      const msg = `Your booking has been CONFIRMED!\n\nBooking ID: ${_pendingPaymentId}\nProperty: ${b.house}\nCheck-in: ${b.checkin}\nCheck-out: ${b.checkout}\n\nPayment Received:\nMethod: ${method}\nTransaction Reference: ${ref}\nAmount: KSh ${Number(amount).toLocaleString()}${notes ? '\nNotes: ' + notes : ''}\n\nWe look forward to hosting you at Gonah Homes!`;
-      try {
-        await emailjs.send(emailConfig.serviceId, emailConfig.clientTemplate, {
-          to_name: b.name, to_email: b.email, from_name: 'Gonah Homes',
-          subject: `Booking Confirmed — ${_pendingPaymentId}`, message: msg
-        });
-      } catch(e) { console.warn('Email failed:', e.message); }
+    const notices = Array.isArray(result.data?.notices)
+      ? result.data.notices
+      : [];
+
+    if (!notices.length) {
+      container.innerHTML = '<p>No pending M-Pesa payment notices.</p>';
+      return;
     }
-    try {
-      await db.collection('admin_notifications').add({
-        type: 'booking_confirmed', bookingId: _pendingPaymentId,
-        house: b.house || '', guestName: b.name || '',
-        message: `Booking ${_pendingPaymentId} confirmed. ${method} ref: ${ref}`,
-        timestamp: firebase.firestore.FieldValue.serverTimestamp(), read: false
-      });
-    } catch(_) {}
 
-    showToast('Booking confirmed. Guest notified by email.', 'success');
-    closePaymentModal(); loadBookings();
-  } catch(err) {
-    showToast('Error confirming: ' + err.message, 'error');
-  } finally {
-    btn.disabled = false; btn.innerHTML = '<i class="fas fa-check-circle"></i> Confirm Booking & Notify Guest';
+    container.innerHTML = notices.map(n => {
+      const submitted = n.submittedAt;
+      let submittedText = 'Not available';
+
+      try {
+        const date = submitted?.toDate
+          ? submitted.toDate()
+          : new Date(submitted?.seconds
+              ? submitted.seconds * 1000
+              : submitted);
+        if (!Number.isNaN(date.getTime())) {
+          submittedText = date.toLocaleString('en-KE');
+        }
+      } catch (_) {}
+
+      const amount = Number(n.expectedAmount);
+      const amountText = Number.isFinite(amount)
+        ? amount.toLocaleString('en-KE')
+        : 'Requires review';
+
+      return `
+        <div style="background:#fff;border:1px solid #ddd;border-radius:10px;padding:1rem;margin-bottom:1rem;">
+          <div style="display:flex;justify-content:space-between;gap:1rem;flex-wrap:wrap;">
+            <strong>Booking: ${escapeDashboardHtml(n.bookingId)}</strong>
+            <strong>KSh ${amountText}</strong>
+          </div>
+          <p><strong>Guest email:</strong> ${escapeDashboardHtml(n.guestEmail)}</p>
+          <p><strong>Payer phone:</strong> ${escapeDashboardHtml(n.payerPhone)}</p>
+          <p><strong>M-Pesa code:</strong> ${escapeDashboardHtml(n.transactionCode)}</p>
+          <p><strong>Payment option:</strong> ${escapeDashboardHtml(n.paymentOption)}</p>
+          <p><strong>Submitted:</strong> ${escapeDashboardHtml(submittedText)}</p>
+          <p style="color:#9c1c1c;font-weight:600;">
+            Verify the transaction code, amount and payer phone against actual M-Pesa records before approval.
+          </p>
+          <div style="display:flex;gap:.6rem;flex-wrap:wrap;">
+            <button class="btn btn-success btn-sm"
+              onclick="verifyMpesaNotice('${n.paymentId}')">
+              Verify payment
+            </button>
+            <button class="btn btn-danger btn-sm"
+              onclick="rejectMpesaNotice('${n.paymentId}')">
+              Reject notice
+            </button>
+          </div>
+        </div>`;
+    }).join('');
+  } catch (error) {
+    console.error('Unable to load M-Pesa notices:', error);
+    container.innerHTML = '<p style="color:#b00020;">Unable to load payment notices. Please refresh and try again.</p>';
+  }
+}
+
+async function verifyMpesaNotice(paymentId) {
+  if (currentAdminRole !== 'primary_admin') {
+    showToast('Only the Primary Admin can verify payments.', 'error');
+    return;
+  }
+
+  if (!window.confirm(
+    'Have you checked this transaction code, amount and payer phone against actual M-Pesa records?'
+  )) return;
+
+  const notes = window.prompt('Verification notes (optional):', '');
+  if (notes === null) return;
+
+  try {
+    const result = await firebase.functions()
+      .httpsCallable('verifyMpesaPaymentNoticeSecure')({
+        paymentId,
+        notes: notes.trim()
+      });
+
+    showToast(
+      `Payment verified. Amount: KSh ${Number(result.data.amountVerified).toLocaleString('en-KE')}. Balance: KSh ${Number(result.data.balanceDue).toLocaleString('en-KE')}.`,
+      'success'
+    );
+
+    await loadPendingMpesaNotices();
+    loadBookings();
+  } catch (error) {
+    showToast('Payment verification failed: ' + (error.message || error), 'error');
+  }
+}
+
+async function rejectMpesaNotice(paymentId) {
+  if (currentAdminRole !== 'primary_admin') {
+    showToast('Only the Primary Admin can reject payment notices.', 'error');
+    return;
+  }
+
+  const reason = window.prompt('Enter the reason for rejecting this payment notice:');
+  if (reason === null) return;
+
+  if (reason.trim().length < 5) {
+    showToast('Please enter a rejection reason of at least 5 characters.', 'error');
+    return;
+  }
+
+  try {
+    await firebase.functions()
+      .httpsCallable('rejectMpesaPaymentNoticeSecure')({
+        paymentId,
+        reason: reason.trim()
+      });
+
+    showToast('Payment notice rejected. Booking payment details were not changed.', 'success');
+    await loadPendingMpesaNotices();
+  } catch (error) {
+    showToast('Rejection failed: ' + (error.message || error), 'error');
   }
 }
 
@@ -2086,12 +2412,9 @@ async function submitCancellation() {
   const btn = document.getElementById('confirm-cancel-btn');
   btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Cancelling...';
   try {
-    await db.collection('bookings').doc(_pendingCancelId).update({
-      status: 'cancelled',
-      cancellationReason: reason,
-      cancelledAt: firebase.firestore.FieldValue.serverTimestamp(),
-      cancelledBy: firebase.auth().currentUser?.email || ADMIN_EMAIL,
-      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+    await firebase.functions().httpsCallable('cancelBookingSecure')({
+      bookingDocId: _pendingCancelId,
+      reason: reason
     });
 
     const b = _pendingBooking || {};
@@ -2115,25 +2438,103 @@ async function submitCancellation() {
   }
 }
 
+// Load immutable audit records. Access is restricted by both dashboard roles
+// and Firestore rules; only trusted backend functions can write these records.
+async function loadDashboardActivity() {
+  const container = document.getElementById('dashboard-activity-list');
+  if (!container) return;
+
+  if (!['primary_admin', 'admin'].includes(currentAdminRole)) {
+    container.textContent = 'You do not have permission to view activity records.';
+    return;
+  }
+
+  container.textContent = 'Loading activity records...';
+
+  try {
+    const snapshot = await db.collection('dashboard_activity')
+      .orderBy('createdAt', 'desc')
+      .limit(100)
+      .get();
+
+    container.replaceChildren();
+
+    if (snapshot.empty) {
+      container.textContent = 'No activity records have been recorded yet.';
+      return;
+    }
+
+    snapshot.forEach(doc => {
+      const item = doc.data() || {};
+      const card = document.createElement('div');
+      card.style.cssText = 'padding:1rem;margin-bottom:.75rem;border:1px solid #e5e5e5;border-radius:8px;background:#fff;';
+
+      const heading = document.createElement('strong');
+      heading.textContent = String(item.action || 'Activity').replace(/_/g, ' ').toUpperCase();
+      card.appendChild(heading);
+
+      const details = [
+        ['Actor', item.actorEmail || 'Unknown'],
+        ['Role', item.actorRole || 'N/A'],
+        ['Record', item.bookingId || item.bookingDocId || item.entityType || 'N/A'],
+        ['Guest', item.guestName || 'N/A'],
+        ['Previous status', item.previousStatus || 'N/A'],
+        ['Reason / details', item.reason || item.details || 'N/A']
+      ];
+
+      details.forEach(([label, value]) => {
+        const line = document.createElement('p');
+        line.style.cssText = 'margin:.4rem 0;color:#555;overflow-wrap:anywhere;';
+        const labelNode = document.createElement('strong');
+        labelNode.textContent = label + ': ';
+        line.appendChild(labelNode);
+        line.appendChild(document.createTextNode(String(value)));
+        card.appendChild(line);
+      });
+
+      const time = document.createElement('p');
+      time.style.cssText = 'margin:.5rem 0 0;color:#888;font-size:.85rem;';
+      let dateText = 'Time unavailable';
+      if (item.createdAt && typeof item.createdAt.toDate === 'function') {
+        dateText = item.createdAt.toDate().toLocaleString();
+      }
+      time.textContent = 'Recorded: ' + dateText;
+      card.appendChild(time);
+
+      container.appendChild(card);
+    });
+  } catch (error) {
+    console.error('Activity log loading failed:', error);
+    container.textContent = 'Unable to load activity records. Check your access and connection.';
+  }
+}
+
 // ===================== SECTION SWITCHING =====================
 function switchSection(sectionName) {
-  // Update nav links
-  document.querySelectorAll('.nav-link').forEach(link => {
-    link.classList.remove('active');
-  });
-  document.querySelector(`[data-section="${sectionName}"]`).classList.add('active');
-  
-  // Update content sections
-  document.querySelectorAll('.content-section').forEach(section => {
-    section.classList.remove('active');
-  });
-  document.getElementById(`${sectionName}-section`).classList.add('active');
-  
-  // Update page title
+  if (!canAccessSection(sectionName)) {
+    showToast('You do not have permission to access this section.', 'error');
+    return;
+  }
+
+  const targetSection = document.getElementById(`${sectionName}-section`);
+  const targetLink = document.querySelector(`[data-section="${sectionName}"]`);
+
+  if (!targetSection || !targetLink) {
+    showToast('Section not found.', 'error');
+    return;
+  }
+
+  document.querySelectorAll('.nav-link').forEach(link => link.classList.remove('active'));
+  targetLink.classList.add('active');
+
+  document.querySelectorAll('.content-section').forEach(section => section.classList.remove('active'));
+  targetSection.classList.add('active');
+
   const titles = {
     overview: 'Dashboard Overview',
     bookings: 'Booking Management',
     messages: 'Message Management',
+    'service-requests': 'Service Requests',
     reviews: 'Review Management',
     analytics: 'Analytics & Reports',
     announcements: 'Announcements & Offers',
@@ -2141,20 +2542,17 @@ function switchSection(sectionName) {
     documents: 'Guest ID Documents',
     staff: 'Staff Accounts',
     properties: 'Property Management',
-    settings: 'System Settings'
+    settings: 'System Settings',
+    'activity-log': 'Dashboard Activity Log',
+    'mpesa-verification': 'M-Pesa Payment Verification'
   };
+
   document.getElementById('page-title').textContent = titles[sectionName] || sectionName;
 
-  // Lazy-load data for sections not loaded at startup
-  if (sectionName === 'staff') {
-    if (!isPrimaryAdminEmail(firebase.auth().currentUser?.email)) {
-      showToast('Only the primary admin can manage staff accounts.', 'error');
-      switchSection('overview');
-      return;
-    }
-    loadStaff();
-  }
+  if (sectionName === 'staff') loadStaff();
   if (sectionName === 'properties') loadProperties();
+  if (sectionName === 'activity-log') loadDashboardActivity();
+  if (sectionName === 'mpesa-verification') loadPendingMpesaNotices();
 
   currentSection = sectionName;
 }
@@ -2164,21 +2562,36 @@ function updateStats() {
 }
 
 // Event listeners
-function toggleSidebar() {
+function setSidebarOpen(open) {
   const sidebar = document.querySelector('.sidebar');
-  if (sidebar) sidebar.classList.toggle('active');
+  const toggle = document.getElementById('menu-toggle');
+  const icon = toggle?.querySelector('i');
+
+  if (!sidebar || !toggle) return;
+
+  sidebar.classList.toggle('active', open);
+  toggle.setAttribute('aria-expanded', String(open));
+
+  if (icon) {
+    icon.classList.toggle('fa-bars', !open);
+    icon.classList.toggle('fa-times', open);
+  }
 }
 
-// Close sidebar when clicking a nav link on mobile
+function toggleSidebar() {
+  const sidebar = document.querySelector('.sidebar');
+  if (sidebar) setSidebarOpen(!sidebar.classList.contains('active'));
+}
+
+// Close the floating menu when clicking outside it on any screen
 document.addEventListener('click', function(e) {
   const sidebar = document.querySelector('.sidebar');
   const toggle = document.getElementById('menu-toggle');
-  if (!sidebar || !toggle) return;
-  // If mobile sidebar is open and click is outside sidebar and not on toggle
-  if (window.innerWidth <= 768 && sidebar.classList.contains('active')) {
-    if (!sidebar.contains(e.target) && e.target !== toggle && !toggle.contains(e.target)) {
-      sidebar.classList.remove('active');
-    }
+
+  if (!sidebar || !toggle || !sidebar.classList.contains('active')) return;
+
+  if (!sidebar.contains(e.target) && !toggle.contains(e.target)) {
+    setSidebarOpen(false);
   }
 });
 
@@ -2202,10 +2615,8 @@ document.addEventListener('DOMContentLoaded', function() {
       e.preventDefault();
       const section = this.getAttribute('data-section');
       switchSection(section);
-      // Close mobile sidebar after navigation
-      if (window.innerWidth <= 768) {
-        document.querySelector('.sidebar')?.classList.remove('active');
-      }
+      // Close the floating menu after navigation on every screen
+      setSidebarOpen(false);
     });
   });
   
@@ -2321,10 +2732,9 @@ function analyticsNights(b) {
 }
 
 function analyticsEstimate(b) {
+  if (String(b.status || '').toLowerCase() !== 'confirmed') return 0;
   const paid = Number(b.amountPaid);
-  if (Number.isFinite(paid) && paid > 0) return paid;
-  const total = Number(b.total);
-  return Number.isFinite(total) && total > 0 ? total : 0;
+  return Number.isFinite(paid) && paid > 0 ? paid : 0;
 }
 
 function analyticsInRange(b, start, end) {
@@ -2556,40 +2966,57 @@ function decorateBookingRows() {
 
 async function runBookingArchiveAction() {
   const archivedView = bookingViewIsArchived();
-  const ids = Array.from(document.querySelectorAll('#bookings-table .bk-select:checked')).map(cb => cb.value);
+  const ids = Array.from(
+    document.querySelectorAll('#bookings-table .bk-select:checked')
+  ).map(cb => cb.value);
+
   if (!ids.length) return;
-  const allowed = [];
-  let skipped = 0;
-  ids.forEach(id => {
-    const b = adminBookingCache.get(id) || {};
-    if (!archivedView && bookingArchiveBlockReason(b)) skipped++;
-    else allowed.push(id);
-  });
-  if (!allowed.length) { alert('None of the selected bookings can be archived right now.'); return; }
+
   const verb = archivedView ? 'Restore' : 'Archive';
-  let msg = verb + ' ' + allowed.length + ' booking' + (allowed.length === 1 ? '' : 's') + '?';
-  if (!archivedView) msg += '\n\nThey will be hidden from this list, not deleted. You can restore them from the "Archived bookings" view.';
-  if (skipped) msg += '\n\n' + skipped + ' selected booking(s) cannot be archived and will be skipped.';
+  const msg = verb + ' ' + ids.length + ' selected booking' +
+    (ids.length === 1 ? '' : 's') + '?' +
+    (archivedView
+      ? '\n\nRestored bookings will return to the active bookings list.'
+      : '\n\nBookings will be hidden from this list, not deleted. You can restore them from the "Archived bookings" view.');
+
   if (!confirm(msg)) return;
+
   const btn = document.getElementById('bk-action-btn');
   if (btn) btn.disabled = true;
+
   try {
-    for (let i = 0; i < allowed.length; i += 400) {
-      const batch = db.batch();
-      allowed.slice(i, i + 400).forEach(id => {
-        const ref = db.collection('bookings').doc(id);
-        batch.update(ref, archivedView
-          ? { archived: false, archivedAt: firebase.firestore.FieldValue.delete() }
-          : { archived: true, archivedAt: firebase.firestore.FieldValue.serverTimestamp() });
-      });
-      await batch.commit();
-    }
+    const callable = firebase.functions().httpsCallable(
+      'manageBookingArchiveSecure'
+    );
+
+    const response = await callable({
+      action: archivedView ? 'restore' : 'archive',
+      bookingDocIds: ids
+    });
+
+    const result = response.data || {};
     await loadBookings();
+
+    const updated = Number(result.updatedCount || 0);
+    const skipped = Number(result.skippedCount || 0);
+
+    showToast(
+      updated + ' booking(s) ' +
+      (archivedView ? 'restored' : 'archived') +
+      (skipped ? '; ' + skipped + ' skipped.' : '.'),
+      updated ? 'success' : 'info'
+    );
+
+    if (Array.isArray(result.skipped) && result.skipped.length) {
+      console.warn('Archive/restore skipped bookings:', result.skipped);
+    }
   } catch (error) {
-    console.error('Archive action failed:', error);
-    alert('Could not update bookings: ' + error.message);
+    console.error('Archive/restore action failed:', error);
+    alert('Could not update bookings: ' + (error.message || error));
+  } finally {
+    if (btn) btn.disabled = false;
+    updateBookingSelectionCount();
   }
-  updateBookingSelectionCount();
 }
 
 const loadBookingsOriginal = loadBookings;
@@ -2682,3 +3109,90 @@ async function receiptInAppAdmin(docId) {
     showToast('Receipt marked as sent in the guest account.', 'success');
   } catch (e) { showToast('Could not mark the receipt as sent.', 'error'); }
 }
+
+// GONAH HOMES — CUSTOM BOOKING STATUS DROPDOWN
+document.addEventListener('DOMContentLoaded', function () {
+  const original = document.getElementById('booking-status-filter');
+  if (!original || original.dataset.customDropdownReady) return;
+
+  original.dataset.customDropdownReady = '1';
+
+  const wrapper = document.createElement('div');
+  wrapper.className = 'gonah-select';
+  wrapper.innerHTML = `
+    <button type="button" class="gonah-select-trigger"
+      aria-haspopup="listbox" aria-expanded="false">
+      <span class="gonah-select-value">All Status</span>
+      <i class="fas fa-chevron-down"></i>
+    </button>
+    <div class="gonah-select-menu" role="listbox" hidden></div>
+  `;
+
+  original.parentNode.insertBefore(wrapper, original);
+  original.classList.add('gonah-native-select-hidden');
+
+  const trigger = wrapper.querySelector('.gonah-select-trigger');
+  const valueText = wrapper.querySelector('.gonah-select-value');
+  const menu = wrapper.querySelector('.gonah-select-menu');
+
+  function syncOptions() {
+    menu.innerHTML = '';
+
+    Array.from(original.options).forEach(option => {
+      const item = document.createElement('button');
+      item.type = 'button';
+      item.className = 'gonah-select-option';
+      item.textContent = option.textContent;
+      item.setAttribute('role', 'option');
+      item.setAttribute('aria-selected', String(option.value === original.value));
+
+      if (option.value === original.value) item.classList.add('selected');
+
+      item.addEventListener('click', function () {
+        original.value = option.value;
+        original.dispatchEvent(new Event('change', { bubbles: true }));
+        closeMenu();
+        syncOptions();
+      });
+
+      menu.appendChild(item);
+    });
+
+    const selected = original.options[original.selectedIndex];
+    valueText.textContent = selected ? selected.textContent : 'All Status';
+  }
+
+  function openMenu() {
+    syncOptions();
+    menu.hidden = false;
+    wrapper.classList.add('open');
+    trigger.setAttribute('aria-expanded', 'true');
+  }
+
+  function closeMenu() {
+    menu.hidden = true;
+    wrapper.classList.remove('open');
+    trigger.setAttribute('aria-expanded', 'false');
+  }
+
+  trigger.addEventListener('click', function () {
+    if (menu.hidden) openMenu();
+    else closeMenu();
+  });
+
+  original.addEventListener('change', syncOptions);
+
+  document.addEventListener('click', function (event) {
+    if (!wrapper.contains(event.target)) closeMenu();
+  });
+
+  document.addEventListener('keydown', function (event) {
+    if (event.key === 'Escape') closeMenu();
+  });
+
+  new MutationObserver(syncOptions).observe(original, {
+    childList: true
+  });
+
+  syncOptions();
+});
