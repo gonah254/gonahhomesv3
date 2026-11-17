@@ -2609,6 +2609,52 @@ document.addEventListener('DOMContentLoaded', function() {
     await login(username, password);
   });
 
+  // Firebase password reset
+  const forgotPasswordBtn = document.getElementById('forgot-password-btn');
+  forgotPasswordBtn?.addEventListener('click', async function() {
+    const email = document.getElementById('username').value.trim();
+
+    if (!email) {
+      showToast('Enter your account email in the Username/Email field first.', 'error');
+      document.getElementById('username').focus();
+      return;
+    }
+
+    forgotPasswordBtn.disabled = true;
+    forgotPasswordBtn.textContent = 'Sending reset email...';
+
+    try {
+      await firebase.auth().sendPasswordResetEmail(email);
+      showToast('If an account exists for that email, a password reset link has been sent. Check your inbox and spam folder.', 'success');
+    } catch (error) {
+      console.error('Password reset error:', error);
+      const messages = {
+        'auth/invalid-email': 'Please enter a valid email address.',
+        'auth/too-many-requests': 'Too many attempts. Please try again later.',
+        'auth/operation-not-allowed': 'Password reset is not enabled in Firebase Authentication.'
+      };
+      showToast(messages[error.code] || 'Unable to send the reset email. Please try again later.', 'error');
+    } finally {
+      forgotPasswordBtn.disabled = false;
+      forgotPasswordBtn.textContent = 'Forgot Password?';
+    }
+  });
+
+  // Password visibility toggle
+  const passwordInput = document.getElementById('password');
+  const togglePasswordBtn = document.getElementById('toggle-password');
+
+  togglePasswordBtn?.addEventListener('click', function() {
+    const showing = passwordInput.type === 'password';
+    passwordInput.type = showing ? 'text' : 'password';
+    togglePasswordBtn.innerHTML = showing
+      ? '<i class="fas fa-eye-slash" aria-hidden="true"></i>'
+      : '<i class="fas fa-eye" aria-hidden="true"></i>';
+    togglePasswordBtn.setAttribute('aria-label', showing ? 'Hide password' : 'Show password');
+    togglePasswordBtn.setAttribute('aria-pressed', String(showing));
+    passwordInput.focus();
+  });
+
   // Navigation
   document.querySelectorAll('.nav-link').forEach(link => {
     link.addEventListener('click', function(e) {
