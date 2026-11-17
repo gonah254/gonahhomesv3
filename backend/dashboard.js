@@ -1564,7 +1564,7 @@ function showToast(message, type = 'info') {
   setTimeout(() => {
     toast.classList.remove('show');
     setTimeout(() => document.body.removeChild(toast), 300);
-  }, 3000);
+  }, type === 'error' ? 8000 : 6000);
 }
 
 // Modal functions
@@ -2625,7 +2625,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     try {
       await firebase.auth().sendPasswordResetEmail(email);
-      showToast('If an account exists for that email, a password reset link has been sent. Check your inbox and spam folder.', 'success');
+      showToast('A password reset link has been sent to your registered email. Please check your inbox or spam folder.', 'success');
     } catch (error) {
       console.error('Password reset error:', error);
       const messages = {
