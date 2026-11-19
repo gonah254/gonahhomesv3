@@ -534,96 +534,153 @@ function openBookingDetails(bookingDocId) {
   );
 }
 
-async function viewUserDocs(userId) {
-  const bookingCode = String(userId || '').replace(/^booking_/, '');
-  if (!bookingCode) return alert('No booking code associated');
-  const docs = await db.collection('users').doc(`booking_${bookingCode}`).collection('documents').get();
-  if (docs.empty) return alert('No documents uploaded');
-  const firstDoc = docs.docs[0];
-  const documentData = firstDoc.data();
-  const cacheKey = `${bookingCode}_${firstDoc.id}`;
-  adminDocumentCache.set(cacheKey, documentData);
-  openAdminDocument(cacheKey);
+function escapeStaffDocumentHtml(value) {
+  return String(value ?? "").replace(/[&<>"']/g, ch => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;",
+    '"': "&quot;", "'": "&#39;"
+  })[ch]);
 }
 
-function documentDate(value) {
-  if (!value) return '';
-  try {
-    return value.toDate ? value.toDate().toLocaleString() : new Date(value).toLocaleString();
-  } catch (_) {
-    return '';
+async function fetchStaffDocument(bookingCode, documentId) {
+  const call = firebase.functions()
+    .httpsCallable("getStaffGuestDocumentSecure");
+  const result = await call({ bookingCode, documentId });
+  return result.data;
+}
+
+function renderStaffDocumentWindow(win, data) {
+  const content = data.data || data.url || "";
+  if (!content) {
+    win.close();
+    alert("This document has no viewable file data.");
+    return;
   }
-}
 
-function documentContentUrl(documentData) {
-  if (!documentData) return '';
-  return documentData.url || documentData.downloadURL || documentData.downloadUrl || documentData.data || '';
-}
+  const safeUrl = String(content).replace(/"/g, "&quot;");
+  const isPdf = data.type === "application/pdf" ||
+    /\.pdf($|\?)/i.test(data.name || "");
 
-function openAdminDocument(documentId) {
-  const documentData = adminDocumentCache.get(documentId);
-  const contentUrl = documentContentUrl(documentData);
-  if (!contentUrl) return alert('This document has no viewable file data.');
-  const win = window.open('', '_blank', 'width=900,height=700');
-  if (!win) return alert('Please allow pop-ups to view the document.');
-  const safeUrl = String(contentUrl).replace(/"/g, '&quot;');
-  const isPdf = documentData.type === 'application/pdf' || /\.pdf($|\?)/i.test(documentData.name || '');
+  win.document.open();
   win.document.write(isPdf
     ? `<html><body style="margin:0;background:#222;"><iframe src="${safeUrl}" style="border:0;width:100vw;height:100vh;"></iframe></body></html>`
-    : `<html><body style="margin:0;background:#222;display:flex;align-items:center;justify-content:center;min-height:100vh;"><img src="${safeUrl}" alt="Guest document" style="max-width:100%;max-height:100vh;object-fit:contain;" onerror="document.body.innerHTML='<p style=color:white;font-family:sans-serif>Image unavailable</p>'"></body></html>`);
+    : `<html><body style="margin:0;background:#222;display:flex;align-items:center;justify-content:center;min-height:100vh;"><img src="${safeUrl}" alt="Guest document" style="max-width:100%;max-height:100vh;object-fit:contain;"></body></html>`
+  );
   win.document.close();
 }
 
-async function loadIdDocuments() {
-  const container = document.getElementById('id-documents-list');
-  if (!container) return;
-  container.innerHTML = '<p style="color:var(--text-light);text-align:center;padding:2rem;"><i class="fas fa-spinner fa-spin"></i> Loading documents...</p>';
-  adminDocumentCache.clear();
+async function viewUserDocs(userId) {
+  const bookingCode = String(userId || "").replace(/^booking_/, "");
+  if (!bookingCode) return alert("No booking code associated.");
+
+  const win = window.open("", "_blank", "width=900,height=700");
+  if (!win) return alert("Please allow pop-ups to view the document.");
+
   try {
-    const bookingsSnapshot = await db.collection('bookings').get();
-    const documentGroups = await Promise.all(bookingsSnapshot.docs.map(async bookingDoc => {
-      const booking = bookingDoc.data();
-      const bookingCode = booking.id || bookingDoc.id;
-      const docsSnapshot = await db.collection('users').doc(`booking_${bookingCode}`).collection('documents').get();
-      return docsSnapshot.docs.map(documentDoc => ({
-        booking,
-        bookingCode,
-        id: documentDoc.id,
-        data: documentDoc.data()
-      }));
-    }));
-    const documents = documentGroups.flat().sort((a, b) => {
-      const aTime = a.data.uploadedAt?.seconds || 0;
-      const bTime = b.data.uploadedAt?.seconds || 0;
-      return bTime - aTime;
-    });
+    const call = firebase.functions()
+      .httpsCallable("listStaffGuestDocumentsSecure");
+    const result = await call();
+    const item = (result.data || []).find(d => d.bookingCode === bookingCode);
+
+    if (!item) {
+      win.close();
+      return alert("No documents uploaded.");
+    }
+
+    const data = await fetchStaffDocument(item.bookingCode, item.id);
+    renderStaffDocumentWindow(win, data);
+  } catch (error) {
+    win.close();
+    console.error("Secure guest document access failed:", error);
+    alert("Unable to retrieve this document. Check your staff permissions.");
+  }
+}
+
+async function openAdminDocument(documentKey) {
+  const item = adminDocumentCache.get(documentKey);
+  if (!item || !item.bookingCode || !item.id) {
+    return alert("Invalid document reference.");
+  }
+
+  const win = window.open("", "_blank", "width=900,height=700");
+  if (!win) return alert("Please allow pop-ups to view the document.");
+
+  try {
+    const data = await fetchStaffDocument(item.bookingCode, item.id);
+    renderStaffDocumentWindow(win, data);
+  } catch (error) {
+    win.close();
+    console.error("Secure document retrieval failed:", error);
+    alert("Unable to open this document. Check your staff permissions.");
+  }
+}
+
+async function loadIdDocuments() {
+  const container = document.getElementById("id-documents-list");
+  if (!container) return;
+
+  container.innerHTML =
+    '<p style="text-align:center;padding:2rem;">Loading documents...</p>';
+  adminDocumentCache.clear();
+
+  try {
+    const call = firebase.functions()
+      .httpsCallable("listStaffGuestDocumentsSecure");
+    const result = await call();
+    const documents = result.data || [];
+
     if (!documents.length) {
-      container.innerHTML = '<p style="color:var(--text-light);text-align:center;padding:2rem;">No guest documents uploaded yet.</p>';
+      container.innerHTML =
+        '<p style="text-align:center;padding:2rem;">No guest documents uploaded yet.</p>';
       return;
     }
+
     container.innerHTML = documents.map(item => {
       const cacheKey = `${item.bookingCode}_${item.id}`;
-      adminDocumentCache.set(cacheKey, item.data);
-      const contentUrl = documentContentUrl(item.data);
-      const isPdf = item.data.type === 'application/pdf' || /\.pdf$/i.test(item.data.name || '');
-      const encodedId = cacheKey.replace(/'/g, '&#39;');
+
+      adminDocumentCache.set(cacheKey, {
+        bookingCode: item.bookingCode,
+        id: item.id,
+        name: item.name,
+        type: item.type
+      });
+
+      const isPdf = item.type === "application/pdf" ||
+        /\.pdf($|\?)/i.test(item.name || "");
+      const safeKey = cacheKey.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+      const safeName = escapeStaffDocumentHtml(item.name || "Uploaded document");
+      const safeGuest = escapeStaffDocumentHtml(item.bookingName || "Guest");
+      const safeEmail = escapeStaffDocumentHtml(item.bookingEmail || "");
+      const safeBooking = escapeStaffDocumentHtml(item.bookingCode || "");
+      const safeDate = escapeStaffDocumentHtml(item.uploadedAt || "");
+
       return `<article class="review-card">
         <div class="review-header">
           <div style="flex:1;">
-            <strong>${item.booking.name || 'Guest'}</strong>
-            <div style="font-size:0.82rem;color:var(--text-light);">${item.booking.email || ''}</div>
-            <div style="font-size:0.82rem;color:var(--text-light);">Booking: ${item.bookingCode}</div>
+            <strong>${safeGuest}</strong>
+            <div style="font-size:0.82rem;color:var(--text-light);">${safeEmail}</div>
+            <div style="font-size:0.82rem;color:var(--text-light);">Booking: ${safeBooking}</div>
           </div>
-          <i class="fas ${isPdf ? 'fa-file-pdf' : 'fa-file-image'}" style="font-size:2rem;color:var(--primary-color);"></i>
+          <i class="fas ${isPdf ? "fa-file-pdf" : "fa-file-image"}"
+             style="font-size:2rem;color:var(--primary-color);"></i>
         </div>
-        <p style="margin:0.75rem 0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${item.data.name || 'Uploaded document'}</p>
-        <small style="color:var(--text-light);">${documentDate(item.data.uploadedAt)}</small>
-        ${contentUrl ? `<button class="btn btn-primary btn-sm" style="margin-top:0.75rem;" onclick="openAdminDocument('${encodedId}')"><i class="fas fa-eye"></i> View</button>` : '<small style="color:#c62828;">File data unavailable</small>'}
+        <p style="margin:0.75rem 0;">${safeName}</p>
+        <small style="color:var(--text-light);">${safeDate}</small>
+        ${item.hasContent
+          ? `<button class="btn btn-primary btn-sm" style="margin-top:0.75rem;"
+               onclick="openAdminDocument('${safeKey}')">
+               <i class="fas fa-eye"></i> View
+             </button>`
+          : '<small style="color:#c62828;">File data unavailable</small>'}
       </article>`;
-    }).join('');
+    }).join("");
   } catch (error) {
-    console.error('Error loading ID documents:', error);
-    container.innerHTML = `<p style="color:#c62828;text-align:center;padding:2rem;">Error loading documents: ${error.message}</p>`;
+    console.error("Secure guest document listing failed:", error);
+    container.innerHTML = '<p style="color:#c62828;text-align:center;padding:2rem;"></p>';
+    const errorDisplay = container.querySelector("p");
+    errorDisplay.textContent =
+      "Unable to load guest IDs. Firebase error: " +
+      (error?.code || "unknown") + " — " +
+      (error?.message || String(error));
   }
 }
 
