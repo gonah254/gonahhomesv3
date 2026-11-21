@@ -394,7 +394,27 @@ async function loadStats() {
     const unreadMessages = messagesSnap.docs.filter(doc => doc.data().status === 'new').length;
     const pendingServices = serviceSnap.docs.filter(doc => doc.data().status === 'pending').length;
     const avgRating = reviewsSnap.docs.reduce((sum, doc) => sum + (parseFloat(doc.data().rating) || 0), 0) / reviewsSnap.size || 5.0;
-    const monthlyRevenue = totalBookings * 5000; // Example calculation
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const nextMonthStart = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+
+    const monthlyRevenue = bookingsSnap.docs.reduce((sum, doc) => {
+      const reconciliation = doc.data().financialReconciliation;
+      if (!reconciliation || reconciliation.status !== 'reconciled') return sum;
+
+      const reconciledAt = reconciliation.reconciledAt?.toDate
+        ? reconciliation.reconciledAt.toDate()
+        : new Date(reconciliation.reconciledAt);
+
+      if (
+        isNaN(reconciledAt.getTime()) ||
+        reconciledAt < monthStart ||
+        reconciledAt >= nextMonthStart
+      ) return sum;
+
+      const markup = Number(reconciliation.gonahMarkup);
+      return sum + (Number.isSafeInteger(markup) && markup >= 0 ? markup : 0);
+    }, 0);
 
     document.getElementById('total-bookings').textContent = totalBookings;
     document.getElementById('unread-messages').textContent = unreadMessages;
